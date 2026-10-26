@@ -1,0 +1,117 @@
+server:
+  port: 8080
+  # forward-headers-strategy: native   # reverse proxy 도입 시 활성화
+
+spring:
+  datasource:
+    # url: jdbc:postgresql://localhost:5432/vulndb
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/vulndb}
+    username: vulnuser
+    # 기본 비번 없음 (CWE-798): docker/.env → compose 가 주입. 미주입 시 빈 비번으로 DB 인증 실패 → 기동 실패
+    # (빈 기본값은 컨텍스트 로드 테스트의 DB 가용성 검사가 placeholder 해석 예외 없이 skip 되도록 하기 위함)
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+
+  jackson:
+    serialization:
+      indent-output: true
+
+  # Flyway 자동설정 OFF — 켜 두면 취약 앱 datasource(public)에 flyway_schema_history 를 만든다.
+  # validation schema 마이그레이션은 ValidationSchemaMigrator 가 validation datasource 로만 실행
+  # Boot 4: 자동설정은 spring-boot-starter-flyway 에만 있어(미사용) 지금은 효과 없음 — 스타터가 들어올 때를 대비해 남겨 둔다
+  flyway:
+    enabled: false
+
+app:
+  # upload-dir: C:/app/uploads
+  upload-dir: ${APP_UPLOAD_DIR:C:/app/uploads}
+  jwt-secret: ${APP_JWT_SECRET}
+
+  # S3 상관분석 — Caldera REST API (operation UUID 보강, OperationResolver)
+  caldera:
+    api-url: ${APP_CALDERA_APIURL:http://caldera:8888}
+    api-key: ${APP_CALDERA_APIKEY:}
+
+  # S3-5b 측정 도구 — Caldera operation 1회 실행(runOnce). 생산계층과 분리된 측정 전용.
+  # UUID 는 비밀이 아니라 yaml 에 둔다(Step 0 실측값). Caldera 키만 env(app.caldera.api-key).
+  measure:
+    adversary-id: ${APP_MEASURE_ADVERSARY_ID:adv-attack-validation-web-001}        # [V] ATT&CK Validation — Web
+    planner-id: ${APP_MEASURE_PLANNER_ID:aaa7c857-37a0-4c4a-85f7-4e9f7f30e31a}      # atomic(순차)
+    source-id: ${APP_MEASURE_SOURCE_ID:324b1d7b-c276-48a8-bd37-80009f2c3df0}        # s2-target (target.url=127.0.0.1:8080)
+    group: ${APP_MEASURE_GROUP:red}               # 명시적 red 타게팅(측정 격리) — '' 로 바꾸지 말 것
+    poll-timeout-seconds: ${APP_MEASURE_POLL_TIMEOUT_SECONDS:300}   # 4종 완주 ~160s 관측 → 여유 300, 초과 시 state=timeout 반환
+    poll-interval-seconds: ${APP_MEASURE_POLL_INTERVAL_SECONDS:3}
+    # S3-5b-2a 수집 창 꼬리(초) — 읽기 창 = [opStart, opFinish + tail]. 엔진 per-group 관찰 30s 와는 별개
+    read-window-tail-seconds: ${APP_MEASURE_READ_WINDOW_TAIL_SECONDS:30}
+    # S3-5b-3 관찰 대기(초) — op 완료 후 measure 전, 마지막 ability alert 의 인덱서 searchable 대기(결정4)
+    observation-wait-seconds: ${APP_MEASURE_OBSERVATION_WAIT_SECONDS:30}
+    # 게이트 리포트 출력 디렉터리
+    report-dir: ${APP_MEASURE_REPORT_DIR:detections/measurements}
+    # gt_outcome: 앱 로그 파일 직접 파싱(named volume → docker exec, 원본 1차 출처)
+    gtlog:
+      compose-file: ${APP_MEASURE_COMPOSE_FILE:docker/docker-compose.yml}
+      project: ${APP_MEASURE_COMPOSE_PROJECT:security-lab}
+      service: ${APP_MEASURE_TARGET_SERVICE:target-web}
+      path: ${APP_MEASURE_ATTACK_LOG_PATH:/var/log/target/attack.json.log}
+    # alert: 인덱서 직접 질의(measure 전용 클라이언트). 접속 비밀번호만 env(INDEXER_PASSWORD, CRLF trim)
+    indexer:
+      url: ${APP_MEASURE_INDEXER_URL:https://127.0.0.1:9200}
+      index-pattern: ${APP_OPENSEARCH_INDEX_PATTERN:wazuh-alerts-*}
+      username: ${INDEXER_USERNAME:admin}
+      password: ${INDEXER_PASSWORD:}
+    alert:
+      # 커스텀 탐지룰은 모두 rule.groups 에 vuln-webapp 를 단다. rule.id prefix 1002 는 Wazuh 내장
+      # rule 1002(Unknown problem)까지 끌어와 노이즈 → 명시 그룹으로 거른다.
+      rule-groups: ${APP_MEASURE_ALERT_RULE_GROUPS:vuln-webapp}
+
+  correlation:
+    # 늦은 alert 상한(초), 0 = 비활성 — S4 Ingestion Lag 실측(p99 × 안전계수)으로 확정 예정
+    late-alert-cap-seconds: 0
+    # 스프레이 판정 계정 수 — AN1277 조정값, 표준 수치 없음, 잠정
+    spray-account-threshold: 5
+
+  # 판정 결과 영속화 (validation schema, 별도 role validation_rw) — 기본 OFF
+  validation:
+    persistence:
+      enabled: false
+    datasource:
+      url: ${VALIDATION_DB_URL:}
+      username: ${VALIDATION_DB_USERNAME:}
+      password: ${VALIDATION_DB_PASSWORD:}
+
+caldera:
+  header:
+    op-id: X-Caldera-Op-Id
+    technique: X-Caldera-Technique
+    ability: X-Caldera-Ability
+  ua-pattern: "Caldera/(?<opId>[^/]+)/(?<techId>[^/]+)/(?<abilityId>[^/]+)"
+
+# SQLi 판별 임계값 (4단계 보정 시 이 블록만 조정)
+sqli:
+  baseline-length: 500            # 정상 응답 길이 baseline (사전 측정값)
+  content-length-multiplier: 3.0  # baseline 대비 비정상 길이 배수
+  time-threshold-ms: 4000         # time-based 판별 기준 (pg_sleep(5) 기준 여유)
+
+# Brute Force 판별 임계값
+bruteforce:
+  threshold: 5                    # 연속 401 임계 횟수
+  window-seconds: 60              # 시퀀스 묶음 윈도우
+
+logging:
+  level:
+    org.springframework.jdbc.core: DEBUG
+    com.capstone.vuln: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+        

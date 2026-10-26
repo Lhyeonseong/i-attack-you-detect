@@ -1,0 +1,688 @@
+# S4-4 Step 0 — read-only fact check (M07a, M13)
+# started 2026-10-21T13:58:52Z HEAD=09cc441 status_lines=1
+
+## 0-1 correlation inputs (code)
+$ grep -rln "alerts.json\|eve.json\|eve\b\|suricata" src/main/java
+src/main/java/com/capstone/vuln/correlation/AlertEvent.java
+src/main/java/com/capstone/vuln/correlation/CalderaCorrelationExtractor.java
+src/main/java/com/capstone/vuln/measure/RulesDigest.java
+src/main/java/com/capstone/vuln/logging/AttackLogger.java
+$ wc -l AlertEvent.java MatchPath.java MatchSource.java DetectionLink.java AlertIndexReader.java AlertSearchSource.java IndexerAlertSearchSource.java
+   36 src/main/java/com/capstone/vuln/correlation/AlertEvent.java
+   15 src/main/java/com/capstone/vuln/correlation/MatchPath.java
+   14 src/main/java/com/capstone/vuln/correlation/MatchSource.java
+   28 src/main/java/com/capstone/vuln/correlation/DetectionLink.java
+   12 src/main/java/com/capstone/vuln/correlation/CorrelationSource.java
+   90 src/main/java/com/capstone/vuln/measure/AlertIndexReader.java
+   12 src/main/java/com/capstone/vuln/measure/AlertSearchSource.java
+  113 src/main/java/com/capstone/vuln/measure/IndexerAlertSearchSource.java
+  320 total
+-- 0-1 findings (code read, HEAD 09cc441)
+alert readers in src/main/java: 1 only — measure/AlertIndexReader (Wazuh indexer _search, index wazuh-alerts-*,
+  filter rule.groups=vuln-webapp, MeasureConfig.java:62-69). No Suricata eve.json reader. No alerts.json file reader.
+  grep "suricata" hits only comments (CalderaCorrelationExtractor:86,104) and RulesDigest (local.rules sha256).
+AlertEvent fields (correlation/AlertEvent.java:15-17): ruleId, technique, alertTime, searchableTime, rid, opId,
+  abilityId, srcIp, endpoint, idSource(CorrelationSource), username
+  mapping (AlertIndexReader:56-67): rule.id, data.validation.technique_id, timestamp, searchableTime, data.rid,
+  data.correlation.op_id, data.correlation.ability_id, data.src_endpoint.ip, data.http_request.url.path,
+  data.correlation.source, data.http_request.args(username)
+detection_link columns (V1__validation_schema.sql:47-59): id, correlation_id, rule_id, technique, alert_time,
+  match_path(RID|HEADER|UA_FALLBACK|TIME_ONLY), confidence, src_ip, username, late, alert_ref
+  -> no sensor/control/source-system column. alert_ref never filled (VerdictRepository.java:124 comment).
+match_path assignment (CorrelationEngine.java:186-205): alert.rid in group rids -> RID; (opId,abilityId) match ->
+  UA_FALLBACK if alert idSource=UA_FALLBACK else HEADER; anonymous+same endpoint+srcIp in window -> TIME_ONLY
+BF path: alert 100230/100232 -> CorrelationEngine.match (same rules as above, per alert) -> DetectionLink.of(alert, path)
+  -> VerdictEngine.detectBruteForce (VerdictEngine.java:198-244): usable(conf>=0.7) links with rule 100230/100232,
+  grouped by alert srcIp+username, >=10 x 100230 within 120s -> DETECTED. match_path stored = per-alert RID/HEADER/...
+  (no separate BACKEND/SEQUENCE value — sequence result lives in verdict_result/correlation.bf_sequence)
+V4 views reading detection_link / verdict_member: v_metric_correlation (V4:125-160) only; v_metric_h2 reads
+  v_metric_correlation. (V4 header comment line 2-3)
+-- 0-2 findings
+attempt origin: app OCSF log attack.json.log (GtLogReader, via DockerExecAttackLogSource docker compose exec cat).
+  Lines without correlation.op_id (paw) excluded. Caldera operation link facts are used only for attacker_verdict
+  (AttackerVerdictResolver) and op window. One verdict_result row = one Verdict unit (SINGLE per app event; BF_SEQUENCE
+  per srcIp+username sequence; SPRAY_CAMPAIGN per segment).
+expected_attempts = AttemptManifest.attacksPerOperation() x plannedOperations (MeasurementRunRecorder.java:33-35)
+  manifest ATTACK_VALIDATION_WEB (AttemptManifest.java:27-31): SQLI 1, SSRF 2(+1 control), PT 3, BF 1 -> 7 attack + 1 control per op
+R10 check: view v_run_integrity (V3__metric_foundation.sql:105-128); Java reads it via MeasurementRunRepository.integrity,
+  printed at MeasurementCampaign.java:81; metric views filter via v_metric_run (V4:9-12)
+per-attempt raw telemetry observation table/column: 없음 (no eve/flow/archives/telemetry object in V1-V5)
+
+## 0-3 Suricata eve settings (running process, conf-get by name)
+$ docker ps --format "{{.Names}} {{.Status}} {{.Image}}"
+caldera | Up 4 hours | ghcr.io/mitre/caldera:5.2.0
+suricata | Up 4 hours | jasonish/suricata:8.0.7
+target-web | Up 4 hours | security-lab-target-web
+security-lab-wazuh.agent-1 | Up 4 hours | wazuh/wazuh-agent:4.14.9
+security-lab-wazuh.manager-1 | Up 4 hours | wazuh/wazuh-manager:4.14.9
+security-lab-wazuh.indexer-1 | Up 4 hours | wazuh/wazuh-indexer:4.14.9
+postgres | Up 4 hours (healthy) | postgres:16.15-trixie
+mock-imds | Up 4 hours | python:3.12-slim
+$ docker exec suricata suricata -V
+This is Suricata version 8.0.7 RELEASE
+$ docker exec -i suricata sh -s <<EOF (conf-get walk)
+outputs.0 = fast
+outputs.1 = eve-log
+outputs.2 = tls-store
+outputs.3 = pcap-log
+outputs.4 = alert-debug
+outputs.5 = stats
+outputs.6 = file-store
+outputs.7 = tcp-data
+outputs.8 = http-body-data
+outputs.9 = lua
+outputs.1.eve-log.enabled = yes
+outputs.1.eve-log.filetype = regular
+outputs.1.eve-log.filename = eve.json
+outputs.1.eve-log.rotate-interval = MEASURE_FAIL conf-get outputs.1.eve-log.rotate-interval
+outputs.1.eve-log.threaded = MEASURE_FAIL conf-get outputs.1.eve-log.threaded
+eve-log.types.0 = alert
+eve-log.types.1 = frame
+eve-log.types.2 = anomaly
+eve-log.types.3 = http
+eve-log.types.4 = dns
+eve-log.types.5 = mdns
+eve-log.types.6 = tls
+eve-log.types.7 = files
+eve-log.types.8 = smtp
+eve-log.types.9 = websocket
+eve-log.types.10 = ftp
+eve-log.types.11 = rdp
+eve-log.types.12 = nfs
+eve-log.types.13 = smb
+eve-log.types.14 = tftp
+eve-log.types.15 = ike
+eve-log.types.16 = dcerpc
+eve-log.types.17 = krb5
+eve-log.types.18 = bittorrent-dht
+eve-log.types.19 = snmp
+eve-log.types.20 = rfb
+eve-log.types.21 = sip
+eve-log.types.22 = quic
+eve-log.types.23 = ldap
+eve-log.types.24 = pop3
+eve-log.types.25 = arp
+eve-log.types.26 = dhcp
+eve-log.types.27 = ssh
+eve-log.types.28 = mqtt
+eve-log.types.29 = http2
+eve-log.types.30 = doh2
+eve-log.types.31 = pgsql
+eve-log.types.32 = stats
+eve-log.types.33 = flow
+compose:   suricata:
+compose:     image: jasonish/suricata:8.0.7@sha256:bf4bea5b45d9c10265a3ee6628e2ec8930b9d1fb7caf9d1afb63af413b9cbb26
+compose:     container_name: suricata
+compose:     restart: unless-stopped
+compose:     depends_on:
+compose:       - target-web
+compose:     network_mode: "service:target-web"
+compose:     cap_add:
+compose:       - NET_ADMIN
+compose:       - NET_RAW
+compose:       - SYS_NICE
+compose:     command:
+compose:       - -i
+compose:       - app0
+compose:       - -i
+compose:       - atk0
+compose:       - -i
+compose:       - imds0
+compose:       - -k
+compose:       - none
+compose:       - -l
+compose:       - /var/log/suricata
+compose:       - -S
+compose:       - /var/lib/suricata/rules/local.rules
+compose:       - --set
+compose:       - outputs.5.stats.enabled=no  # 8.0.7 기본 yaml 기준 목록 번호(digest 고정). 이미지 변경 시 RUNBOOK (0-d)로 재확인
+compose:       - --set
+compose:       - outputs.1.eve-log.types.32.stats.enabled=no  # 8.0.7 기본 yaml 기준 목록 번호(digest 고정). 이미지 변경 시 RUNBOOK (0-d)로 재확인
+compose:     volumes:
+compose:       - suricata_logs:/var/log/suricata
+compose:       - suricata_state:/var/lib/suricata
+compose:       - ./config/suricata/local.rules:/var/lib/suricata/rules/local.rules
+compose: 
+$ docker exec -i suricata sh -s <<EOF (conf-get alert/http/flow subkeys; NOK = key absent in running config)
+outputs.1.eve-log.types.0.alert.enabled = NOK
+outputs.1.eve-log.types.0.alert.payload = NOK
+outputs.1.eve-log.types.0.alert.payload-printable = NOK
+outputs.1.eve-log.types.0.alert.packet = NOK
+outputs.1.eve-log.types.0.alert.metadata = NOK
+outputs.1.eve-log.types.0.alert.metadata.app-layer = NOK
+outputs.1.eve-log.types.0.alert.metadata.flow = NOK
+outputs.1.eve-log.types.0.alert.metadata.rule.metadata = NOK
+outputs.1.eve-log.types.0.alert.http = NOK
+outputs.1.eve-log.types.0.alert.http-body = NOK
+outputs.1.eve-log.types.0.alert.http-body-printable = NOK
+outputs.1.eve-log.types.0.alert.tagged-packets = yes
+outputs.1.eve-log.types.0.alert.verdict = NOK
+outputs.1.eve-log.types.3.http.enabled = NOK
+outputs.1.eve-log.types.3.http.extended = yes
+outputs.1.eve-log.types.3.http.custom = NOK
+outputs.1.eve-log.types.3.http.custom.0 = NOK
+outputs.1.eve-log.types.3.http.dump-all-headers = NOK
+outputs.1.eve-log.types.33.flow.enabled = NOK
+outputs.1.eve-log.community-id = false
+outputs.1.eve-log.metadata = NOK
+outputs.1.eve-log.xff.enabled = no
+outputs.1.eve-log.append = NOK
+default-log-dir = /var/log/suricata
+$ docker exec suricata ls -la --time-style=full-iso /var/log/suricata
+total 17704
+drwxr-xr-x 2 suricata suricata     4096 2026-06-01 15:33:38.813609364 +0000 .
+drwxr-xr-x 1 root     root         4096 2026-10-09 01:39:35.000000000 +0000 ..
+-rw-r--r-- 1 suricata suricata 16270174 2026-10-21 14:01:04.601010287 +0000 eve.json
+-rw-r--r-- 1 suricata suricata  1450007 2026-10-21 11:11:26.744812553 +0000 fast.log
+-rw-r--r-- 1 suricata suricata   379463 2026-10-21 09:42:23.672001255 +0000 suricata.log
+$ docker exec suricata sh -c "ls /etc/logrotate.d 2>&1; command -v logrotate; ps aux | grep -c [c]ron"
+suricata
+/usr/sbin/logrotate
+no cron/logrotate process
+$ first/last timestamp in eve.json
+"timestamp":"2026-06-01T15:34:28.313243+0000"
+"timestamp":"2026-10-21T14:01:04.602095+0000"
+23683
+$ docker exec suricata cat /etc/logrotate.d/suricata
+/var/log/suricata/*.log /var/log/suricata/*.json {
+    daily
+    missingok
+    rotate 3
+    nocompress
+    sharedscripts
+    postrotate
+        suricatasc -c reopen-log-files
+    endscript
+}
+
+## 0-6 Caldera request markers (docker/config/caldera/abilities, [V] 4 abilities from AttemptManifest)
+SQLI  initial-access/sqli_error_probe.yml       ability e3f1a9c7-2b4d-4e6f-a8c2-5d7e9f1b3a5c T1190  1 request  GET /api/products/search?keyword=%27
+SSRF  initial-access/ssrf_metadata_verdict.yml  ability a7f3c1d9-5e2b-4a6c-9f08-1b2c3d4e5f60 T1190  3 requests GET /api/preview?url=<MD> x2, url=http://example.com/ x1 (control)
+PT    discovery/path_traversal_tier1.yml        ability c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b T1190  3 requests GET /api/files/download?filename=../../../../etc/{passwd,hostname,hosts}
+BF    credential-access/brute_force_auth.yml    ability 7aa89a87-3fd7-4d52-8c9e-1e5b2f4c6a3d T1110 12 requests POST /api/auth/login (username user1, 12 passwords)
+all 4: OP_ID="#{paw}"; headers  X-Caldera-Op-Id: ${OP_ID} / X-Caldera-Technique: ${TECH_ID} / X-Caldera-Ability: ${ABILITY_ID}
+       UA (curl -A) = "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}"  -> paw, technique, ability_id included; operation UUID not included (OP_ID = paw)
+CORRECTION 0-6: BF password list has 13 entries (123456 Password1 admin123 qwerty test letmein 000000 abc123 root admin welcome 111111 password123) -> 13 requests/op, not 12
+
+-- 0-3 summary (from conf-get above): eve types include alert, http, files, flow; http.extended=yes; http.custom NOK(absent); http.dump-all-headers NOK(absent)
+   -> request headers other than extended fields (X-Caldera-*) are not in eve http; UA is (http_user_agent, extended)
+   alert.metadata NOK(absent; yaml comment: 'Default yes'), alert.http NOK(absent) -> actual alert records carry http{} (see 0-4: 2022/2022)
+   rotate-interval NOK(absent); /etc/logrotate.d/suricata daily rotate 3 present but no cron/logrotate process; only eve.json in dir (no rotated files)
+   eve.json 16270174 bytes, 23683 lines, first ts 2026-06-01T15:34:28Z last 2026-10-21T14:01:04Z -> baseline window inside file
+
+## 0-4 S4-STACK-6-BASELINE window (start/end from evidence 2026-10-21_s6-baseline.log:46,49) eve.json read-only
+$ APP_IP=$(docker inspect ... security-lab_app_net) ; docker exec suricata cat /var/log/suricata/eve.json | python3 -I scratchpad/eve_window.py "$APP_IP" 2026-10-21T10:03:05 2026-10-21T11:12:05
+   (filter: exclude src/dest fe80::/10, ff00::/8; scenario by http.url prefix: SQLI /api/products/search, PT /api/files/download, BF /api/auth/login, SSRF /api/preview; caldera_ua = http_user_agent startswith Caldera/)
+window 2026-10-21T10:03:05..2026-10-21T11:12:05 app_ip=172.20.0.3 events_in_window=3870 unparsable_lines_total=3
+  alert has http obj                           2022
+  alert has http.http_user_agent               2022
+  alert has tx_id                              2022
+  alert joins http by (flow_id,tx_id)          2022
+  event_type alert                             2022
+  event_type fileinfo                          719
+  event_type flow                              531
+  event_type http                              460
+  event_type mdns                              138
+  http BF                                      260
+  http BF caldera_ua                           260
+  http IMDS(dest 169.254.169.254)              40
+  http PT                                      60
+  http PT caldera_ua                           60
+  http SQLI                                    20
+  http SQLI caldera_ua                         20
+  http SSRF                                    60
+  http SSRF caldera_ua                         60
+  alerts_total 2022
+  sid 1000001 [BF] 260
+  sid 1000001 [PT] 60
+  sid 1000001 [SQLI] 20
+  sid 1000001 [SSRF] 60
+  sid 1000002 [BF] 260
+  sid 1000002 [PT] 60
+  sid 1000002 [SQLI] 20
+  sid 1000002 [SSRF] 60
+  sid 1000003 [BF] 260
+  sid 1000003 [PT] 60
+  sid 1000003 [SQLI] 20
+  sid 1000003 [SSRF] 60
+  sid 1000004 [BF] 260
+  sid 1000004 [PT] 60
+  sid 1000004 [SQLI] 20
+  sid 1000004 [SSRF] 60
+  sid 1000020 [PT] 60
+  sid 1000030 [BF] 260
+  sid 1000031 [BF] 20
+  sid 1000032 [BF] 42
+  sid 1000060 [SSRF] 40
+EXAMPLE_ALERT {"timestamp": "2026-10-21T10:03:46.211837+0000", "flow_id": 578501012733101, "in_iface": "app0", "event_type": "alert", "src_ip": "172.20.0.1", "src_port": 45046, "dest_ip": "172.20.0.3", "dest_port": 8080, "proto": "TCP", "ip_v": 4, "pkt_src": "wire/pcap", "tx_id": 0, "alert": {"action": "allowed", "gid": 1, "signature_id": 1000001, "rev": 1, "signature": "[CALDERA] Agent detected via User-Agent", "category": "Potential Corporate Privacy Violation", "severity": 1}, "ts_progress": "request_complete", "tc_progress": "response_complete", "http": {"hostname": "127.0.0.1", "http_port": 8080, "url": "/api/products/search?keyword=%27", "http_user_agent": "Caldera/eiwwvn/T1190/e3f1a9c7-2b4d-4e6f-a8c2-5d7e9f1b3a5c", "http_content_type": "application/json", "http_method": "GET", "protocol": "HTTP/1.1", "status": 200, "length": 141}, "app_proto": "http", "direction": "to_server", "flow": {"pkts_toserver": 4, "pkts_toclient": 3, "bytes_toserver": 537, "bytes_toclient": 454, "start": "2026-10-21T10:03:46.003620+0000", "src_ip": "172.20.0.1", "dest_ip": "172.20.0.3", "src_port": 45046, "dest_port": 8080}}
+EXAMPLE_HTTP {"timestamp": "2026-10-21T10:03:46.211837+0000", "flow_id": 578501012733101, "in_iface": "app0", "event_type": "http", "src_ip": "172.20.0.1", "src_port": 45046, "dest_ip": "172.20.0.3", "dest_port": 8080, "proto": "TCP", "ip_v": 4, "pkt_src": "wire/pcap", "tx_id": 0, "http": {"hostname": "127.0.0.1", "http_port": 8080, "url": "/api/products/search?keyword=%27", "http_user_agent": "Caldera/eiwwvn/T1190/e3f1a9c7-2b4d-4e6f-a8c2-5d7e9f1b3a5c", "http_content_type": "application/json", "http_method": "GET", "protocol": "HTTP/1.1", "status": 200, "length": 141}}
+alert top keys: timestamp,flow_id,in_iface,event_type,src_ip,src_port,dest_ip,dest_port,proto,ip_v,pkt_src,tx_id,alert,ts_progress,tc_progress,http,app_proto,direction,flow
+alert.http keys: hostname,http_port,url,http_user_agent,http_content_type,http_method,protocol,status,length
+$ join-key uniqueness / UA values (attack http, dest app_ip:8080)
+attack http events 400 distinct (flow_id,tx_id) 400 max per key 1
+UA 260 Caldera/eiwwvn/T1110/7aa89a87-3fd7-4d52-8c9e-1e5b2f4c6a3d
+UA 60 Caldera/eiwwvn/T1190/a7f3c1d9-5e2b-4a6c-9f08-1b2c3d4e5f60
+UA 60 Caldera/eiwwvn/T1190/c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b
+UA 20 Caldera/eiwwvn/T1190/e3f1a9c7-2b4d-4e6f-a8c2-5d7e9f1b3a5c
+sensitive check: grep -ci 'password|MOCK-IMDS|secret|AKIA' on output = 0
+zero-count sids requested (window): 1000010..1000019=0, 1000021..1000024=0 (1000020=60), 1000030=260 1000031=20 1000032=42, 1000060=40
+extra sids seen (not in requested ranges): 1000001..1000004 = 400 each (every Caldera request)
+
+## 0-5 Wazuh telemetry
+$ grep logall/logall_json/alerts_log/jsonout_output docker/config/wazuh_cluster/wazuh_manager.conf (repo; compose mounts it as /wazuh-config-mount/etc/ossec.conf)
+3:    <jsonout_output>yes</jsonout_output>
+4:    <alerts_log>yes</alerts_log>
+5:    <logall>no</logall>
+6:    <logall_json>no</logall_json>
+$ docker exec security-lab-wazuh.manager-1 grep ... /var/ossec/etc/ossec.conf (running)
+3:    <jsonout_output>yes</jsonout_output>
+4:    <alerts_log>yes</alerts_log>
+5:    <logall>no</logall>
+6:    <logall_json>no</logall_json>
+$ docker exec security-lab-wazuh.manager-1 sha256sum running vs repo
+b7a1e0610f0684c29c9529e917dad6c8fa2dba8c181168c5e1f81a693edc6637  /var/ossec/etc/ossec.conf
+b7a1e0610f0684c29c9529e917dad6c8fa2dba8c181168c5e1f81a693edc6637  docker/config/wazuh_cluster/wazuh_manager.conf
+$ docker exec security-lab-wazuh.manager-1 ls -la /var/ossec/logs/archives/
+total 12
+drwxr-x--- 3 wazuh wazuh 4096 2026-10-21 09:42:44.761072193 +0000 .
+drwxrwx--- 8 wazuh wazuh 4096 2026-10-21 07:15:54.784001698 +0000 ..
+drwxr-x--- 5 wazuh wazuh 4096 2026-10-01 07:27:13.763054491 +0000 2026
+-rw-r----- 2 wazuh wazuh    0 2026-10-21 07:16:02.260981701 +0000 archives.log
+/var/ossec/logs/archives/2026/Jun/ossec-archive-01.json.sum
+/var/ossec/logs/archives/2026/Jun/ossec-archive-02.json.sum
+/var/ossec/logs/archives/2026/Jun/ossec-archive-04.log
+/var/ossec/logs/archives/2026/Jun/ossec-archive-02.log.sum
+/var/ossec/logs/archives/2026/Jun/ossec-archive-01.log.sum
+/var/ossec/logs/archives/2026/Jun/ossec-archive-14.log
+/var/ossec/logs/archives/2026/Jun/ossec-archive-03.json.sum
+/var/ossec/logs/archives/2026/Jun/ossec-archive-03.log.sum
+/var/ossec/logs/archives/2026/Sep/ossec-archive-21.json.sum
+/var/ossec/logs/archives/2026/Sep/ossec-archive-25.log
+/var/ossec/logs/archives/2026/Sep/ossec-archive-15.log
+/var/ossec/logs/archives/2026/Sep/ossec-archive-28.json.sum
+/var/ossec/logs/archives/2026/Sep/ossec-archive-23.log.sum
+/var/ossec/logs/archives/2026/Sep/ossec-archive-21.log.sum
+/var/ossec/logs/archives/2026/Sep/ossec-archive-27.log
+/var/ossec/logs/archives/2026/Sep/ossec-archive-23.log.gz
+/var/ossec/logs/archives/2026/Sep/ossec-archive-14.log
+/var/ossec/logs/archives/2026/Sep/ossec-archive-28.log.sum
+/var/ossec/logs/archives/2026/Sep/ossec-archive-22.json.sum
+/var/ossec/logs/archives/2026/Sep/ossec-archive-26.log
+archives files: 45
+$ docker exec security-lab-wazuh.manager-1 ls /var/ossec/var/run/
+total 80
+drwxrwx--- 1 root  wazuh 4096 Oct 21 14:05 .
+drwxr-x--- 1 root  wazuh 4096 Oct 21 09:49 ..
+-rw-r----- 1 wazuh wazuh    4 Oct 21 09:42 wazuh-analysisd-488.pid
+-rw-r----- 1 wazuh wazuh 2387 Oct 21 14:05 wazuh-analysisd.state
+-rw-r----- 1 wazuh wazuh    4 Oct 21 09:42 wazuh-apid-386.pid
+-rw-r----- 1 wazuh wazuh    4 Oct 21 09:42 wazuh-apid_auth-387.pid
+-rw-r----- 1 wazuh wazuh    4 Oct 21 09:42 wazuh-apid_auth-388.pid
+-rw-r----- 1 wazuh wazuh    4 Oct 21 09:42 wazuh-apid_events-394.pid
+-rw-r----- 1 wazuh wazuh    4 Oct 21 09:42 wazuh-apid_exec-391.pid
+-rw-r----- 1 root  wazuh    4 Oct 21 09:42 wazuh-authd-430.pid
+-rw-r----- 1 wazuh wazuh    4 Oct 21 09:42 wazuh-db-443.pid
+-rw-r----- 1 root  wazuh    4 Oct 21 09:42 wazuh-execd-476.pid
+-rw-r----- 1 root  wazuh    4 Oct 21 09:42 wazuh-logcollector-553.pid
+-rw-r--r-- 1 root  wazuh  791 Oct 21 14:04 wazuh-logcollector.state
+-rw-r----- 1 root  root     4 Oct 21 09:42 wazuh-modulesd-646.pid
+-rw-r----- 1 wazuh wazuh    4 Oct 21 09:42 wazuh-monitord-574.pid
+-rw-r----- 1 wazuh wazuh    4 Oct 21 09:42 wazuh-remoted-515.pid
+-rw-r--r-- 1 wazuh wazuh  728 Oct 21 14:05 wazuh-remoted.state
+-rw-r----- 1 root  wazuh    4 Oct 21 09:42 wazuh-syscheckd-498.pid
+$ agent localfile (docker/config/wazuh-agent/ossec.conf)
+15-    <log_format>json</log_format>
+16:    <location>/var/log/suricata/eve.json</location>
+--
+20-    <log_format>syslog</log_format>
+21:    <location>/var/log/target/application.log</location>
+--
+25-    <log_format>json</log_format>
+26:    <location>/var/log/target/attack.json.log</location>
+$ archives json files / Oct files (size)
+Jun
+Oct
+Sep
+-rw-r----- 1 wazuh wazuh 393 Oct  2 06:43 /var/ossec/logs/archives/2026/Oct/ossec-archive-01.json.sum
+-rw-r----- 1 wazuh wazuh 390 Oct  2 06:43 /var/ossec/logs/archives/2026/Oct/ossec-archive-01.log.sum
+-rw-r----- 1 wazuh wazuh   0 Oct  2 06:43 /var/ossec/logs/archives/2026/Oct/ossec-archive-02.log
+-rw-r----- 1 wazuh wazuh   0 Oct  4 06:21 /var/ossec/logs/archives/2026/Oct/ossec-archive-04.log
+-rw-r----- 1 wazuh wazuh 393 Oct  7 01:30 /var/ossec/logs/archives/2026/Oct/ossec-archive-06.json.sum
+-rw-r----- 1 wazuh wazuh 390 Oct  7 01:30 /var/ossec/logs/archives/2026/Oct/ossec-archive-06.log.sum
+-rw-r----- 1 wazuh wazuh 393 Oct  8 09:17 /var/ossec/logs/archives/2026/Oct/ossec-archive-07.json.sum
+-rw-r----- 1 wazuh wazuh 390 Oct  8 09:17 /var/ossec/logs/archives/2026/Oct/ossec-archive-07.log.sum
+-rw-r----- 1 wazuh wazuh   0 Oct  8 09:17 /var/ossec/logs/archives/2026/Oct/ossec-archive-08.log
+-rw-r----- 1 wazuh wazuh   0 Oct  9 08:15 /var/ossec/logs/archives/2026/Oct/ossec-archive-09.log
+-rw-r----- 1 wazuh wazuh   0 Oct 10 08:35 /var/ossec/logs/archives/2026/Oct/ossec-archive-10.log
+-rw-r----- 1 wazuh wazuh   0 Oct 11 08:36 /var/ossec/logs/archives/2026/Oct/ossec-archive-11.log
+-rw-r----- 1 wazuh wazuh   0 Oct 13 09:03 /var/ossec/logs/archives/2026/Oct/ossec-archive-13.log
+-rw-r----- 1 wazuh wazuh   0 Oct 16 07:58 /var/ossec/logs/archives/2026/Oct/ossec-archive-16.log
+-rw-r----- 1 wazuh wazuh   0 Oct 17 08:31 /var/ossec/logs/archives/2026/Oct/ossec-archive-17.log
+-rw-r----- 1 wazuh wazuh   0 Oct 18 08:00 /var/ossec/logs/archives/2026/Oct/ossec-archive-18.log
+-rw-r----- 1 wazuh wazuh   0 Oct 19 06:40 /var/ossec/logs/archives/2026/Oct/ossec-archive-19.log
+-rw-r----- 1 wazuh wazuh   0 Oct 20 08:22 /var/ossec/logs/archives/2026/Oct/ossec-archive-20.log
+-rw-r----- 2 wazuh wazuh   0 Oct 21 07:16 /var/ossec/logs/archives/2026/Oct/ossec-archive-21.log
+archives.json: not present
+$ docker exec security-lab-wazuh.manager-1 cat /var/ossec/var/run/wazuh-analysisd.state
+total_events_decoded='8259'
+syscheck_events_decoded='520'
+syscollector_events_decoded='124'
+rootcheck_events_decoded='2'
+sca_events_decoded='2'
+winevt_events_decoded='0'
+dbsync_messages_dispatched='303'
+other_events_decoded='7308'
+events_processed='7438'
+events_received='8261'
+events_dropped='0'
+alerts_written='2844'
+firewall_written='0'
+fts_written='0'
+syscheck_queue_usage='0.00'
+syscheck_queue_size='16384'
+syscollector_queue_usage='0.00'
+syscollector_queue_size='16384'
+rootcheck_queue_usage='0.00'
+rootcheck_queue_size='16384'
+sca_queue_usage='0.00'
+sca_queue_size='16384'
+hostinfo_queue_usage='0.00'
+hostinfo_queue_size='16384'
+winevt_queue_usage='0.00'
+winevt_queue_size='16384'
+dbsync_queue_usage='0.00'
+dbsync_queue_size='16384'
+upgrade_queue_usage='0.00'
+upgrade_queue_size='16384'
+event_queue_usage='0.00'
+event_queue_size='16384'
+rule_matching_queue_usage='0.00'
+rule_matching_queue_size='16384'
+alerts_queue_usage='0.00'
+alerts_queue_size='16384'
+firewall_queue_usage='0.00'
+firewall_queue_size='16384'
+statistical_queue_usage='0.00'
+statistical_queue_size='16384'
+archives_queue_usage='0.00'
+archives_queue_size='16384'
+$ docker exec security-lab-wazuh.agent-1 cat /var/ossec/var/run/wazuh-logcollector.state
+{
+	"global":	{
+		"start":	"2026-10-21 09:42:21",
+		"end":	"2026-10-21 14:05:21",
+		"files":	[{
+				"location":	"/var/log/target/attack.json.log",
+				"events":	400,
+				"bytes":	271271,
+				"targets":	[{
+						"name":	"agent",
+						"drops":	0
+					}]
+			}, {
+				"location":	"/var/log/suricata/eve.json",
+				"events":	5156,
+				"bytes":	3886481,
+				"targets":	[{
+						"name":	"agent",
+						"drops":	0
+					}]
+			}, {
+				"location":	"/var/log/target/application.log",
+				"events":	1356,
+				"bytes":	373518,
+				"targets":	[{
+						"name":	"agent",
+						"drops":	0
+					}]
+			}]
+	},
+	"interval":	{
+		"start":	"2026-10-21 14:04:21",
+		"end":	"2026-10-21 14:05:21",
+		"files":	[{
+				"location":	"/var/log/target/attack.json.log",
+				"events":	0,
+				"bytes":	0,
+				"targets":	[{
+						"name":	"agent",
+						"drops":	0
+					}]
+			}, {
+				"location":	"/var/log/suricata/eve.json",
+				"events":	0,
+				"bytes":	0,
+				"targets":	[{
+						"name":	"agent",
+						"drops":	0
+					}]
+			}, {
+				"location":	"/var/log/target/application.log",
+				"events":	0,
+				"bytes":	0,
+				"targets":	[{
+						"name":	"agent",
+						"drops":	0
+					}]
+			}]
+	}
+}
+
+$ docker exec security-lab-wazuh.manager-1 grep -c rule 100200 level (no-alert rule) in alerts.json
+0
+$ curl -sk -u "$INDEXER_USERNAME:***" https://127.0.0.1:${INDEXER_PORT}/wazuh-alerts-*/_search (size 0, window 10:03:05-11:12:05Z, terms rule.id + rule.groups) — read only
+  File "<string>", line 7
+    print(f"  rule.id {b[\"key\"]:<7} count {b[\"doc_count\"]:<5} in_group_vuln-webapp {b[\"vw\"][\"doc_count\"]:<5} {d}")
+                          ^
+SyntaxError: unexpected character after line continuation character
+(retry: previous attempt failed with a python quoting SyntaxError in the inline script, no query result lost) python3 -I scratchpad/agg_rules.py
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-hyeonseong-capstone-dev-mitre-attack-capstone-v2/563a9648-9420-44a9-b915-b399696f7b28/scratchpad/agg_rules.py", line 3, in <module>
+    r = json.load(sys.stdin)
+        ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/__init__.py", line 293, in load
+    return loads(fp.read(),
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+(retry 2: attempt 1 = HTTP 401 because INDEXER_PASSWORD is double-quoted in .env; now stripped per RUNBOOK-S4-1b-smoke.md:8,171 sed)
+hits.total {'value': 2842, 'relation': 'eq'}
+  rule.id 86601   count 2022  in_group_vuln-webapp 0     Suricata: Alert - [CALDERA] Ability header detected - X-Caldera-Ability
+  rule.id 1002    count 400   in_group_vuln-webapp 0     Unknown problem somewhere in the system.
+  rule.id 100230  count 220   in_group_vuln-webapp 220   BF: login failed (T1110)
+  rule.id 100002  count 60    in_group_vuln-webapp 60    AttackLogger: ATTACK_RESPONSE received
+  rule.id 100220  count 60    in_group_vuln-webapp 60    Path Traversal: traversal pattern in download request (JSON, request-signal)
+  rule.id 100240  count 40    in_group_vuln-webapp 40    SSRF: internal/metadata target in url preview request (JSON, request-signal)
+  rule.id 100231  count 20    in_group_vuln-webapp 20    BF: multiple login failures from same IP (T1110)
+  rule.id 100233  count 20    in_group_vuln-webapp 20    BF: success after repeated failures - credential compromise (T1110)
+
+## 0-8 DB (validation_rw, BEGIN READ ONLY) + supplementary reads for 0-1/0-7
+$ docker exec -i postgres sh -c 'psql -U validation_rw -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' <<SQL
+-- whoami / tx read-only
+BEGIN
+ current_user  | tx_read_only 
+---------------+--------------
+ validation_rw | on
+(1 row)
+
+-- flyway_schema_history
+ installed_rank | version |    description    |  checksum   | installed_by  |        installed_on        | success 
+----------------+---------+-------------------+-------------+---------------+----------------------------+---------
+              1 | 1       | validation schema |  -302875525 | validation_rw | 2026-10-16 23:31:49.334494 | t
+              2 | 2       | measurement run   |  1699786641 | validation_rw | 2026-10-18 18:31:27.483012 | t
+              3 | 3       | metric foundation | -1339579969 | validation_rw | 2026-10-20 00:13:32.325208 | t
+              4 | 4       | metric views      |  -254580708 | validation_rw | 2026-10-20 00:13:32.457942 | t
+              5 | 5       | metric snapshot   |  -644879458 | validation_rw | 2026-10-21 22:48:11.879923 | t
+(5 rows)
+
+-- metric_scope
+   kind    |      unit      
+-----------+----------------
+ SCENARIO  | BRUTE_FORCE
+ SCENARIO  | PATH_TRAVERSAL
+ SCENARIO  | SQLI
+ SCENARIO  | SSRF
+ TECHNIQUE | T1110
+ TECHNIQUE | T1190
+(6 rows)
+
+-- metric_scope columns
+ column_name | data_type 
+-------------+-----------
+ kind        | text
+ unit        | text
+(2 rows)
+
+-- dp validation.metric_snapshot*
+                                                                  Access privileges
+   Schema   |                     Name                     |   Type   |        Access privileges         |        Column privileges        | Policies 
+------------+----------------------------------------------+----------+----------------------------------+---------------------------------+----------
+ validation | metric_snapshot                              | table    | validation_rw=arxt/validation_rw | run_id:                        +| 
+            |                                              |          |                                  |   validation_rw=w/validation_rw | 
+ validation | metric_snapshot_snapshot_id_seq              | sequence |                                  |                                 | 
+ validation | metric_snapshot_withdrawal                   | table    | validation_rw=arxt/validation_rw | run_id:                        +| 
+            |                                              |          |                                  |   validation_rw=w/validation_rw | 
+ validation | metric_snapshot_withdrawal_withdrawal_id_seq | sequence |                                  |                                 | 
+(4 rows)
+
+-- column privileges
+         table_name         | column_name |    grantee    | privilege_type 
+----------------------------+-------------+---------------+----------------
+ metric_snapshot            | run_id      | validation_rw | UPDATE
+ metric_snapshot_withdrawal | run_id      | validation_rw | UPDATE
+(2 rows)
+
+-- snapshot rows per run
+      run_label      | definition_version | count 
+---------------------+--------------------+-------
+ S3-GATE-dc66322     | ADR-S4-01 v1.4     |    89
+ S4-STACK-6-BASELINE | ADR-S4-01 v1.4     |    89
+(2 rows)
+
+ withdrawals 
+-------------
+           0
+(1 row)
+
+-- baseline run: detection_link rule_id x scenario x match_path (ATTACK + CONTROL)
+    scenario    | attempt_role | rule_id | match_path | links | verdicts 
+----------------+--------------+---------+------------+-------+----------
+ BRUTE_FORCE    | ATTACK       | 100230  | RID        |   220 |       20
+ BRUTE_FORCE    | ATTACK       | 100231  | RID        |    20 |       20
+ BRUTE_FORCE    | ATTACK       | 100233  | RID        |    20 |       20
+ PATH_TRAVERSAL | ATTACK       | 100220  | RID        |    60 |       60
+ SSRF           | ATTACK       | 100240  | RID        |    40 |       40
+(5 rows)
+
+-- baseline run: verdicts per scenario x verdict
+    scenario    | attempt_role |  unit_type  |      verdict       | count 
+----------------+--------------+-------------+--------------------+-------
+ BRUTE_FORCE    | ATTACK       | BF_SEQUENCE | SUCCEEDED_DETECTED |    20
+ PATH_TRAVERSAL | ATTACK       | SINGLE      | SUCCEEDED_DETECTED |    60
+ SQLI           | ATTACK       | SINGLE      | SUCCEEDED_MISSED   |    20
+ SSRF           | ATTACK       | SINGLE      | SUCCEEDED_DETECTED |    40
+ SSRF           | CONTROL      | SINGLE      | FAILED_UNSEEN      |    20
+(5 rows)
+
+ROLLBACK
+$ df -h /
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda2        99G   46G   49G  49% /
+$ docker system df (volumes)
+wazuh/wazuh-manager       4.14.9         dbb337727a6b   5 days ago      2.73GB    167.4MB       2.558GB       1
+wazuh/wazuh-indexer       4.14.9         615465315b56   5 days ago      2.56GB    167.4MB       2.396GB       1
+wazuh/wazuh-agent         4.14.9         db274c1e2c56   5 days ago      309MB     167.4MB       141.4MB       1
+ea593a328c20   wazuh/wazuh-agent:4.14.9      "/init"                  4               541kB     23 hours ago   Up 4 hours                security-lab-wazuh.agent-1
+2e981a803ed5   wazuh/wazuh-manager:4.14.9    "/init"                  11              16MB      23 hours ago   Up 4 hours                security-lab-wazuh.manager-1
+4de121e938e7   wazuh/wazuh-indexer:4.14.9    "/entrypoint.sh open…"   1               1.96MB    23 hours ago   Up 4 hours                security-lab-wazuh.indexer-1
+VOLUME NAME                                                        LINKS     SIZE
+security-lab_wazuh-indexer-data                                    1         17.76MB
+security-lab_wazuh_active_response                                 1         311.5kB
+security-lab_wazuh_logs                                            1         37.47MB
+$ docker system df -v | volumes (suricata/target/wazuh)
+VOLUME NAME                                                        LINKS     SIZE
+security-lab_postgres-data                                         1         67.36MB
+security-lab_wazuh_agent_etc                                       1         1.817MB
+security-lab_wazuh_api_configuration                               1         108kB
+postgres_data                                                      0         48.42MB
+security-lab_target_data                                           2         0B
+security-lab_wazuh_agentless                                       1         29.29kB
+security-lab_wazuh_etc                                             1         2.875MB
+security-lab_wazuh-indexer-data                                    1         17.76MB
+security-lab_wazuh_active_response                                 1         311.5kB
+security-lab_suricata_state                                        1         49.35MB
+security-lab_wazuh_logs                                            1         37.47MB
+security-lab_wazuh_queue                                           1         10.85GB
+security-lab_wazuh_var_multigroups                                 1         0B
+security-lab_suricata_logs                                         2         18.1MB
+security-lab_wazuh_integrations                                    1         58.87kB
+security-lab_wazuh_wodles                                          1         319.2kB
+security-lab_target_logs                                           2         2.509MB
+$ docker exec security-lab-wazuh.manager-1 du -sh /var/ossec/logs/alerts /var/ossec/logs/archives
+36M	/var/ossec/logs/alerts
+112K	/var/ossec/logs/archives
+$ docker exec security-lab-wazuh.manager-1 du -xsh /var/ossec/queue/* (read only, unexpected 10.85GB volume)
+492K	/var/ossec/queue/fim
+2.4M	/var/ossec/queue/db
+40M	/var/ossec/queue/vd_updater
+75M	/var/ossec/queue/harvester
+409M	/var/ossec/queue/indexer
+11G	/var/ossec/queue/vd
+409M	/var/ossec/queue/indexer
+11G	/var/ossec/queue
+11G	/var/ossec/queue/vd
+11G	/var/ossec/queue/vd/feed
+$ indexer: rule 100002 in baseline window — location / decoder / data keys (1 hit + terms location)
+location /var/log/target/application.log decoder {'name': 'vuln-attack-response'} groups ['vuln-webapp', 'attack-logger', 'attack_response']
+data keys ['data', 'id', 'result_type', 'status', 'url']
+by location [('/var/log/target/application.log', 60)]
+
+## 0-7 control x scenario rule existence (repo files; running copies sha256-identical: local.rules 007b188d…, vuln_rules.xml 47715556…)
+rule file facts:
+  Wazuh vuln_rules.xml group "vuln-webapp,attack-http-activity" (OCSF attack.json.log, base 100200 level 0 field metadata.log_name=attack_http_activity):
+    100210 L10 T1190 SQLi request-signal (args regex union select|pg_sleep|' or 1=1|'[^']*--|information_schema)
+    100220 L12 T1190 PT request-signal
+    100230 L5  T1110 BF login 401 ; 100231 L12 T1110 freq 10/120s if_matched 100230 ; 100232 L12 T1110 login 200 ; 100233 L15 T1110 if_sid 100232 + if_matched 100231 (120s)
+    100240 L12 T1190 SSRF request-signal
+    (same file also has legacy groups attack-logger 1000xx (application.log decoders) and nginx-access 1001xx)
+  Suricata local.rules (64 alert rules): marker 1000001-1000004 (Caldera UA / X-Caldera-* headers, every scenario)
+    SQLI 1000010-1000019 ; PT 1000020-1000029, 1000040-1000041 ; BF 1000030-1000032 ; SSRF 1000060-1000069, 1000087
+  BACKEND_CORR: VerdictEngine BF_SEQUENCE (100230 >=10/120s per srcIp+username) + SPRAY_CAMPAIGN — T1110/BRUTE_FORCE only; SQLi/PT/SSRF = SINGLE (technique match >=1)
+
+control       | SQLI                     | PT                                  | BF                                   | SSRF
+APP_RULE      | 100210                   | 100220                              | 100230,100231,100232,100233          | 100240
+NIDS          | 1000010-1000019          | 1000020-1000029,1000040-1000041     | 1000030-1000032                      | 1000060-1000069,1000087
+BACKEND_CORR  | 룰 없음                  | 룰 없음                             | VerdictEngine BF_SEQUENCE/SPRAY      | 룰 없음
+
+baseline window fired (supplementary, from 0-4 eve + indexer agg + DB):
+APP_RULE      | 100210=0                 | 100220=60                           | 100230=220 100231=20 100233=20 100232=0 | 100240=40
+NIDS (eve)    | 1000010-19 all 0         | 1000020=60 others 0                 | 1000030=260 1000031=20 1000032=42    | 1000060=40 others 0
+NIDS in Wazuh | Suricata alerts indexed as rule 86601 (2022 = eve alert count), rule.groups not vuln-webapp -> excluded by AlertIndexReader filter
+DB links      | 0 links, 20 SUCCEEDED_MISSED | 100220 RID 60                    | 100230/100231/100233 RID (20 verdicts) | 100240 RID 40 ; CONTROL 20 FAILED_UNSEEN
+other indexed in window: 1002 x400 (not vuln-webapp), 100002 x60 (vuln-webapp, application.log decoder vuln-attack-response, no detection_link)
+
+## 0-5 summary
+logall=no, logall_json=no (repo == running, sha256 b7a1e061…) ; archives.json not present ; Oct archive .log files all 0 bytes ; archives.log 0 bytes
+100200 is level 0 -> no alert (alerts.json grep "id":"100200" = 0)
+per-event record of 100200-only matches: none under current config. Counters only: manager wazuh-analysisd.state (totals, not per rule/file),
+  agent wazuh-logcollector.state per file (global since 2026-10-21 09:42:21: attack.json.log 400 events, eve.json 5156, application.log 1356)
+  attack.json.log 400 = 20 ops x 20 requests (SQLI 1 + SSRF 3 + PT 3 + BF 13) = eve attack http 400
+Wazuh agent ships eve.json (agent ossec.conf localfile json /var/log/suricata/eve.json)
+
+## unexpected / noted (no action taken)
+- BF requests are 13/op (password list 13), not 12 — 0-6 line corrected above
+- SQLi: both APP_RULE 100210 and NIDS 1000010-19 fired 0 in window (probe keyword=%27 only)
+- 100232 (login success) 0 in window while 100233 = 20 (100233 is child of 100232)
+- volume security-lab_wazuh_queue 10.85GB = /var/ossec/queue/vd/feed 11G (vulnerability-detection feed)
+- Suricata rotate: /etc/logrotate.d/suricata exists (daily, rotate 3) but no cron/logrotate process -> eve.json not rotated since 2026-06-01
+- indexer query attempt 1 failed (python quoting), attempt 2 HTTP 401 (quoted password) — both retried read-only, final result above
+
+# ended 2026-10-21T14:09:05Z git status:
+?? detections/measurements/evidence/2026-10-21_s4-4-step0.log

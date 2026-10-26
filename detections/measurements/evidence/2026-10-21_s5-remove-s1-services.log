@@ -1,0 +1,546 @@
+# 슬라이스 5 — develop-v2에서 1학기 서비스(backend, react-dashboard) 삭제
+# 근거(DRI 제시): develop-v2 는 2학기 신규 개발(③ 판정 엔진 = target-web correlation·verdict·measure + validation schema + S4-6 validation-api, ④ 대시보드는 S4 후반 신규),
+#   두 서비스는 아키텍처 그림에 없음. 2026-10-17 결정(main 백엔드 com.example.securitylab 는 S3 모델과 7가지 불일치로 가져오지 않음).
+#   OWASP Top 10:2025 A03(지원 종료 구성요소 Boot 3.3.5·nginx 1.27), Detection-as-Code(compose = 시스템 정의), backend DB superuser 접속 → 최소 권한,
+#   ISMS-P 강화기준 외부 연결 지점 최소화(2차), 토스 이해관계자 사전 공유(팀원 공지는 Step 2 전). ADR-S4-03 D7 "분리" → "develop-v2에서 삭제"(v1.3).
+#   코드 원본은 main·팀원 브랜치와 develop-v2 git 이력에 남음. 직전 커밋 524cd80
+
+## (0-0) Step 0 — 확인만 (상태 변경 없음) 2026-10-21T04:02+09:00 HEAD=524cd80
+
+## (0-1) compose 정의 (docker/docker-compose.yml 252~289행, environment 는 키 이름만)
+  backend:
+    build:
+      context: ./services/backend
+    container_name: backend
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - wazuh.indexer
+    environment:
+      SERVER_PORT: <값 생략>
+      SPRING_DATASOURCE_URL: <값 생략>
+      SPRING_DATASOURCE_USERNAME: <값 생략>
+      SPRING_DATASOURCE_PASSWORD: <값 생략>
+      APP_OPENSEARCH_URL: <값 생략>
+      APP_OPENSEARCH_USERNAME: <값 생략>
+      APP_OPENSEARCH_PASSWORD: <값 생략>
+      APP_OPENSEARCH_INSECURE_SSL: <값 생략>
+      APP_OPENSEARCH_INDEX_PATTERN: <값 생략>
+      APP_OPENSEARCH_RECENT_EVENTS_SIZE: <값 생략>
+    ports:
+      - "127.0.0.1:${BACKEND_PORT}:8080"
+    networks:
+      - app_net
+      - security_net
+
+  react-dashboard:
+    build:
+      context: ..
+      dockerfile: docker/services/react-dashboard/Dockerfile
+    container_name: react-dashboard
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT}:80"
+    networks:
+      - app_net
+  environment 값이 참조하는 변수(이름만): SPRING_DATASOURCE_URL→${POSTGRES_DB}, _USERNAME→${POSTGRES_USER}, _PASSWORD→${POSTGRES_PASSWORD},
+    APP_OPENSEARCH_USERNAME→${INDEXER_USERNAME}, _PASSWORD→${INDEXER_PASSWORD}, _INDEX_PATTERN→${APP_OPENSEARCH_INDEX_PATTERN}, _RECENT_EVENTS_SIZE→${APP_OPENSEARCH_RECENT_EVENTS_SIZE}
+    (SERVER_PORT·APP_OPENSEARCH_URL·APP_OPENSEARCH_INSECURE_SSL 은 리터럴)
+  두 서비스만 쓰는 top-level 항목:
+  | 종류 | 두 서비스가 쓰는 것 | 다른 사용자 | 전용 여부 |
+  | volumes | 없음 (두 서비스 모두 volumes 키 없음, 컨테이너 Mounts 비어 있음) | - | 해당 없음 |
+  | networks | app_net | postgres·target-web | 공용 → 유지 |
+  | networks | security_net | wazuh.manager·indexer·agent·target-web | 공용 → 유지 |
+  → 삭제할 top-level 볼륨·네트워크 줄 0
+
+## (0-2) depends_on (compose 전체)
+  | 서비스 | depends_on |
+  | target-web | postgres (condition: service_healthy) |
+  | suricata | target-web |
+  | wazuh.manager | wazuh.indexer |
+  | wazuh.agent | wazuh.manager, suricata, target-web |
+  | backend | postgres, wazuh.indexer |
+  | react-dashboard | backend |
+  → 다른 서비스가 backend·react-dashboard 에 depends_on 하지 않음(react-dashboard→backend 는 둘 사이)
+
+## (0-3) 저장소 참조 (grep -rnIE 'backend|react-dashboard|services/backend|services/react-dashboard|BACKEND_PORT|FRONTEND_PORT|8082|:3000\b|\b3000\b', .git·node_modules·build·.gradle 제외)
+  포트(실제 바인딩): backend 127.0.0.1:8082→8080, react-dashboard 127.0.0.1:3000→80 (.env.example 의 BACKEND_PORT·FRONTEND_PORT 와 같음)
+  (측정 정정: 첫 집계는 제외 패턴이 './' 접두 때문에 두 서비스 폴더를 빼지 못했고, 포트를 8081 로 잘못 넣었음 → 경로·8082 로 다시 집계)
+  두 서비스 폴더·증거 로그 밖 원문:
+    docker/.env.example:19:BACKEND_PORT=8082
+    docker/.env.example:20:FRONTEND_PORT=3000
+    docker/README.md:14:- `backend`: Wazuh Indexer 조회 API 제공
+    docker/README.md:15:- `react-dashboard`: nginx를 통해 `/api`를 Backend로 프록시
+    docker/README.md:31:- Backend: `http://localhost:8082`
+    docker/README.md:32:- React Dashboard: `http://localhost:3000`
+    docker/README.md:40:curl -i http://localhost:8082/actuator/health
+    docker/README.md:41:curl -i http://localhost:8082/api/dependencies
+    docker/README.md:42:curl -i http://localhost:8082/api/opensearch/health
+    docker/README.md:43:curl -i http://localhost:8082/api/events/recent
+    docker/README.md:44:curl -i http://localhost:8082/api/topology
+    docker/README.md:45:curl -i http://localhost:3000
+    docker/docker-compose.yml:252:  backend:
+    docker/docker-compose.yml:254:      context: ./services/backend
+    docker/docker-compose.yml:255:    container_name: backend
+    docker/docker-compose.yml:272:      - "127.0.0.1:${BACKEND_PORT}:8080"
+    docker/docker-compose.yml:277:  react-dashboard:
+    docker/docker-compose.yml:280:      dockerfile: docker/services/react-dashboard/Dockerfile
+    docker/docker-compose.yml:281:    container_name: react-dashboard
+    docker/docker-compose.yml:284:      - backend
+    docker/docker-compose.yml:286:      - "127.0.0.1:${FRONTEND_PORT}:80"
+    .dockerignore:20:# frontend node_modules (react-dashboard 빌드 시 별도로 npm install)          ← 허용 파일 밖
+    detections/known-gaps.md:155:- `backend` 서비스는 여전히 `POSTGRES_USER`(superuser)로 접속 — 공격 대상은 아니지만 별도 role 분리 후보.   ← 허용 파일 밖
+    docs/adr/ADR-S4-02-validation-api.md:26:- 루트 프로젝트 무변경(멀티 프로젝트 전환 안 함), backend(`docker/services/backend`) 무변경.   ← 허용 파일 밖
+    docs/adr/ADR-S4-02-validation-api.md:158:- 기존 스택 내부 연결(target-web·backend ↔ PostgreSQL 등)은 평문. validation-api ↔ PostgreSQL도 같은 상태로 시작.   ← 허용 파일 밖
+    docs/adr/ADR-S4-02-validation-api.md:163:멀티 프로젝트 전환, backend 수정, vulnuser 권한 변경, 기존 스택 DB 연결 TLS, SBOM·취약점 검사 도구 선택(S4-6).   ← 허용 파일 밖
+    docs/adr/ADR-S4-03-stack-version-baseline.md:25:| backend / react-dashboard (1학기 서비스) | Boot 3.3.5 / nginx 1.27.5 | 지원 범위 밖, 측정 경로에 없음 |
+    docs/adr/ADR-S4-03-stack-version-baseline.md:84:### D7. 1학기 서비스(backend, react-dashboard)는 업그레이드하지 않고 분리한다
+  오탐(두 서비스와 무관):
+    docker/config/wazuh_indexer/internal_users.yml:16·28·40·47·54 'backend_roles:' — OpenSearch security 용어
+    src/test/java/com/capstone/vuln/measure/MetricFixture.java:168 '.mttd(3000)', MttdViewTest.java:19·48 — mttd 밀리초 값 3000
+    db/bootstrap/app_role.sql:38 'pg_signal_backend' — PostgreSQL 기본 role 이름
+  증거 로그(커밋된 과거 기록, 줄 수만): 1a-digest-pin 8, 1c-wazuh-4.14.9 11, 0R-mock-imds-restore 5, 4-caldera-pin 6, ifn-interface-names 3, 1b-postgres-16.15 4
+  ** 측정 하네스·RUNBOOK·스크립트·target-web 코드 사용 여부 **
+    | 대상 | 결과 |
+    | 측정 하네스·target-web 코드(src/main, src/test) | 두 서비스·포트 참조 0 (위 3000 은 오탐) |
+    | RUNBOOK(detections/measurements/RUNBOOK-S4-1b-smoke.md, backfill/RUNBOOK-2026-10-18.md) | 0 |
+    | scripts/ | 디렉터리 없음 (README 51행 'bash scripts/check-week12-stack.sh' 는 develop-v2 에 없는 스크립트를 가리킴) |
+    | db/bootstrap | 0 (pg_signal_backend 오탐) |
+
+## (0-4) 두 서비스 폴더
+  | 폴더 | 파일 수(파일시스템) | 크기(du) | git 추적 파일 | 추적 바이트 | 미추적·무시 파일 |
+  | docker/services/backend | 24 | 156K | 24 | 32539 | 0 |
+  | docker/services/react-dashboard | 2 | 16K | 2 | 1036 | 0 |
+  git 추적 목록:
+    docker/services/backend/Dockerfile
+    docker/services/backend/pom.xml
+    docker/services/backend/src/main/java/com/example/securitylab/DependencyProbeService.java
+    docker/services/backend/src/main/java/com/example/securitylab/SecurityLabApplication.java
+    docker/services/backend/src/main/java/com/example/securitylab/TopologyController.java
+    docker/services/backend/src/main/java/com/example/securitylab/config/OpenSearchClientConfig.java
+    docker/services/backend/src/main/java/com/example/securitylab/config/OpenSearchProperties.java
+    docker/services/backend/src/main/java/com/example/securitylab/controller/OpenSearchController.java
+    docker/services/backend/src/main/java/com/example/securitylab/dto/ApiErrorResponse.java
+    docker/services/backend/src/main/java/com/example/securitylab/dto/OpenSearchHealthResponse.java
+    docker/services/backend/src/main/java/com/example/securitylab/dto/RecentEventItem.java
+    docker/services/backend/src/main/java/com/example/securitylab/dto/RecentEventsRequest.java
+    docker/services/backend/src/main/java/com/example/securitylab/dto/RecentEventsResponse.java
+    docker/services/backend/src/main/java/com/example/securitylab/exception/GlobalExceptionHandler.java
+    docker/services/backend/src/main/java/com/example/securitylab/exception/OpenSearchAuthenticationException.java
+    docker/services/backend/src/main/java/com/example/securitylab/exception/OpenSearchConnectionException.java
+    docker/services/backend/src/main/java/com/example/securitylab/exception/OpenSearchException.java
+    docker/services/backend/src/main/java/com/example/securitylab/exception/OpenSearchIndexNotFoundException.java
+    docker/services/backend/src/main/java/com/example/securitylab/exception/OpenSearchRequestException.java
+    docker/services/backend/src/main/java/com/example/securitylab/opensearch/OpenSearchQueryClient.java
+    docker/services/backend/src/main/java/com/example/securitylab/opensearch/RecentEventMapper.java
+    docker/services/backend/src/main/java/com/example/securitylab/opensearch/RecentEventsQueryBuilder.java
+    docker/services/backend/src/main/java/com/example/securitylab/service/OpenSearchService.java
+    docker/services/backend/src/main/resources/application.yml
+    docker/services/react-dashboard/Dockerfile
+    docker/services/react-dashboard/nginx/default.conf
+  react-dashboard Dockerfile 참조 경로(원문 6·9·14행):
+    6: COPY frontend/package.json frontend/package-lock.json ./   → frontend/ 없음(MISSING, git ls-files frontend = 0)
+    9: COPY frontend/ ./                                           → MISSING
+    14: COPY docker/services/react-dashboard/nginx/default.conf /etc/nginx/conf.d/default.conf → 있음
+    (15: COPY --from=build /app/dist … 는 빌드 단계 안 경로라 저장소 무관)
+  → develop-v2 에서는 react-dashboard 이미지를 다시 빌드할 수 없음(되돌리기 시 frontend/ 를 main 에서 가져와야 함)
+
+## (0-5) .env.example 키 분류 (값 미출력, compose 사용 서비스 + 저장소 다른 파일)
+  | 키 | compose 사용 | 다른 파일 | 분류 |
+  | BACKEND_PORT | backend | 없음 | 두 서비스 전용 |
+  | FRONTEND_PORT | react-dashboard | 없음 | 두 서비스 전용 |
+  | APP_OPENSEARCH_RECENT_EVENTS_SIZE | backend | 없음 | 두 서비스 전용 |
+  | APP_OPENSEARCH_INDEX_PATTERN | backend | src/main/resources/application.yaml:64 | **주의** — compose 는 backend 만 쓰지만 측정 하네스 설정이 같은 이름 참조 |
+  | INDEXER_USERNAME | backend, wazuh.manager | CampaignRunnerIT·application.yaml·RUNBOOK | 공용 → 유지 |
+  | INDEXER_PASSWORD | backend, wazuh.manager | CampaignRunnerIT·application.yaml·RUNBOOK | 공용 → 유지 |
+  | POSTGRES_DB | backend, postgres, target-web | 테스트·RUNBOOK·backfill | 공용 → 유지 |
+  | POSTGRES_USER | backend, postgres | README·known-gaps·db/bootstrap 등 | 공용 → 유지 |
+  | POSTGRES_PASSWORD | backend, postgres | 없음 | 공용 → 유지 |
+  APP_OPENSEARCH_INDEX_PATTERN 상세(원문):
+    src/main/resources/application.yaml:64:      index-pattern: ${APP_OPENSEARCH_INDEX_PATTERN:wazuh-alerts-*}
+    src/main/java/com/capstone/vuln/measure/MeasureConfig.java:64:            @Value("${app.measure.indexer.index-pattern:wazuh-alerts-*}") String indexPattern,
+    → 측정 하네스(호스트 gradle 실행)는 셸 환경변수로만 읽고 기본값 wazuh-alerts-* 를 가짐. RUNBOOK (2) 명령은 이 변수를 주입하지 않음(docker/.env 는 compose 만 읽음)
+  (그 밖의 키는 두 서비스와 무관 — 표 생략, 전체 분류는 이 Step 의 명령 출력 기준)
+
+## (0-6) 두 컨테이너·이미지
+  | 컨테이너 | id | 이미지 Id | Config.Image | 상태 | StartedAt | 포트 | 볼륨(Mounts) |
+  | backend | 1f46e3ad546a | sha256:3564237d5a8bde2d5632801f469ba31676214256fe811947bfbd9890723ec160 | security-lab-backend | running | 2026-10-20T17:00:58.035420748Z | 127.0.0.1:8082→8080/tcp | 없음 |
+  | react-dashboard | 04cd261f05f1 | sha256:984633aa77b590cbdeeb58b76049cf5b703aedb856bab0a7d3fe65b4d8a95217 | security-lab-react-dashboard | running | 2026-10-20T17:00:56.887797127Z | 127.0.0.1:3000→80/tcp | 없음 |
+  이미지: security-lab-backend:latest 3564237d5a8b 2026-10-11 02:46:16 +0900 KST 524MB / security-lab-react-dashboard:latest 984633aa77b5 2026-06-02 18:22:33 +0900 KST 74.8MB
+  네트워크 구성원: app_net = postgres react-dashboard backend target-web / security_net = backend wazuh.manager wazuh.indexer target-web wazuh.agent
+  → 두 서비스 전용 볼륨 없음(docker volume rm 대상 없음)
+
+## (0-7) 기준값 (2026-10-20T19:02Z)
+  | 컨테이너 | id | 상태 | StartedAt |
+  | suricata | eb0a83659102 | running | 2026-10-20T18:15:55.440573807Z |
+  | target-web | 83f741aa8949 | running | 2026-10-20T18:15:54.436176078Z |
+  | security-lab-wazuh.agent-1 | ea593a328c20 | running | 2026-10-20T17:00:49.686845212Z |
+  | security-lab-wazuh.manager-1 | 2e981a803ed5 | running | 2026-10-20T17:00:50.997397674Z |
+  | security-lab-wazuh.indexer-1 | 4de121e938e7 | running | 2026-10-20T17:00:51.739122373Z |
+  | postgres | 03c8a168cf37 | running (healthy) | 2026-10-20T17:00:52.299058825Z |
+  | caldera | 655ec54ec456 | running | 2026-10-20T17:00:52.925780782Z |
+  | mock-imds | aadb7b5b54d1 | running | 2026-10-20T17:00:53.819402488Z |
+  | react-dashboard | 04cd261f05f1 | running | 2026-10-20T17:00:56.887797127Z |
+  | backend | 1f46e3ad546a | running | 2026-10-20T17:00:58.035420748Z |
+  (keen_brahmagupta hello-world exited — 대상 아님)
+  RUNBOOK (0-c):
+    app0 172.20.0.3/16
+    atk0 172.18.0.3/16
+    imds0 169.254.169.2/24
+    sec0 172.19.0.5/16
+    eth_count=0
+    security-lab_app_net 172.20.0.0/16
+    security-lab_attack_net 172.18.0.0/16
+    security-lab_imds_net 169.254.169.0/24
+    security-lab_security_net 172.19.0.0/16
+    ["-i","app0","-i","atk0","-i","imds0","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.7.stats.enabled=no","--set","outputs.1.eve-log.types.26.stats.enabled=no"]
+    NM_OK
+  df -h /: /dev/sda2 99G 44G 51G 47% /
+
+## (0-J) Step 0 결과
+  측정 실패로 다시 잰 항목 2건(아래), 최종 빈 결과 0.
+    - (0-3) 첫 집계: 제외 패턴·포트 값 오류 → 정정 후 재집계
+    - (0-5) 첫 집계: 다른 서비스 사용 수가 전부 0(정규식 오류, 이미 아는 사용처와 모순) → 측정 실패로 보고 고정 문자열로 재집계
+  허용 파일 밖 참조 3개 파일(.dockerignore, detections/known-gaps.md, docs/adr/ADR-S4-02-validation-api.md) — 수정하지 않음, DRI 결정 대기.
+  .env.example 두 서비스 전용 키 3개 확정, APP_OPENSEARCH_INDEX_PATTERN 은 DRI 결정 필요. top-level 삭제 대상 0, 전용 볼륨 0. Step 1 승인 대기
+
+## (1-0) Step 1 — 파일 수정 (상태 변경 없음, DRI 승인) 2026-10-21T04:15+09:00
+- DRI 결정(현성):
+  1. .env.example 의 APP_OPENSEARCH_INDEX_PATTERN 삭제.
+     측정 하네스는 셸 환경변수로 읽고 기본값 wazuh-alerts-*, compose 미사용이라 동작 변화 없음
+     (application.yaml:64 '${APP_OPENSEARCH_INDEX_PATTERN:wazuh-alerts-*}', MeasureConfig.java:64 기본값 동일. RUNBOOK (2) 는 이 변수를 주입하지 않음)
+  2. 허용 파일 추가: .dockerignore, detections/known-gaps.md, docs/adr/ADR-S4-02-validation-api.md
+  3. README 51행 scripts/check-week12-stack.sh 줄 삭제 — develop-v2에 scripts/ 없음, 기존 깨진 참조
+  4. Step 2 에 이미지 백업(docker save, 저장소 밖 ~/capstone-backups, 600) 추가. 되돌리기: react-dashboard 는 develop-v2에서 재빌드 불가 → tar 를 docker load 로 복원
+  Step 0 에서 다시 잰 2건의 처리 방식 승인
+
+## (1-1) 수정 내용
+  1. docker/docker-compose.yml: backend(252~275행)·react-dashboard(277~288행) 정의와 뒤 빈 줄 삭제(38줄). top-level networks·volumes 무변경(전용 항목 0)
+  2. git rm -r docker/services/backend docker/services/react-dashboard → 26개 파일 삭제(backend 24 + react-dashboard 2). docker/services/ 에는 target-web 만 남음
+  3. docker/.env.example: BACKEND_PORT·FRONTEND_PORT·APP_OPENSEARCH_INDEX_PATTERN·APP_OPENSEARCH_RECENT_EVENTS_SIZE 4줄 삭제(54줄 → 50줄). 공용 키(INDEXER_*·POSTGRES_*) 유지
+     docker/.env(실제 값, gitignore)는 수정 안 함 — 남는 키: BACKEND_PORT, FRONTEND_PORT, APP_OPENSEARCH_INDEX_PATTERN, APP_OPENSEARCH_RECENT_EVENTS_SIZE (compose 가 더는 참조하지 않음, config -q 경고 0)
+  4. docker/README.md:
+     - 구성 목록에서 backend·react-dashboard 2줄 삭제, postgres 줄 "Target Web/Backend용" → "Target Web용", 안내 1줄 추가:
+       "1학기 서비스(`backend`, `react-dashboard`)는 develop-v2에서 삭제했다(ADR-S4-03 D7 v1.3). 원본은 main·팀원 브랜치에 있다."
+     - 주요 포트에서 Backend(8082)·React Dashboard(3000) 2줄 삭제
+     - 검증 블록에서 8082·3000 curl 6줄 삭제
+     - 51행 'bash scripts/check-week12-stack.sh' 삭제 — 이 줄만 지우면 빈 코드 블록과 48행 소개 문장('전체 점검은 저장소 루트에서 실행한다.')이 남아 48~52행 블록 전체 삭제(Claude 판단)
+  5. .dockerignore 20행 주석만 교체(ignore 항목 'frontend/node_modules/' 등은 무변경):
+     전: # frontend node_modules (react-dashboard 빌드 시 별도로 npm install)
+     후: # frontend node_modules (1학기 react-dashboard 빌드용이었음 — develop-v2에서 서비스 삭제, ADR-S4-03 D7 v1.3)
+  6. detections/known-gaps.md: 155행 그대로, 바로 아래 156행 추가:
+       (2026-10-21 슬라이스 5: backend 서비스를 develop-v2에서 삭제해 이 경로는 해소됨, ADR-S4-03 D7 v1.3)
+  7. docs/adr/ADR-S4-02-validation-api.md: 26·158·163행(현재 27·159·164행) 그대로. 이 문서에는 '변경 이력' 절이 없고 머리말 '개정 v1.1 …' 줄이 이력 역할 →
+     같은 형식으로 6행 추가: "- 개정 v1.2 (2026-10-21): backend는 ADR-S4-03 v1.3(슬라이스 5)으로 develop-v2에서 삭제됨. 이 문서의 backend 언급은 결정 당시 기준"
+  8. docs/adr/ADR-S4-03-stack-version-baseline.md v1.3:
+     - 4행 버전 v1.2 → v1.3
+     - D7 제목 "1학기 서비스(backend, react-dashboard)는 develop-v2에서 삭제한다", 본문에 삭제 범위·이유(배경 4항목)·팀원 사전 알림,
+       기존 문구는 "v1.2까지: compose profile로 분리 예정 — …" 으로 원문 인용 보존
+     - 슬라이스 표 5행: "| 5 | 5 1학기 서비스 삭제 | 작음 | 측정 스택에서 제거 | 대기 |"
+     - 변경 이력 v1.3 행
+     - 지시 범위 밖이라 그대로 둔 곳: 1절 표 25행(배경, 당시 상태), 4절 근거 표 'D7 서비스 분리' 행, 5절 131행('업그레이드 범위에서 뺀다(D7)')
+  git diff --stat (서비스 폴더 제외 7개 파일): .dockerignore 2 +- / known-gaps.md 1 + / .env.example 4 - / README.md 20 +++------ / docker-compose.yml 38 - / ADR-S4-02 1 + / ADR-S4-03 17 ++++-- (18 insertions, 65 deletions)
+  전체: 33 files changed, 18 insertions(+), 1051 deletions(-)
+
+## (1-2) config 비교 (HEAD 524cd80 ↔ 작업 트리; HEAD compose 는 docker/ 안 임시 파일로 두고 비교 직후 삭제, ls 로 없음 확인)
+  config --services: head 10 → work 8, 차이 = backend·react-dashboard 2개만
+    work: caldera mock-imds postgres suricata target-web wazuh.agent wazuh.indexer wazuh.manager
+  config --images: head 10 → work 8, 차이 = security-lab-backend·security-lab-react-dashboard 2개만, 나머지 8개 HEAD 와 같음:
+    ghcr.io/mitre/caldera:5.2.0@sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7
+    jasonish/suricata:7.0@sha256:5b3f3aabc3646a4d94ee26abc4f487c2d11a8700b0e6ee52d9b47f110812e898
+    postgres:16.15-trixie@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+    python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+    security-lab-target-web
+    wazuh/wazuh-agent:4.14.9@sha256:db274c1e2c56106f108fa1469f7ee99995ad3cac41003e8ca7a975cda2af20d8
+    wazuh/wazuh-indexer:4.14.9@sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6
+    wazuh/wazuh-manager:4.14.9@sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
+  config -q: 경고 0, exit=0
+
+## (1-3) dry-run
+  $ docker compose -p security-lab -f docker/docker-compose.yml up -d --no-build --pull never --remove-orphans --dry-run
+     DRY-RUN MODE -  Container react-dashboard  Stopping
+     DRY-RUN MODE -  Container react-dashboard  Stopped
+     DRY-RUN MODE -  Container react-dashboard  Removing
+     DRY-RUN MODE -  Container react-dashboard  Removed
+     DRY-RUN MODE -  Container backend  Stopping
+     DRY-RUN MODE -  Container backend  Stopped
+     DRY-RUN MODE -  Container backend  Removing
+     DRY-RUN MODE -  Container backend  Removed
+     DRY-RUN MODE -  Container mock-imds  Running
+     DRY-RUN MODE -  Container caldera  Running
+     DRY-RUN MODE -  Container postgres  Running
+     DRY-RUN MODE -  Container security-lab-wazuh.indexer-1  Running
+     DRY-RUN MODE -  Container target-web  Running
+     DRY-RUN MODE -  Container security-lab-wazuh.manager-1  Running
+     DRY-RUN MODE -  Container suricata  Running
+     DRY-RUN MODE -  Container security-lab-wazuh.agent-1  Running
+     DRY-RUN MODE -  Container postgres  Waiting
+     DRY-RUN MODE -  Container postgres  Healthy
+  exit=0 → Remove 는 두 컨테이너뿐, 다른 8개는 Running(Recreate·Start 없음)
+
+## (1-4) 남은 참조 (증거 로그·오탐 제외)
+  .dockerignore:20 (새 주석), docker/README.md:15 (삭제 안내), known-gaps.md:155·156 (원문 + 해소 표시), ADR-S4-03 25·84·85·90·166 (배경 표·D7·이력),
+  ADR-S4-02 6·27·159·164 (개정 줄 + 결정 당시 기준 언급), src/main/resources/application.yaml:64 (측정 하네스 기본값 wazuh-alerts-*) — 모두 의도한 잔여
+  git status --short: M .dockerignore / M detections/known-gaps.md / M docker/.env.example / M docker/README.md / M docker/docker-compose.yml /
+    M docs/adr/ADR-S4-02-validation-api.md / M docs/adr/ADR-S4-03-stack-version-baseline.md / D docker/services/** 26개(스테이징됨, git rm) / ?? 이 증거 로그
+
+## (1-J) Step 1 결과
+  config 8/8, dry-run Remove 2개뿐. 컨테이너 상태 변경 없음. Step 2 는 DRI 승인 + 팀원 공지 후
+
+## (1-5) 추가 수정 (DRI 승인, 상태 변경 없음) 2026-10-21T04:25+09:00
+- DRI 승인: README 48~52행 블록 삭제, ADR-S4-02 머리말 개정 줄 형식. ADR-S4-03 1절 25행·5절 131행은 그대로 둠
+- DRI 결정(현성, 2026-10-21): 1학기 담당 팀원(윤지현, 박서진, 서우석)에게는 삭제 후 일괄 공지한다
+  (main·팀원 브랜치 무영향, 이미지 백업과 git 이력으로 되돌릴 수 있어 사전 공지 대신 사후 공지)
+- ADR-S4-03 수정 전후 원문:
+  1. 4절 근거 표 D7 행(130행)
+     전: | D7 서비스 분리 | ISMS-P 강화기준 외부 연결 지점 최소화 (2차) | Docker Compose profiles: 지정한 profile일 때만 기동 (확인) | 토스: 최고 수준 정보 공유가 좋은 결정의 전제, 이해관계자에게 목적·리스크 계획 사전 공유 → 팀원 사전 알림 (확인) | CTEM Discovery(노출면). 원문이 서비스 정지를 직접 처방하지 않음 (해석) |
+     후: | D7 1학기 서비스 삭제 | ISMS-P 강화기준 외부 연결 지점 최소화 (2차) | OWASP Top 10:2025 A03 지원 종료 구성요소(Boot 3.3.5, nginx 1.27) (확인). Detection-as-Code: compose = 시스템 정의, 아키텍처 그림과 일치. 최소 권한: backend의 DB superuser 접속 제거. [v1.2까지: Docker Compose profiles — 지정한 profile일 때만 기동] | 토스: 최고 수준 정보 공유가 좋은 결정의 전제, 이해관계자에게 목적·리스크 계획 사전 공유 → 팀원 사전 알림 (확인) | CTEM Discovery(노출면). 원문이 서비스 정지를 직접 처방하지 않음 (해석) |
+     (표준·기업별·2026 칸 기존 유지 — 기업별 칸의 '팀원 사전 알림'은 D7 본문의 사후 공지 결정과 문구가 다름, DRI 지시대로 유지)
+  2. D7 본문(91·92행)
+     전: - 삭제 전에 1학기 담당 팀원(윤지현, 박서진, 서우석)에게 먼저 알린다.
+     후: - 1학기 담당 팀원(윤지현, 박서진, 서우석)에게는 삭제 후 일괄 공지한다(2026-10-21 DRI 결정: main·팀원 브랜치 무영향, 이미지 백업과 git 이력으로 되돌릴 수 있어 사전 공지 대신 사후 공지).
+         - v1.3 초안: 삭제 전 사전 공지 — "삭제 전에 1학기 담당 팀원(윤지현, 박서진, 서우석)에게 먼저 알린다."
+  3. 변경 이력 v1.3 행 끝에 "4절 D7 근거 행 갱신, 팀원 공지는 사후 일괄 공지로 변경(DRI)" 덧붙임
+
+## (2-0) Step 2 — 컨테이너·이미지 삭제 (DRI 승인, 팀원 공지는 사후 일괄 — (1-5) DRI 결정) 2026-10-21T04:14:33+09:00
+### 1. 이미지 백업 (삭제 전, 저장소 밖, 커밋 안 함)
+  삭제 전 이미지:
+    security-lab-backend:latest         Id=sha256:3564237d5a8bde2d5632801f469ba31676214256fe811947bfbd9890723ec160 Created=2026-10-11T02:46:16.574734844+09:00 Size=145337259
+    security-lab-react-dashboard:latest Id=sha256:984633aa77b590cbdeeb58b76049cf5b703aedb856bab0a7d3fe65b4d8a95217 Created=2026-06-02T18:22:33.00826947+09:00 Size=21259796
+  $ mkdir -p ~/capstone-backups   (기존 디렉터리, drwx------)
+  $ docker save security-lab-backend:latest -o ~/capstone-backups/2026-10-21_security-lab-backend.tar → exit=0
+  $ docker save security-lab-react-dashboard:latest -o ~/capstone-backups/2026-10-21_security-lab-react-dashboard.tar → exit=0
+  $ chmod 600 (두 파일)
+  | 파일 | 크기(B) | 권한 | sha256 |
+  | ~/capstone-backups/2026-10-21_security-lab-backend.tar | 145355776 | 600 | 51c180d6f831eb5e8507e968700419dce7f40e338989f7c51a93637d24096576 |
+  | ~/capstone-backups/2026-10-21_security-lab-react-dashboard.tar | 21279744 | 600 | 7d03b8a51f58f56d5b7c151e2057a5db812f6d1e15fac2057582d20dddc97bca |
+  tar 내용 확인(읽기만): index.json manifests digest
+    backend tar: sha256:3564237d5a8bde2d5632801f469ba31676214256fe811947bfbd9890723ec160 (docker.io/library/security-lab-backend:latest) = 이미지 Id SAME
+    react-dashboard tar: sha256:984633aa77b590cbdeeb58b76049cf5b703aedb856bab0a7d3fe65b4d8a95217 (docker.io/library/security-lab-react-dashboard:latest) = 이미지 Id SAME
+    (manifest.json Config blob digest 는 2f03e89f…·78f96986… — containerd 이미지 저장소에서는 이미지 Id = manifest/index digest 라 Config 와 다른 것이 정상)
+### 2·3. 삭제 (T_stop_utc=2026-10-20T19:15:00Z)
+  다른 8개 기준 StartedAt(직전): agent 17:00:49.686845212Z / manager 17:00:50.997397674Z / indexer 17:00:51.739122373Z / postgres 17:00:52.299058825Z /
+    caldera 17:00:52.925780782Z / mock-imds 17:00:53.819402488Z / target-web 18:15:54.436176078Z / suricata 18:15:55.440573807Z
+  $ docker stop backend react-dashboard
+  backend
+  react-dashboard
+  exit=0
+  $ docker rm backend react-dashboard
+  backend
+  react-dashboard
+  exit=0
+  $ docker image rm security-lab-backend:latest security-lab-react-dashboard:latest
+  Untagged: security-lab-backend:latest
+  Deleted: sha256:3564237d5a8bde2d5632801f469ba31676214256fe811947bfbd9890723ec160
+  Untagged: security-lab-react-dashboard:latest
+  Deleted: sha256:984633aa77b590cbdeeb58b76049cf5b703aedb856bab0a7d3fe65b4d8a95217
+  exit=0
+
+## (2-1) 확인 (2026-10-20T19:15:37Z) → 전부 통과
+  | 항목 | 결과 |
+  | 남은 컨테이너 | 8개 Up: suricata, target-web, wazuh.agent, wazuh.manager, wazuh.indexer, postgres (healthy), caldera, mock-imds (+ keen_brahmagupta Exited, 대상 아님) |
+  | StartedAt | 8/8 직전 기준과 diff 0 |
+  | backend·react-dashboard 컨테이너 | 0 |
+  | 두 이미지 | 0 |
+  | 8082·3000 리스닝(ss -ltn) | 0줄 |
+  | docker compose ps | 8개 running, stderr 'orphan' 0줄, exit=0 |
+  | RUNBOOK (0-c) | app0 172.20.0.3/16, atk0 172.18.0.3/16, imds0 169.254.169.2/24, sec0 172.19.0.5/16, eth_count=0, 서브넷 4개 일치, -i app0 atk0 imds0, NM_OK |
+  | target-web health(1회) | http_code=200, status=UP |
+  | agent_control -l | ID: 004, Name: wazuh.agent, IP: any, Active |
+  | indexer | {"status":"green","number_of_nodes":1,"active_shards":101,"unassigned_shards":0}, wazuh-alerts-* count 7321, _all/_settings blocks {} |
+  | 네트워크 구성원 | app_net = postgres target-web / security_net = wazuh.manager wazuh.indexer target-web wazuh.agent |
+  | df -h / | /dev/sda2 99G 44G 51G 47% (삭제 전 47%, 백업 tar 약 159MiB 추가와 이미지 삭제가 상쇄) |
+
+## (2-R) 되돌리기 계획 (실패 시에만)
+  1. git 으로 524cd80 의 docker/docker-compose.yml·docker/services/backend·docker/services/react-dashboard·docker/.env.example 복원
+  2. backend: docker load -i ~/capstone-backups/2026-10-21_security-lab-backend.tar (또는 docker compose build backend)
+  3. react-dashboard 는 develop-v2에서 재빌드 불가(frontend/ 없음) → 백업 tar 를 docker load 로 복원:
+     docker load -i ~/capstone-backups/2026-10-21_security-lab-react-dashboard.tar
+  4. docker compose -p security-lab -f docker/docker-compose.yml up -d --no-build --pull never --no-deps backend react-dashboard
+  5. 복원 확인: 이미지 Id 3564237d…·984633aa…, 포트 8082·3000, 다른 8개 StartedAt 무변경
+
+## (2-J) Step 2 결과
+  삭제 완료, 확인 전부 통과. Step 4 는 sandcat 준비 여부 DRI 확인 후
+
+## (2-K) 추가 수정 (DRI 지시, 상태 변경 없음) 2026-10-21T04:17+09:00
+  ADR-S4-03 4절 D7 행 기업별 칸 (불일치 지적 반영, 변경 이력 v1.3 행은 이미 "공지는 사후 일괄 공지로 변경(DRI)"이 있어 그대로)
+    전: 토스: 최고 수준 정보 공유가 좋은 결정의 전제, 이해관계자에게 목적·리스크 계획 사전 공유 → 팀원 사전 알림 (확인)
+    후: 토스: 최고 수준 정보 공유가 좋은 결정의 전제, 이해관계자에게 목적·리스크 계획 사전 공유 (확인). 토스: 위임된 일의 결정은 DRI가 내림 (확인). v1.3 운영: DRI 결정으로 사후 일괄 공지 — 사전 공유 원칙과 다르게 운영함. main·팀원 브랜치 무영향, 이미지 백업과 git 이력으로 되돌릴 수 있어 위험을 낮춤 (해석).
+    (DRI 문구의 줄바꿈은 표 칸 안이라 공백으로 이어 한 줄로 넣음)
+
+## (4-0) RUNBOOK 사전 조건 2026-10-21T04:17:39+09:00 (DRI: sandcat 준비됨, Step 4 승인)
+### (0) 사전 점검
+  524cd80 docs: ADR-S4-03 v1.2 (evidence corrections + D9 upgrade/measurement preconditions)  porcelain=34(미커밋 → git_dirty=true 예상)
+  target-web	Up About an hour
+  security-lab-wazuh.manager-1	Up 2 hours
+  security-lab-wazuh.indexer-1	Up 2 hours
+  postgres	Up 2 hours (healthy)
+  caldera	Up 2 hours
+  red agents (paw group trusted last_seen, 키 미출력):
+  mcukpa	red	false	2026-10-16T18:23:26Z
+  jznjpj	red	false	2026-10-18T10:10:09Z
+  oeintf	red	false	2026-10-20T13:45:21Z
+  pqkuqm	red	false	2026-10-20T14:30:41Z
+  zetofr	red	true	2026-10-20T19:17:24Z
+  now=2026-10-20T19:17:39Z → alive(trusted=true) 정확히 1개 = zetofr. 실행 직전 재조회: zetofr red true 2026-10-20T19:17:24Z (start 19:17:54Z)
+  label S4-STACK-5-SMOKE: 0
+### (0-b) total=43 finished=43 (running= / paused= 줄 없음)
+### (0-c)
+  app0 172.20.0.3/16 / atk0 172.18.0.3/16 / imds0 169.254.169.2/24 / sec0 172.19.0.5/16 / eth_count=0
+  security-lab_app_net 172.20.0.0/16 / security-lab_attack_net 172.18.0.0/16 / security-lab_imds_net 169.254.169.0/24 / security-lab_security_net 172.19.0.0/16
+  ["-i","app0","-i","atk0","-i","imds0","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.7.stats.enabled=no","--set","outputs.1.eve-log.types.26.stats.enabled=no"]
+  NM_OK
+  agent_control -l: ID: 004, Name: wazuh.agent, IP: any, Active
+
+## (4-1) 스모크 실행 (RUNBOOK-S4-1b (2), 라벨만 변경) 2026-10-21T04:17:54+09:00
+$ RUN_CALDERA_MEASURE=1 MEASURE_N=1 MEASURE_LABEL='S4-STACK-5-SMOKE' APP_CALDERA_APIKEY=… INDEXER_USERNAME=… INDEXER_PASSWORD=… POSTGRES_DB=… VALIDATION_DB_PASSWORD=… ./gradlew cleanTest test --tests 'com.capstone.vuln.measure.CampaignRunnerIT' -i | grep -E '<RUNBOOK 필터>'   (값은 docker/.env 에서 env 로만 주입, 미출력)
+  start=2026-10-20T19:17:54Z
+  CampaignRunnerIT STANDARD_OUT
+      2026-10-21T04:18:13.444+09:00  INFO 82083 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Starting CampaignRunnerIT using Java 17.0.20.1 with PID 82083 (started by hyeonseong in /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2)
+      2026-10-21T04:18:13.479+09:00 DEBUG 82083 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Running with Spring Boot v3.5.13, Spring v6.2.17
+      2026-10-21T04:18:13.481+09:00  INFO 82083 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : No active profile set, falling back to 1 default profile: "default"
+      2026-10-21T04:18:15.418+09:00  INFO 82083 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Started CampaignRunnerIT in 3.536 seconds (process running for 6.425)
+  CampaignRunnerIT > measure() STANDARD_OUT
+      MEASURE>> starting campaign run label=S4-STACK-5-SMOKE n=1 truncate=false
+      PER-RUN op=59379a60-d53c-4b1d-a854-39ce6f4ac5db rows=8
+        [SQLI/SINGLE] rid=7f4ddad3-816e-40ad-80d8-8f468a699a8f gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_MISSED conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [SSRF/SINGLE] rid=6da6eabc-43e1-4f85-895a-c1ea5e223bfa gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=2050
+        [SSRF/SINGLE] rid=76ce96b4-01f4-40e2-b66b-2de0484293c5 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1710
+        [SSRF/SINGLE] rid=2b478ad3-eb02-43a2-8154-63b233c68d86 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [PATH_TRAVERSAL/SINGLE] rid=84a08f74-3532-4bd6-af6e-61f8b22c7336 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1265
+        [PATH_TRAVERSAL/SINGLE] rid=6504f373-7ae8-4e9e-9524-590b0cfe7397 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1204
+        [PATH_TRAVERSAL/SINGLE] rid=501ff6b8-d041-444e-87e4-c8bfc26ad914 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1180
+        [BRUTE_FORCE/BF_SEQUENCE] rid=4b4ccb4a-68c2-4852-b0d9-48a0940b5ff9 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=2438
+      GATE overall=INCONCLUSIVE totalSamples=7 totalUncertain=0 report=detections/measurements/gate-report-2026-10-20T19-21-56-795Z.md
+      RUN run_id=1ba74855-4ea7-4cca-aa62-46907284fc5b R10=VALID
+      MEASURE>> done overall=INCONCLUSIVE totalSamples=7
+  BUILD SUCCESSFUL in 4m 2s
+  end=2026-10-20T19:21:58Z
+  op_id 교차검증 WARN 줄 수: 0  ('Caldera operation 조회 실패' 0, FAILED 0)
+
+## (4-2) DB 확인 (validation_rw, BEGIN READ ONLY … ROLLBACK)
+       label        |  kind  | status | ended |                git_commit                | git_dirty |         started_at         |          ended_at          | wazuh_rules  | suricata_rules |  adversary   | abilities | expected_attempts | expected_controls
+--------------------+--------+--------+-------+------------------------------------------+-----------+----------------------------+----------------------------+--------------+----------------+--------------+-----------+-------------------+-------------------
+ S4-STACK-IFN-SMOKE | ATTACK | CLOSED | t     | bac71f8ad7ece01d3323bb534ac78fd05fd8b142 | t         | 2026-10-20 18:21:31.301+00 | 2026-10-20 18:24:46.33+00  | 47715556fd0f | 007b188d4e80   | cba127e95e91 |         4 |                 7 |                 1
+ S4-STACK-5-SMOKE   | ATTACK | CLOSED | t     | 524cd80f981bce2c508ecd0a038728f96190f841 | t         | 2026-10-20 19:18:16.785+00 | 2026-10-20 19:21:56.781+00 | 47715556fd0f | 007b188d4e80   | cba127e95e91 |         4 |                 7 |                 1
+(2 rows)
+
+      label       | attack | control |  r10
+------------------+--------+---------+-------
+ S4-STACK-5-SMOKE |      7 |       1 | VALID
+(1 row)
+
+       label        | attempt_role | gt_outcome | count
+--------------------+--------------+------------+-------
+ S4-STACK-5-SMOKE   | ATTACK       | SUCCEEDED  |     7
+ S4-STACK-5-SMOKE   | CONTROL      | FAILED     |     1
+ S4-STACK-IFN-SMOKE | ATTACK       | SUCCEEDED  |     7
+ S4-STACK-IFN-SMOKE | CONTROL      | FAILED     |     1
+(4 rows)
+
+ correlations | op_id_not_null | all_resolved | distinct_op_ids |                op_id
+--------------+----------------+--------------+-----------------+--------------------------------------
+            8 |              8 | t            |               1 | 59379a60-d53c-4b1d-a854-39ce6f4ac5db
+(1 row)
+
+    scenario    |  role   | k |  gt_ifn   |   gt_5    |    verdict_ifn     |     verdict_5      |      init_ifn      |       init_5       |  atk_ifn  |   atk_5   | ovr_ifn | ovr_5 |   det_ifn    |    det_5     | cmp
+----------------+---------+---+-----------+-----------+--------------------+--------------------+--------------------+--------------------+-----------+-----------+---------+-------+--------------+--------------+------
+ BRUTE_FORCE    | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f       | f     | DETECTED     | DETECTED     | same
+ PATH_TRAVERSAL | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f       | f     | DETECTED     | DETECTED     | same
+ PATH_TRAVERSAL | ATTACK  | 2 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f       | f     | DETECTED     | DETECTED     | same
+ PATH_TRAVERSAL | ATTACK  | 3 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f       | f     | DETECTED     | DETECTED     | same
+ SQLI           | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED | SUCCEEDED | f       | f     | NOT_DETECTED | NOT_DETECTED | same
+ SSRF           | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f       | f     | DETECTED     | DETECTED     | same
+ SSRF           | ATTACK  | 2 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f       | f     | DETECTED     | DETECTED     | same
+ SSRF           | CONTROL | 1 | FAILED    | FAILED    | FAILED_UNSEEN      | FAILED_UNSEEN      | FAILED_UNSEEN      | FAILED_UNSEEN      | SUCCEEDED | SUCCEEDED | t       | t     | NOT_DETECTED | NOT_DETECTED | same
+(8 rows)
+(비교: S4-STACK-IFN-SMOKE ↔ S4-STACK-5-SMOKE, 시나리오·attempt_role 안 verdict·id 순 k번째 짝(FULL JOIN), 6개 컬럼 IS NOT DISTINCT FROM)
+
+      label      | status | verdicts
+-----------------+--------+----------
+ S3-GATE-dc66322 | CLOSED |      160
+(1 row)
+### (3-c 보강) Caldera operation
+  db op_id=59379a60-d53c-4b1d-a854-39ce6f4ac5db (= PER-RUN op)
+  59379a60-d53c-4b1d-a854-39ce6f4ac5db	S4-measure #1 2026-10-20T19:18:16.958Z	finished	2026-10-20T19:18:17Z	4 links	zetofr:0 zetofr:0 zetofr:0 zetofr:0
+
+## (4-3) 사후 2026-10-21T04:25:12+09:00
+  (0-b): total=44 finished=44 (running/paused 0)
+  agent_control -l: ID: 004, Name: wazuh.agent, IP: any, Active
+  red alive: zetofr red true 2026-10-20T19:24:34Z
+
+## (4-4) Suricata sid 별 alert (eve.json 읽기만) — 구간 IFN 18:21:13Z~18:24:47Z / 5 19:17:54Z~19:21:58Z
+       sid  ifn   s5 cmp   iface(s5)          msg
+   1000001   20   20 same  app0:20            [CALDERA] Agent detected via User-Agent
+   1000002   20   20 same  app0:20            [CALDERA] Operation header detected - X-Caldera-Op-Id
+   1000003   20   20 same  app0:20            [CALDERA] Technique header detected - X-Caldera-Technique
+   1000004   20   20 same  app0:20            [CALDERA] Ability header detected - X-Caldera-Ability
+   1000020    3    3 same  app0:3             [PATH_TRAVERSAL] Directory traversal pattern in URI - T1083
+   1000030   13   13 same  app0:13            [BRUTE_FORCE] Login attempt to /api/auth/login - T1110
+   1000031    1    1 same  app0:1             [BRUTE_FORCE] Multiple login attempts detected - T1110
+   1000032    2    2 same  app0:2             [BRUTE_FORCE] Slow brute force detected (5/180s) - T1110 (Feedback)
+   1000060    2    2 same  app0:2             [SSRF] Cloud metadata IP (169.254.169.254) in URI - T1090  <== IMDS sid
+  total alerts ifn=101 (sid 9, 1000060=2) / s5=101 (sid 9, 1000060=2) → sid 9종 모두 same
+
+## (4-5) in_iface 별 이벤트 (스모크 구간)
+  [IFN] {'app0': 163, 'imds0': 7}  app0: alert 101·fileinfo 33·flow 8·http 21 / imds0: fileinfo 2·flow 3·http 2 / IMDS(dest 169.254.169.254): http 2·flow 2
+  [5]   {'app0': 162, 'imds0': 6}  app0: alert 101·fileinfo 33·flow 7·http 21 / imds0: fileinfo 2·flow 2·http 2 / IMDS(dest 169.254.169.254): http 2·flow 2
+  atk0: IFN 0 / 5 0 (기록만)
+  기준 대비: IMDS http 2·flow 2 = IFN → 같음. **app0 163 기준: 162, 1건 차이 → 미충족(숫자 불일치)**
+  차이 원문(app0·imds0 flow 전체, 줄·iface·기록시각·src → dst·proto·app_proto·state·reason·flow start·pkts):
+    [IFN]
+    16701 app0 18:21:13.120 fe80::18b3:35ff:fecc:a738 -> ff02::2 IPv6-ICMP - new timeout start 18:20:34.730 pkts 1/0   ← 차이(app0)
+    16702 imds0 18:21:36.997 fe80::f0a1:6bff:fee9:3c13 -> ff02::2 IPv6-ICMP - new timeout start 18:20:59.307 pkts 1/0  ← 차이(imds0, IFN (4-J) 기록과 같은 건)
+    16734 app0 18:22:55.550 172.20.0.1:34520 -> 172.20.0.3:8080 TCP http closed timeout start 18:21:45.314 pkts 7/5
+    16735 app0 18:23:22.401 172.20.0.1:49230 -> 172.20.0.3:8080 TCP http closed timeout start 18:22:20.525 pkts 6/4
+    16757 imds0 18:23:25.386 169.254.169.2:39124 -> 169.254.169.254:80 TCP http closed timeout start 18:22:21.009 pkts 6/6
+    16758 app0 18:23:25.386 172.20.0.1:49242 -> 172.20.0.3:8080 TCP http closed timeout start 18:22:20.997 pkts 6/4
+    16759 imds0 18:23:27.374 169.254.169.2:39108 -> 169.254.169.254:80 TCP http closed timeout start 18:22:20.737 pkts 7/6
+    16760 app0 18:23:28.369 172.20.0.1:49250 -> 172.20.0.3:8080 TCP http closed timeout start 18:22:21.050 pkts 6/4
+    16868 app0 18:24:24.053 172.20.0.1:47984 -> 172.20.0.3:8080 TCP http closed timeout start 18:23:23.327 pkts 6/4
+    16869 app0 18:24:31.014 172.20.0.1:47990 -> 172.20.0.3:8080 TCP http closed timeout start 18:23:23.417 pkts 6/4
+    16870 app0 18:24:31.015 172.20.0.1:47994 -> 172.20.0.3:8080 TCP http closed timeout start 18:23:23.439 pkts 6/4
+    [5]
+    17065 app0 19:19:54.719 172.20.0.1:48764 -> 172.20.0.3:8080 TCP http closed timeout start 19:18:46.353 pkts 7/5
+    17066 app0 19:20:36.481 172.20.0.1:48712 -> 172.20.0.3:8080 TCP http closed timeout start 19:19:34.953 pkts 6/4
+    17067 imds0 19:20:36.481 169.254.169.2:47942 -> 169.254.169.254:80 TCP http closed timeout start 19:19:34.730 pkts 6/6
+    17075 app0 19:20:37.477 172.20.0.1:48702 -> 172.20.0.3:8080 TCP http closed timeout start 19:19:34.597 pkts 6/4
+    17076 app0 19:20:37.477 172.20.0.1:48722 -> 172.20.0.3:8080 TCP http closed timeout start 19:19:35.017 pkts 6/4
+    17091 imds0 19:20:40.459 169.254.169.2:47946 -> 169.254.169.254:80 TCP http closed timeout start 19:19:34.968 pkts 6/6
+    17199 app0 19:21:42.122 172.20.0.1:33546 -> 172.20.0.3:8080 TCP http closed timeout start 19:20:37.460 pkts 6/4
+    17200 app0 19:21:43.122 172.20.0.1:33542 -> 172.20.0.3:8080 TCP http closed timeout start 19:20:37.395 pkts 6/4
+    17201 app0 19:21:44.112 172.20.0.1:33560 -> 172.20.0.3:8080 TCP http closed timeout start 19:20:37.487 pkts 6/4
+  → 공격 경로 flow(172.20.0.1 → 172.20.0.3:8080 http): IFN 7 = 5 7, pkts 분포 같음(7/5 ×1, 6/4 ×6). IMDS flow 2 = 2.
+    차이 1건(app0) = IFN 구간 시작 시각(18:21:13.120)에 timeout 기록된 IPv6 ICMP 멀티캐스트(ff02::2, 스모크 시작 전 18:20:34 에 시작, 1패킷). 5 구간엔 같은 배경 flow 없음
+    해석: in_iface 합계에는 스모크와 무관한 배경 멀티캐스트가 구간 경계에 따라 들어가거나 빠짐(D9-3 '기준 전제 확인' 대상)
+
+## (4-J) D5 판정 (Claude 집계, DRI 판정 대기) 2026-10-21T04:27+09:00
+- R10: VALID (7/1) → 충족
+- GT: ATTACK 7 SUCCEEDED, CONTROL 1 FAILED (IFN 과 동일) → 충족
+- verdict 비교(vs S4-STACK-IFN-SMOKE, 6개 컬럼): 8행 same, DIFF 0 → 충족
+- op_id 교차검증 WARN 0줄, op_id_resolved 8/8, distinct 1 = PER-RUN = Caldera finished op(zetofr ×4), rows=8 → 충족
+- 룰 해시 47715556fd0f / 007b188d4e80 / cba127e95e91 / abilities 4 → IFN 과 같음
+- Suricata sid 9종·101건 same, 1000060 2건 → 충족
+- in_iface: IMDS http 2·flow 2 = IFN → 충족. **app0 163 기준 → 162(배경 IPv6 멀티캐스트 1건 차이) 숫자 불일치 → DRI 판단 대기 (통과로 기록하지 않음)**. atk0 0(기록만)
+- 사후: running/paused 0, agent 004 Active → 충족
+- 기록 사항: run git_commit=524cd80, git_dirty=true(슬라이스 5 변경·증거 로그 미커밋 상태에서 측정). red agent zetofr
+- 하네스 생성 gate-report: 2026-10-20T19-21-56-795Z.{md,json}
+- 비밀값 자가 점검(커밋 후보 10개 파일 + git diff HEAD 전체(삭제되는 backend 코드 포함), 값 미출력·건수만): docker/.env 의 PASS·KEY·SECRET·TOKEN·SALT 키 11개 값 일치 0건.
+  패턴(password=·passwd·PRIVATE KEY·Bearer·'KEY: '·apikey=)은 diff 의 추가 줄 + 새 파일 기준 0건
+### DRI 판정 (현성, 2026-10-21)
+- Step 4 판정: 통과. "app0 163"은 배경 트래픽을 포함한 합계라 기준 정의가 잘못됨(D9-3 사례).
+  판정은 ADR-S4-03 D5(직전 스모크 동일)로: verdict 8/8, GT, R10, sid별 alert 101,
+  공격 경로 flow 7, IMDS http 2·flow 2 모두 IFN과 동일. 차이 1건은 구간 경계의 IPv6 멀티캐스트 배경 flow.
+### 재발 방지 — RUNBOOK (3-d) 추가 (DRI 지시, 허용 파일 추가: detections/measurements/RUNBOOK-S4-1b-smoke.md)
+  비교 대상 (a) alert 수(sid별) (b) 공격 경로 = dest_ip 가 target-web 현재 앱 IP 이고 dest_port 8080 인 flow·http 수 (c) IMDS = dest_ip 169.254.169.254 인 http·flow 수.
+  제외: IPv6 link-local·multicast(fe80::/10, ff00::/8), 그 밖에 (a)~(c)에 해당하지 않는 배경 이벤트. in_iface 합계는 기록만. 앱 IP 는 측정 직전 inspect.
+  (3-d) 명령 시험 실행(IFN 18:21:13~18:24:47 ↔ 5 19:17:54~19:21:58, app_ip=172.20.0.3 inspect):
+    (a) sid 1000001 20/20 · 1000002 20/20 · 1000003 20/20 · 1000004 20/20 · 1000020 3/3 · 1000030 13/13 · 1000031 1/1 · 1000032 2/2 · 1000060 2/2 → same
+    (b) attack flow 7/7 same, attack http 20/20 same
+    (c) imds flow 2/2 same, imds http 2/2 same
+    iface:app0 163/162 · iface:imds0 7/6 (기록만)
+  참고: app0 http 21건 중 (b) 밖 1건 = target-web 172.20.0.3 → 172.66.147.243:80 'GET /' 200 (IFN 18:22:21.124, 5 19:19:35.124 — 양쪽 1건, 스모크 중 외부 요청).
+    DRI 정의상 (a)~(c) 밖이라 판정 제외. RUNBOOK 정상 출력 예시는 이 시험 실행 값(attack http 20)으로 적음
+### ADR-S4-03 슬라이스 표 5행 상태: "대기" → "완료(S4-STACK-5-SMOKE)"

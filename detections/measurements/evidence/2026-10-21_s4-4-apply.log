@@ -1,0 +1,258 @@
+## (0) 2026-10-21T14:56:37Z
+f060044 chore(evidence): S4-4 step0 and design-check logs
+1
+BEGIN
+ installed_rank | version |  checksum   | success 
+----------------+---------+-------------+---------
+              1 | 1       |  -302875525 | t
+              2 | 2       |  1699786641 | t
+              3 | 3       | -1339579969 | t
+              4 | 4       |  -254580708 | t
+              5 | 5       |  -644879458 | t
+(5 rows)
+
+ v6_table 
+----------
+ 
+(1 row)
+
+ detection_links 
+-----------------
+             957
+(1 row)
+
+      run_label      | definition_version | count 
+---------------------+--------------------+-------
+ S3-GATE-dc66322     | ADR-S4-01 v1.4     |    89
+ S4-STACK-6-BASELINE | ADR-S4-01 v1.4     |    89
+(2 rows)
+
+ smoke_runs 
+------------
+          0
+(1 row)
+
+ROLLBACK
+-rw-rw-r-- 1 hyeonseong hyeonseong 580877 Oct 21 23:57 /home/hyeonseong/capstone-backups/2026-10-21_validation_pre-v6.sql
+ca3f3e749cc026a13483a854602ca9bcfdfc8ca1496dff5ba1b41738e3b2c969  /home/hyeonseong/capstone-backups/2026-10-21_validation_pre-v6.sql
+## (1) V6 applied 2026-10-21 23:58:24 KST — gradle output not captured (tee got empty $LOG); flyway history below is the record
+BEGIN
+ installed_rank | version |    description    | installed_by  |        installed_on        | success 
+----------------+---------+-------------------+---------------+----------------------------+---------
+              1 | 1       | validation schema | validation_rw | 2026-10-16 23:31:49.334494 | t
+              2 | 2       | measurement run   | validation_rw | 2026-10-18 18:31:27.483012 | t
+              3 | 3       | metric foundation | validation_rw | 2026-10-20 00:13:32.325208 | t
+              4 | 4       | metric views      | validation_rw | 2026-10-20 00:13:32.457942 | t
+              5 | 5       | metric snapshot   | validation_rw | 2026-10-21 22:48:11.879923 | t
+              6 | 6       | nids telemetry    | validation_rw | 2026-10-21 23:58:24.803698 | t
+(6 rows)
+
+ control  | count 
+----------+-------
+ APP_RULE |   957
+(1 row)
+
+   class   | count 
+-----------+-------
+ ANALYTIC  |    33
+ MARKER    |     4
+ TELEMETRY |     1
+ UNDECIDED |     2
+(4 rows)
+
+ sid_rows 
+----------
+       40
+(1 row)
+
+   kind    | count 
+-----------+-------
+ CONTROL   |     3
+ SCENARIO  |     4
+ TECHNIQUE |     2
+(3 rows)
+
+      run_label      | definition_version | count 
+---------------------+--------------------+-------
+ S3-GATE-dc66322     | ADR-S4-01 v1.4     |    89
+ S4-STACK-6-BASELINE | ADR-S4-01 v1.4     |    89
+(2 rows)
+
+ definition_version 
+--------------------
+ ADR-S4-01 v1.7
+(1 row)
+
+    metric_id     |   split_unit   | x  | n  |     status     
+------------------+----------------+----+----+----------------
+ M13_APP_RULE     | BRUTE_FORCE    |    | 20 | NOT_APPLICABLE
+ M13_APP_RULE     | PATH_TRAVERSAL | 60 | 60 | OK
+ M13_APP_RULE     | SQLI           |  0 | 20 | OK
+ M13_APP_RULE     | SSRF           | 40 | 40 | OK
+ M13_BACKEND_CORR | BRUTE_FORCE    | 20 | 20 | OK
+ M13_BACKEND_CORR | PATH_TRAVERSAL |    | 60 | NO_RULE
+ M13_BACKEND_CORR | SQLI           |    | 20 | NO_RULE
+ M13_BACKEND_CORR | SSRF           |    | 40 | NO_RULE
+ M13_NIDS         | BRUTE_FORCE    |    | 20 | NOT_COLLECTED
+ M13_NIDS         | PATH_TRAVERSAL |    | 60 | NOT_COLLECTED
+ M13_NIDS         | SQLI           |    | 20 | NOT_COLLECTED
+ M13_NIDS         | SSRF           |    | 40 | NOT_COLLECTED
+(12 rows)
+
+  metric_id   |    status     | count 
+--------------+---------------+-------
+ M07a_APP_LOG | NOT_COLLECTED |     5
+ M07a_NIDS    | NOT_COLLECTED |     5
+(2 rows)
+
+ROLLBACK
+## (3) S4-4-SMOKE preconditions 2026-10-21T15:02:00Z
+total=66
+finished=66
+## (3) agent / interfaces / suricata 2026-10-21T15:04:30Z
+mcukpa	red	false	2026-10-16T18:23:26Z
+jznjpj	red	false	2026-10-18T10:10:09Z
+oeintf	red	false	2026-10-20T13:45:21Z
+pqkuqm	red	false	2026-10-20T14:30:41Z
+zetofr	red	false	2026-10-20T19:32:51Z
+qpiere	red	false	2026-10-20T20:18:02Z
+dmceil	red	false	2026-10-21T09:35:44Z
+qvfnuu	red	false	2026-10-21T09:40:46Z
+eiwwvn	red	false	2026-10-21T13:22:57Z
+miuott	red	true	2026-10-21T15:02:51Z
+fxynbu	red	true	2026-10-21T15:04:20Z
+2026-10-21T15:05:14Z
+app0 172.20.0.3/16
+atk0 172.18.0.2/16
+imds0 169.254.169.2/24
+sec0 172.19.0.5/16
+eth_count=0
+security-lab_app_net 172.20.0.0/16
+security-lab_attack_net 172.18.0.0/16
+security-lab_imds_net 169.254.169.0/24
+security-lab_security_net 172.19.0.0/16
+["-i","app0","-i","atk0","-i","imds0","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.5.stats.enabled=no","--set","outputs.1.eve-log.types.32.stats.enabled=no"]
+NM_OK
+16329594
+alive_trusted=1
+fxynbu	2026-10-21T15:08:36Z
+outputs.5 stats enabled=no
+eve-log.types.0 alert enabled=yes(미지정)
+eve-log.types.3 http enabled=yes(미지정)
+eve-log.types.7 files enabled=yes(미지정)
+eve-log.types.32 stats enabled=no
+eve-log.types.33 flow enabled=yes(미지정)
+## (4) S4-4-SMOKE start=2026-10-21T15:10:43Z
+## (4) S4-4-SMOKE start=2026-10-21T15:17:07Z
+CampaignRunnerIT STANDARD_OUT
+    2026-10-22T00:17:12.212+09:00  INFO 191055 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Starting CampaignRunnerIT using Java 17.0.20.1 with PID 191055 (started by hyeonseong in /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2)
+    2026-10-22T00:17:12.219+09:00 DEBUG 191055 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Running with Spring Boot v4.1.1, Spring v7.0.9
+    2026-10-22T00:17:12.224+09:00  INFO 191055 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : No active profile set, falling back to 1 default profile: "default"
+    2026-10-22T00:17:13.570+09:00  INFO 191055 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Started CampaignRunnerIT in 1.992 seconds (process running for 3.569)
+CampaignRunnerIT > measure() STANDARD_OUT
+    MEASURE>> starting campaign run label=S4-4-SMOKE n=1 truncate=false
+    NIDS op=f4aad570-6891-4e9f-9434-f9646fdfe751 alerts=101 orphan=0 analytic=8 linked=8 telemetry=13 marker=80 undecided=0 unclassified=0 http=23 attributed=20
+    PER-RUN op=f4aad570-6891-4e9f-9434-f9646fdfe751 rows=8
+      [SQLI/SINGLE] rid=9469bb36-9ce3-4238-8b4e-7b016b2acc02 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_MISSED conf=0.00 detection=NOT_DETECTED mttdMs=null
+      [SSRF/SINGLE] rid=ab6430b4-385d-4659-a439-cb949d6831d0 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=189
+      [SSRF/SINGLE] rid=ea854c06-d5fa-494a-a8fd-c1df7be11e21 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=150
+      [SSRF/SINGLE] rid=f9d4eba8-5617-453e-8c02-06808de967e4 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+      [PATH_TRAVERSAL/SINGLE] rid=a0d98bed-1337-4ce3-b9c3-2f9922758ee5 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=225
+      [PATH_TRAVERSAL/SINGLE] rid=d2a7ec67-b100-4abb-aff6-996fbc47c4ce gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=198
+      [PATH_TRAVERSAL/SINGLE] rid=115d38fb-a3f3-4884-b742-f1335301f031 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=182
+      [BRUTE_FORCE/BF_SEQUENCE] rid=db1068ae-c624-4080-9dc6-2a1e1dc686b1 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=579
+    GATE overall=INCONCLUSIVE totalSamples=7 totalUncertain=0 report=detections/measurements/gate-report-2026-10-21T15-20-48-410Z.md
+    RUN run_id=10e5374d-7872-4a69-994d-7c54c622e508 R10=VALID
+    MEASURE>> done overall=INCONCLUSIVE totalSamples=7
+BUILD SUCCESSFUL in 3m 41s
+## (4) end=2026-10-21T15:20:49Z
+## (5) S4-4-SMOKE verdict 2026-10-21T15:22:44Z
+BEGIN
+   label    | r10_status | actual_attack | actual_control 
+------------+------------+---------------+----------------
+ S4-4-SMOKE | INCOMPLETE |             0 |              0
+ S4-4-SMOKE | INCOMPLETE |             0 |              0
+ S4-4-SMOKE | VALID      |             7 |              1
+(3 rows)
+
+ scenario | unit_type | role | verdict | smoke_4_4 | stack_3 
+----------+-----------+------+---------+-----------+---------
+(0 rows)
+
+    scenario    | nids_links | non_analytic_links 
+----------------+------------+--------------------
+ BRUTE_FORCE    |          3 |                  0
+ PATH_TRAVERSAL |          3 |                  0
+ SSRF           |          2 |                  0
+(3 rows)
+
+  unit_type  |      verdict       | compromise_detected 
+-------------+--------------------+---------------------
+ BF_SEQUENCE | SUCCEEDED_DETECTED | t
+(1 row)
+
+BEGIN
+ metric | rows | not_collected 
+--------+------+---------------
+ m13    |   12 |             0
+ m07a   |   10 |             0
+(2 rows)
+
+ windows | nids_alerts | orphan_alerts | analytic_alerts | analytic_linked | marker_alerts | telemetry_alerts | undecided_alerts | unclassified_alerts | http_events | http_attributed 
+---------+-------------+---------------+-----------------+-----------------+---------------+------------------+------------------+---------------------+-------------+-----------------
+       1 |         101 |             0 |               8 |               8 |            80 |               13 |                0 |                   0 |          23 |              20
+(1 row)
+
+    metric_id     |   split_unit   | x | n |     status     
+------------------+----------------+---+---+----------------
+ M13_APP_RULE     | BRUTE_FORCE    |   | 1 | NOT_APPLICABLE
+ M13_APP_RULE     | PATH_TRAVERSAL | 3 | 3 | OK
+ M13_APP_RULE     | SQLI           | 0 | 1 | OK
+ M13_APP_RULE     | SSRF           | 2 | 2 | OK
+ M13_BACKEND_CORR | BRUTE_FORCE    | 1 | 1 | OK
+ M13_BACKEND_CORR | PATH_TRAVERSAL |   | 3 | NO_RULE
+ M13_BACKEND_CORR | SQLI           |   | 1 | NO_RULE
+ M13_BACKEND_CORR | SSRF           |   | 2 | NO_RULE
+ M13_NIDS         | BRUTE_FORCE    | 1 | 1 | OK
+ M13_NIDS         | PATH_TRAVERSAL | 3 | 3 | OK
+ M13_NIDS         | SQLI           | 0 | 1 | OK
+ M13_NIDS         | SSRF           | 2 | 2 | OK
+(12 rows)
+
+  metric_id   | split_kind |   split_unit   | x | n | status 
+--------------+------------+----------------+---+---+--------
+ M07a_APP_LOG | ALL        | ALL            | 7 | 7 | OK
+ M07a_APP_LOG | SCENARIO   | BRUTE_FORCE    | 1 | 1 | OK
+ M07a_APP_LOG | SCENARIO   | PATH_TRAVERSAL | 3 | 3 | OK
+ M07a_APP_LOG | SCENARIO   | SQLI           | 1 | 1 | OK
+ M07a_APP_LOG | SCENARIO   | SSRF           | 2 | 2 | OK
+ M07a_NIDS    | ALL        | ALL            | 7 | 7 | OK
+ M07a_NIDS    | SCENARIO   | BRUTE_FORCE    | 1 | 1 | OK
+ M07a_NIDS    | SCENARIO   | PATH_TRAVERSAL | 3 | 3 | OK
+ M07a_NIDS    | SCENARIO   | SQLI           | 1 | 1 | OK
+ M07a_NIDS    | SCENARIO   | SSRF           | 2 | 2 | OK
+(10 rows)
+
+                run_id                |   label    | status |         started_at         |          ended_at          
+--------------------------------------+------------+--------+----------------------------+----------------------------
+ d83d318b-2b1e-4797-b147-d7b17910ecc3 | S4-4-SMOKE | OPEN   | 2026-10-21 15:11:07.515+00 | 
+ d329ff2f-0442-4d53-88f2-15c25d4bf350 | S4-4-SMOKE | OPEN   | 2026-10-21 15:11:49.816+00 | 
+ 10e5374d-7872-4a69-994d-7c54c622e508 | S4-4-SMOKE | CLOSED | 2026-10-21 15:17:14.227+00 | 2026-10-21 15:20:48.399+00
+(3 rows)
+
+ROLLBACK
+## cleanup empty OPEN runs 2026-10-21T15:26:08Z
+BEGIN
+                run_id                | status | verdicts 
+--------------------------------------+--------+----------
+ d83d318b-2b1e-4797-b147-d7b17910ecc3 | OPEN   |        0
+ d329ff2f-0442-4d53-88f2-15c25d4bf350 | OPEN   |        0
+(2 rows)
+
+DELETE 2
+                run_id                | status 
+--------------------------------------+--------
+ 10e5374d-7872-4a69-994d-7c54c622e508 | CLOSED
+(1 row)
+
+COMMIT

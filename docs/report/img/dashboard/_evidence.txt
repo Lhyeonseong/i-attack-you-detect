@@ -1,0 +1,44 @@
+## s4-6 capture evidence 2026-10-22T18:00:12Z
+commit: c019978777db2f5248753f5f573e36dae9ee4708  dirty=39
+validation-api image: validation-api:local sha256:a0f60c4e5d6980c6908910497a16397ab83e37486e078e666d1d156f32ce4e3b
+playwright image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf
+capture: 8 screens(01-08) + charts, problems=0 (axe·금지문자열·콘솔/CSP 통과)
+CSP: default-src 'self'; script-src 'self'; style-src 'self' (vega 제거 → unsafe-inline 불필요)
+runs(label|run8):
+  S3-GATE-dc66322|bd2de561
+  S4-1b-SMOKE|d73fe183
+  S4-STACK-1a-SMOKE|eeb2196c
+  S4-STACK-4-SMOKE|dd433bc4
+  S4-STACK-4-SMOKE-R2|7f72e521
+  S4-STACK-1b-SMOKE|1cdba28a
+  S4-STACK-1c-SMOKE|cf488201
+  S4-STACK-IFN-SMOKE|c97930ba
+  S4-STACK-5-SMOKE|1ba74855
+  S4-STACK-2-SMOKE|95db8a16
+  S4-STACK-3-SMOKE|eaa088d8
+  S4-STACK-6-BASELINE|b1c26be1
+  S4-4-SMOKE|10e5374d
+  S4-5-BENIGN-WEB|dffb77a7
+  S4-5-BENIGN-WEB-R2|3818e21a
+  S4-5-BENIGN-LOGIN|7fc9767f
+  S5-SQLI-SMOKE|4f51d307
+  S5-SQLI-AFTER|805f3b8e
+  S5-SQLI-AFTER-BENIGN-WEB|2ad849e0
+png sha256:
+  bbadf4c00fe03274f631f670834c4649a75cdd4e95ef705bba86d8fcf1db8eea  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/01_overview_after_chart0.png
+  7f627086a9bde303460f062b37eeaf5ce3d9e623dc56784c4392cec09c32a9bd  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/01_overview_after_chart1.png
+  1a5714d7a49bf5e94f487f08b5429b25f194bdda22052dcfe39b848db8366397  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/01_overview_after_chart2.png
+  127b88b9895ed82b77109ec2ba7058d2c00b00f976e410d38360cdaf94aad52b  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/01_overview_after.png
+  b316f0528cae1f6d32d6d5d47e90bb90b27eb083764939093600d664ec5d5fed  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/02_attacks_after.png
+  944aac3b92f836eb68dfbb54ad5a6d5166d61ccd5baff64b8e187a0b5e004268  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/03_detection_after_chart0.png
+  aa655536f497e633bc837ee63c9d0f3dc506a56c9ef6fd6021a68ff959e2eee4  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/03_detection_after_chart1.png
+  b5cf26f3911c8ba6fbf2a0ad44df2f31c19992511a3c5290a6da8a3103724245  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/03_detection_after_chart2.png
+  4922d4c25387b3e12552dca62d27234fa2eb57a1865a06a17a6bcd01d11063d6  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/03_detection_after.png
+  cb016e756a528b53e04ca35648fa564413c6f17cb81099547fb8596b32e84232  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/04_attck_after.png
+  8f9f37a0a55abcbdb97e0c5335b43b68f32b0c74bb11ce65124c166123f5ceed  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/05_system_after.png
+  67737b20c5d2ab712721cdf95f56aabf5c7b6c6163fe75470b2f03d5f82d6a13  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/06_revalidate_after_chart0.png
+  c9dbce170ea7ad9199da23903dd18c075c2e66eadf63ba6a2a90f02fe7f3f5d0  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/06_revalidate_after_chart1.png
+  096bc7113fbcb9ede45277294d90a046ec77cc83596616cfb1e9923fe862307f  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/06_revalidate_after_chart2.png
+  3b19f645acd0560e9ae91319d819ea120d01673b07ae15745fc209b8dc13c83b  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/06_revalidate_after.png
+  ff8fc8088834f9484553d4cc0be336bded2030dc1c872c516de68ef5f70c4fa6  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/07_report_after.png
+  bd3b1d5a11cbcde2704f83e71549679c2230a24e934f8ac76d272e71b2611f3f  /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docs/report/img/dashboard/08_detail_after.png

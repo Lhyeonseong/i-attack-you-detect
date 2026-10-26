@@ -1,0 +1,44 @@
+{
+  "generatedAt" : "2026-10-22T00:57:41.015Z",
+  "overall" : "PASS",
+  "totalSamples" : 140,
+  "totalUncertain" : 0,
+  "thresholds" : {
+    "minConclusiveSamples" : 20,
+    "minMatchRate" : 0.95,
+    "maxOverestimate" : 0
+  },
+  "scenarios" : [ {
+    "scenario" : "BRUTE_FORCE",
+    "samples" : 20,
+    "matchRate" : 1.0,
+    "overestimateCount" : 0,
+    "uncertainCount" : 0,
+    "uncertainRate" : 0.0,
+    "result" : "PASS"
+  }, {
+    "scenario" : "PATH_TRAVERSAL",
+    "samples" : 60,
+    "matchRate" : 1.0,
+    "overestimateCount" : 0,
+    "uncertainCount" : 0,
+    "uncertainRate" : 0.0,
+    "result" : "PASS"
+  }, {
+    "scenario" : "SQLI",
+    "samples" : 20,
+    "matchRate" : 1.0,
+    "overestimateCount" : 0,
+    "uncertainCount" : 0,
+    "uncertainRate" : 0.0,
+    "result" : "PASS"
+  }, {
+    "scenario" : "SSRF",
+    "samples" : 40,
+    "matchRate" : 1.0,
+    "overestimateCount" : 0,
+    "uncertainCount" : 0,
+    "uncertainRate" : 0.0,
+    "result" : "PASS"
+  } ]
+}

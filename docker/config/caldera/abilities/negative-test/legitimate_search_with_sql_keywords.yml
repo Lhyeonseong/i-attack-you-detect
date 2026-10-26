@@ -1,0 +1,49 @@
+- id: 99a0b1c2-3d4e-4567-f890-abcdef000001
+  name: Legitimate Search with SQL Keywords
+  description: 정상 사용자가 SQL 키워드가 포함된 검색어를 입력합니다. "SELECT a product", "UNION of brands" 등 정상 문장이 SQLi 탐지 룰에 오탐되지 않는지 검증합니다.
+  tactic: negative-test
+  technique:
+    attack_id: auto-generated
+    name: Negative Test - False Positive Verification
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T0000"
+          ABILITY_ID="99a0b1c2-3d4e-4567-f890-abcdef000001"
+          TARGET="http://#{target.url}"
+
+          echo "[*] Negative Test: SQL keywords in normal search"
+
+          echo "[1] keyword=SELECT+a+product"
+          curl -s -o /dev/null -w "HTTP=%{http_code}\n" \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: ${TECH_ID}" \
+            -H "X-Caldera-Ability: ${ABILITY_ID}" \
+            -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+            "${TARGET}/api/products/search?keyword=SELECT+a+product"
+
+          echo "[2] keyword=UNION+of+brands"
+          curl -s -o /dev/null -w "HTTP=%{http_code}\n" \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: ${TECH_ID}" \
+            -H "X-Caldera-Ability: ${ABILITY_ID}" \
+            -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+            "${TARGET}/api/products/search?keyword=UNION+of+brands"
+
+          echo "[3] keyword=ORDER+BY+price+ascending"
+          curl -s -o /dev/null -w "HTTP=%{http_code}\n" \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: ${TECH_ID}" \
+            -H "X-Caldera-Ability: ${ABILITY_ID}" \
+            -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+            "${TARGET}/api/products/search?keyword=ORDER+BY+price+ascending"
+
+          echo "[4] keyword=DROP+shipping+available"
+          curl -s -o /dev/null -w "HTTP=%{http_code}\n" \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: ${TECH_ID}" \
+            -H "X-Caldera-Ability: ${ABILITY_ID}" \
+            -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+            "${TARGET}/api/products/search?keyword=DROP+shipping+available"

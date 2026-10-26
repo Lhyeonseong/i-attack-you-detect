@@ -1,0 +1,42 @@
+CampaignRunnerIT STANDARD_OUT
+    2026-10-18T19:03:15.580+09:00  INFO 73645 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Starting CampaignRunnerIT using Java 17.0.20.1 with PID 73645 (started by hyeonseong in /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2)
+    2026-10-18T19:03:15.584+09:00 DEBUG 73645 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Running with Spring Boot v3.5.13, Spring v6.2.17
+    2026-10-18T19:03:15.586+09:00  INFO 73645 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : No active profile set, falling back to 1 default profile: "default"
+    2026-10-18T19:03:16.530+09:00  INFO 73645 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Started CampaignRunnerIT in 1.426 seconds (process running for 2.377)
+CampaignRunnerIT > measure() STANDARD_OUT
+    MEASURE>> starting campaign run label=S4-1b-SMOKE n=1 truncate=false
+    PER-RUN op=377ed11d-68b8-43ee-9928-fb223e9fb373 rows=8
+      [SQLI/SINGLE] rid=d52ea065-5790-486b-bf47-553cbadb87d7 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_MISSED conf=0.00 detection=NOT_DETECTED mttdMs=null
+      [SSRF/SINGLE] rid=9b83c69d-e297-44d8-8534-317d4a9806f2 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=552
+      [SSRF/SINGLE] rid=fb4a8574-13dc-47c2-a6ed-0252a98e6fbb gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=84
+      [SSRF/SINGLE] rid=f5afe9a2-2735-411b-8795-ea079c79ecf3 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+      [PATH_TRAVERSAL/SINGLE] rid=4182ccc6-f403-4328-a80f-dca6caed4367 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1569
+      [PATH_TRAVERSAL/SINGLE] rid=376ce7cf-efcd-4400-b3ba-15a40c90b820 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1507
+      [PATH_TRAVERSAL/SINGLE] rid=f5392d1d-ec38-427b-8e09-86371cfc7cf5 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1478
+      [BRUTE_FORCE/BF_SEQUENCE] rid=04ddf871-8ccc-42bc-85c3-23d77dc2326b gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=772
+    GATE overall=INCONCLUSIVE totalSamples=7 totalUncertain=0 report=detections/measurements/gate-report-2026-10-18T10-06-51-146Z.md
+    RUN run_id=d73fe183-fe1f-4aca-a828-d6431684134c R10=Result[status=VALID, reason=ATTACK 7, CONTROL 1 = expected]
+    MEASURE>> done overall=INCONCLUSIVE totalSamples=7
+BUILD SUCCESSFUL in 3m 38s
+BEGIN
+    label    | status | ended |                git_commit                | git_dirty | wazuh_rules  | suricata_rules |  adversary   | abilities | expected_attempts | expected_controls 
+-------------+--------+-------+------------------------------------------+-----------+--------------+----------------+--------------+-----------+-------------------+-------------------
+ S4-1b-SMOKE | CLOSED | t     | 21885c250077ee8f6551b391859542942a210f51 | f         | 47715556fd0f | 007b188d4e80   | cba127e95e91 |         4 |                 7 |                 1
+(1 row)
+
+    label    | attack | control |  r10  
+-------------+--------+---------+-------
+ S4-1b-SMOKE |      7 |       1 | VALID
+(1 row)
+
+ correlations | op_id_not_null | all_resolved | distinct_op_ids |                op_id                 
+--------------+----------------+--------------+-----------------+--------------------------------------
+            8 |              8 | t            |               1 | 377ed11d-68b8-43ee-9928-fb223e9fb373
+(1 row)
+
+      label      | status | verdicts 
+-----------------+--------+----------
+ S3-GATE-dc66322 | CLOSED |      160
+(1 row)
+
+ROLLBACK

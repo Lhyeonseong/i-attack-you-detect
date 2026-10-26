@@ -1,0 +1,12 @@
+# build
+.gradle/
+build/
+
+# D5: 자체 서명 TLS 개인키·인증서는 커밋 금지(.env 로 경로 주입)
+*.pem
+*.key
+*.p12
+tls/
+
+# UI 빌드 산출물(Step 4에서 validation-api/ui → src/main/resources/static 로 복사)
+/src/main/resources/static/

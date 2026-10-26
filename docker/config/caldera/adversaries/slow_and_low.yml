@@ -1,0 +1,7 @@
+id: adv-slow-and-low-006
+name: '[F] Slow & Low - 시간 기반 우회'
+description: Slow Brute Force(7초 간격 11회, threshold 회피) + Distributed Brute Force(15종 UA 로테이션, Caldera 식별 우회).
+atomic_ordering:
+- dd44ee55-ff66-4aa7-bb88-cc9900112233
+- ee55ff66-aa77-4bb8-cc99-dd0011223344
+objective: 495a9828-cab1-44dd-a0ca-66e58177d8cc

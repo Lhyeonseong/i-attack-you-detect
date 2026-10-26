@@ -1,0 +1,28 @@
+- id: 66f7a8b9-0c1d-4234-def1-234567890006
+  name: '[NEGATIVE] Legitimate Login'
+  description: 유효한 자격 증명으로 정상 로그인을 1회만 수행합니다. threshold 룰과 시그니처 룰이 정상 트래픽에서 발동하지 않는지 검증합니다.
+  tactic: negative-test
+  technique:
+    attack_id: T0000
+    name: Negative Test - Legitimate Traffic
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T0000"
+          ABILITY_ID="66f7a8b9-0c1d-4234-def1-234567890006"
+          TARGET="http://#{target.url}"
+
+          echo "[*] Negative Test: 정상 로그인 (admin / admin123)"
+          curl -s -w "\nHTTP=%{http_code}\n" \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: ${TECH_ID}" \
+            -H "X-Caldera-Ability: ${ABILITY_ID}" \
+            -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+            -H "Content-Type: application/json" \
+            -X POST \
+            -d "{\"username\": \"admin\", \"password\": \"admin123\"}" \
+            "${TARGET}/api/auth/login"
+
+          echo "[*] 공격 룰 미발동 / 기본 룰만 발동되어야 정상"

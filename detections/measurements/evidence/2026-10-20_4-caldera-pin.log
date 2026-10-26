@@ -1,0 +1,436 @@
+# 슬라이스 4 — Caldera 이미지 digest 고정 (동작 변화 0)
+# 근거: ADR-S4-03 D1·D2(Caldera 5.2.0 유지)·D4·D5. 직전 슬라이스 1a 3550c67. digest는 실행 중 컨테이너의 로컬 RepoDigests에서만(pull·manifest 미사용)
+
+## (0-1) compose caldera image (수정 전) 2026-10-20T22:19:16+09:00 HEAD=3550c67
+2-  caldera:
+3:    image: ghcr.io/mitre/caldera:latest
+4-    container_name: caldera
+## (0-2) 실행 중 이미지
+$ docker inspect caldera --format '{{.Image}}'
+  sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7
+$ docker image inspect sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7 --format '{{json .RepoTags}} {{json .RepoDigests}}'
+  ["ghcr.io/mitre/caldera:latest"] ["ghcr.io/mitre/caldera@sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7"] count=1
+## (0-3) 라벨
+  org.opencontainers.image.version=5.2.0 revision=06e4ded7bf4949a17a1437b7e25586f48e99564d created=2025-03-03T19:12:41.076774999Z
+## (0-4) 역조회
+  $ docker image inspect 'ghcr.io/mitre/caldera:5.2.0@sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7' --format '{{.Id}}'
+  sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7 -> SAME
+  $ docker image inspect 'ghcr.io/mitre/caldera@sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7' --format '{{.Id}}'
+  sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7 -> SAME
+## (0-5) caldera 참조 depends_on / network_mode / volumes_from
+  (caldera를 depends_on으로 참조하는 서비스 없음)
+  96:    network_mode: "service:target-web"
+## (0-6) StartedAt (재생성 전) 2026-10-20T22:19:16+09:00
+  caldera                        2026-10-20T08:21:29.898927746Z running
+  target-web                     2026-10-20T08:21:29.808661429Z running
+  backend                        2026-10-20T08:21:29.809956225Z running
+  react-dashboard                2026-10-20T08:21:29.814149846Z running
+  security-lab-wazuh.manager-1   2026-10-20T12:52:55.647866853Z running
+  security-lab-wazuh.agent-1     2026-10-20T12:52:56.286752022Z running
+  security-lab-wazuh.indexer-1   2026-10-20T12:52:54.821567761Z running
+  suricata                       2026-10-20T12:52:54.823361335Z running
+  postgres                       2026-10-20T12:52:54.82635656Z running/healthy
+  mock-imds                      2026-10-20T12:52:54.826215371Z running
+
+## (1-1) compose 수정 — git diff docker/docker-compose.yml 2026-10-20T22:19:17+09:00
+diff --git a/docker/docker-compose.yml b/docker/docker-compose.yml
+index 706b58b..9d48a04 100644
+--- a/docker/docker-compose.yml
++++ b/docker/docker-compose.yml
+@@ -1,6 +1,7 @@
+ services:
+   caldera:
+-    image: ghcr.io/mitre/caldera:latest
++    # digest 고정(ADR-S4-03 D1). 5.2.0 = 이전 latest와 같은 이미지. 5.3.0은 공식 이미지 없음(보류)
++    image: ghcr.io/mitre/caldera:5.2.0@sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7
+     container_name: caldera
+     restart: unless-stopped
+     ports:
+$ git diff --numstat: 2	1	docker/docker-compose.yml   (+2 = 주석 1 + 이미지 1, -1 = 이미지 1)
+## (1-2) config --images 2026-10-20T22:19:17+09:00
+  ghcr.io/mitre/caldera:5.2.0@sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7
+  jasonish/suricata:7.0@sha256:5b3f3aabc3646a4d94ee26abc4f487c2d11a8700b0e6ee52d9b47f110812e898
+  postgres:16@sha256:760ea41aae126965bedd587d35a23de37447bb13a6ac4444bef6ff73b8b72234
+  python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+  security-lab-backend
+  security-lab-react-dashboard
+  security-lab-target-web
+  wazuh/wazuh-agent:4.14.8@sha256:7b87b6142c52320f0b6db5373e38c3f6f3024169fbedc08e64e5f9444a61520b
+  wazuh/wazuh-indexer:4.14.8@sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de
+  wazuh/wazuh-manager:4.14.8@sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55
+## (1-3) dry-run 2026-10-20T22:19:17+09:00
+$ docker compose -p security-lab -f docker/docker-compose.yml --dry-run up -d --no-build --pull never --no-deps caldera
+ DRY-RUN MODE -  Container caldera  Recreate
+ DRY-RUN MODE -  Container caldera  Recreated
+ DRY-RUN MODE -  Container cdaca8c66f37_caldera  Starting
+ DRY-RUN MODE -  Container cdaca8c66f37_caldera  Started
+
+## (2-1) 재생성 2026-10-20T22:19:28+09:00 T_up_utc=2026-10-20T13:19:28Z
+$ docker compose -p security-lab -f docker/docker-compose.yml up -d --no-build --pull never --no-deps caldera
+ Container caldera  Recreate
+ Container caldera  Recreated
+ Container caldera  Starting
+ Container caldera  Started
+(exit=0)
+## (2-2) 대기 (최대 3분, 5초 간격) 2026-10-20T22:20:46+09:00
+  2026-10-20T13:19:42Z status=running http=200
+  READY 2026-10-20T13:19:42Z
+## (2-3) 사후 확인 2026-10-20T22:20:46+09:00
+### ① caldera Image ID = Step 0
+  sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7 started=2026-10-20T13:19:32.028170508Z -> SAME
+### ② 다른 9개 StartedAt = Step 0
+  target-web                     2026-10-20T08:21:29.808661429Z -> SAME
+  backend                        2026-10-20T08:21:29.809956225Z -> SAME
+  react-dashboard                2026-10-20T08:21:29.814149846Z -> SAME
+  security-lab-wazuh.manager-1   2026-10-20T12:52:55.647866853Z -> SAME
+  security-lab-wazuh.agent-1     2026-10-20T12:52:56.286752022Z -> SAME
+  security-lab-wazuh.indexer-1   2026-10-20T12:52:54.821567761Z -> SAME
+  suricata                       2026-10-20T12:52:54.823361335Z -> SAME
+  postgres                       2026-10-20T12:52:54.82635656Z -> SAME
+  mock-imds                      2026-10-20T12:52:54.826215371Z -> SAME
+### ③ caldera Up + 웹 응답
+caldera Up About a minute ghcr.io/mitre/caldera:5.2.0
+  $ curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8888/ -> 200
+### ④ 공격 시나리오 보존 (파일 이름만 비교: 컨테이너 data/ ↔ bind-mount 원본 docker/config/caldera/ ↔ git ls-files)
+  abilities: container=35 host=35 git=35  container↔host=DIFF  host↔git=SAME
+    6d5
+    < discovery/path_traversal_evasion.yml
+    7a7
+    > discovery/path_traversal_evasion.yml
+    19d18
+    < initial-access/sqli_evasion.yml
+    20a20
+    > initial-access/sqli_evasion.yml
+    31d30
+    < negative-test/legitimate_login.yml
+    32a32
+    > negative-test/legitimate_login.yml
+    34d33
+    < negative-test/legitimate_search.yml
+    35a35
+    > negative-test/legitimate_search.yml
+  adversaries: container=13 host=13 git=13  container↔host=SAME  host↔git=SAME
+  mounts:
+    bind /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docker/config/caldera/local.yml.template -> /usr/src/app/conf/local.yml.template
+    bind /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docker/config/caldera/entrypoint.sh -> /usr/src/app/entrypoint.sh
+    volume security-lab_caldera-data -> /usr/src/app/data
+    bind /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docker/config/caldera/abilities -> /usr/src/app/data/abilities
+    bind /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docker/config/caldera/adversaries -> /usr/src/app/data/adversaries
+### ⑤ Caldera API — 기존 APP_CALDERA_APIKEY 인증 + 우리 adversary 목록 (키 미출력, 이름·id만)
+  GET /api/v2/adversaries HTTP=200 -> 인증 성공
+  api adversaries total=42  ours(git yml)=13  present=13  missing=0
+    OK  adv-attack-path-001  [A] Attack Path - Kill Chain 기본 공격  (attack_path.yml)
+    OK  adv-attack-validation-web-001  [V] ATT&CK Validation — Web  (attack_validation_web.yml)
+    OK  adv-av-bf-001  [V4] Validation — Brute Force (T1110)  (av_brute_force.yml)
+    OK  adv-av-pt-001  [V3] Validation — Path Traversal (T1083/detect T1190)  (av_path_traversal.yml)
+    OK  adv-av-sqli-001  [V2] Validation — SQLi (T1190)  (av_sqli.yml)
+    OK  adv-av-ssrf-001  [V1] Validation — SSRF (T1190)  (av_ssrf.yml)
+    OK  adv-defense-evasion-003  [C] Defense Evasion - 우회율 정량 측정 (확장)  (defense_evasion.yml)
+    OK  adv-kill-chain-linked-005  [E] Kill Chain Linked - 연계 공격  (kill_chain_linked.yml)
+    OK  adv-negative-test-004  [D] Negative Test - False Positive 검증 (확장)  (negative_test.yml)
+    OK  adv-owasp-rce-001  [H] OWASP Extended - RCE Command Injection  (owasp_rce.yml)
+    OK  adv-owasp-xss-ssrf-001  [G] OWASP Extended - XSS + SSRF 복합 공격  (owasp_xss_ssrf.yml)
+    OK  adv-slow-and-low-006  [F] Slow & Low - 시간 기반 우회  (slow_and_low.yml)
+    OK  adv-subtype-variants-002  [B] Subtype Variants - 서브타입 변형  (subtype_variants.yml)
+### ⑥ 컨테이너 이름
+  caldera
+  -> 정확히 caldera 1개
+
+### ④-재비교 2026-10-20T22:21:08+09:00 — 위 ④ 의 abilities DIFF 는 정렬 순서만 다름(같은 이름이 앞뒤로 이동). 컨테이너·호스트 sort 로캘 차이로 판단, 양쪽을 LC_ALL=C 로 다시 정렬해 집합 비교(시스템 상태 변경 없음)
+  abilities: container=35 host=35 git=35  container↔host=SAME  host↔git=SAME  (LC_ALL=C sort -u)
+  adversaries: container=13 host=13 git=13  container↔host=SAME  host↔git=SAME  (LC_ALL=C sort -u)
+  -> 판정: 파일 이름 집합 동일(정렬 차이였음)
+
+## (3-0) 스모크 전 확인 2026-10-20T22:21:46+09:00 HEAD=3550c67 porcelain=2(compose 수정·증거 로그 미커밋 → git_dirty=true 로 기록될 것)
+### 재생성(T_up=2026-10-20T13:19:28Z) 이후 red agent 비콘 대기 (최대 2분, 10초 간격; 키는 curl -H @- 로만 전달·미출력)
+  2026-10-20T13:21:22Z red_alive_after_2026-10-20T13:19:28Z: oeintf	red	true	2026-10-20T13:20:47Z
+  READY
+### 전체 agent 목록
+  mcukpa	red	false	2026-10-16T18:23:26Z
+  jznjpj	red	false	2026-10-18T10:10:09Z
+  oeintf	red	true	2026-10-20T13:21:37Z
+  now=2026-10-20T13:21:46Z
+### label S4-STACK-4-SMOKE 기존 run 수
+  0
+## (3-1) 스모크 run 실행 (RUNBOOK-S4-1b (2), 라벨만 변경) 2026-10-20T22:27:00+09:00
+$ RUN_CALDERA_MEASURE=1 MEASURE_N=1 MEASURE_LABEL='S4-STACK-4-SMOKE' APP_CALDERA_APIKEY=… INDEXER_USERNAME=… INDEXER_PASSWORD=… POSTGRES_DB=… VALIDATION_DB_PASSWORD=… ./gradlew cleanTest test --tests 'com.capstone.vuln.measure.CampaignRunnerIT' -i | grep -E '<RUNBOOK 필터>'   (값은 docker/.env 에서 env 로만 주입, 미출력)
+  start=2026-10-20T13:22:06Z
+  CampaignRunnerIT STANDARD_OUT
+      2026-10-20T22:22:12.343+09:00  INFO 140347 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Starting CampaignRunnerIT using Java 17.0.20.1 with PID 140347 (started by hyeonseong in /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2)
+      2026-10-20T22:22:12.348+09:00 DEBUG 140347 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Running with Spring Boot v3.5.13, Spring v6.2.17
+      2026-10-20T22:22:12.349+09:00  INFO 140347 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : No active profile set, falling back to 1 default profile: "default"
+      2026-10-20T22:22:14.138+09:00  INFO 140347 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Started CampaignRunnerIT in 2.345 seconds (process running for 4.153)
+  CampaignRunnerIT > measure() STANDARD_OUT
+      MEASURE>> starting campaign run label=S4-STACK-4-SMOKE n=1 truncate=false
+      2026-10-20T22:25:38.531+09:00  WARN 140347 --- [    Test worker] c.c.vuln.measure.MeasurementHarness      : op_id 교차검증 불일치 — runOnce opId=1779af31-4ab1-49bd-947b-d0094f136f8d vs Caldera 링크 해석 [736ab6e7-bd4b-4b67-907b-a4e3cac8047f] (16건) → op_id 미기록(resolved=false)
+      PER-RUN op=1779af31-4ab1-49bd-947b-d0094f136f8d rows=11
+        [PATH_TRAVERSAL/SINGLE] rid=b810b62a-9ce7-4fff-b463-4802cd2bc422 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=470
+        [PATH_TRAVERSAL/SINGLE] rid=068705a9-f69f-4323-a834-75479db257f2 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=433
+        [PATH_TRAVERSAL/SINGLE] rid=0f35f269-6954-4ae0-8c77-1ada90fee95d gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=451
+        [SQLI/SINGLE] rid=c80e2587-cd1d-40d2-8b93-771a5e84c75d gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_MISSED conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [BRUTE_FORCE/BF_SEQUENCE] rid=b3b01738-6e41-45cf-a498-c688d9b813ed gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=507
+        [SSRF/SINGLE] rid=2fbe00b7-c829-496c-9477-4c43b0cafd68 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=405
+        [SSRF/SINGLE] rid=38707b3f-e1ac-4983-b9ad-81767f6ba72a gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=199
+        [SSRF/SINGLE] rid=3c593bc0-9e4e-47cc-9d13-e9ec4d6fc198 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [PATH_TRAVERSAL/SINGLE] rid=d4acc208-f3fe-4894-9fa7-77015f0d234c gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=502
+        [PATH_TRAVERSAL/SINGLE] rid=5404efbe-11ba-4599-812c-65b33f73aabf gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=513
+        [PATH_TRAVERSAL/SINGLE] rid=574aae66-866a-4390-b777-223aeba4f242 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=500
+      GATE overall=INCONCLUSIVE totalSamples=10 totalUncertain=0 report=detections/measurements/gate-report-2026-10-20T13-25-38-862Z.md
+      RUN run_id=dd433bc4-975f-453a-9e11-351890237e95 R10=INVALID ATTACK_MISMATCH (expected attack=7 control=1, actual attack=10 control=1)
+      MEASURE>> done overall=INCONCLUSIVE totalSamples=10
+  BUILD SUCCESSFUL in 3m 32s
+  end=2026-10-20T13:25:39Z
+## (3-2) DB 확인 (validation_rw SELECT, 원본) 2026-10-20T22:27:00+09:00
+       label       |  kind  | status | expected_attempts | expected_controls | actual_attack | actual_control | r10_status |   r10_reason    
+-------------------+--------+--------+-------------------+-------------------+---------------+----------------+------------+-----------------
+ S4-STACK-1a-SMOKE | ATTACK | CLOSED |                 7 |                 1 |             7 |              1 | VALID      | 
+ S4-STACK-4-SMOKE  | ATTACK | CLOSED |                 7 |                 1 |            10 |              1 | INVALID    | ATTACK_MISMATCH
+(2 rows)
+
+       label       |                git_commit                | git_dirty |         started_at         |          ended_at          
+-------------------+------------------------------------------+-----------+----------------------------+----------------------------
+ S4-STACK-1a-SMOKE | 417eb4b81bffdf5ced2f06d2f424a363c8e9b4de | t         | 2026-10-20 12:59:31.694+00 | 2026-10-20 13:03:18.413+00
+ S4-STACK-4-SMOKE  | 3550c67cdf5c2652104d218ed0b1d358a3edbf09 | t         | 2026-10-20 13:22:15.477+00 | 2026-10-20 13:25:38.855+00
+(2 rows)
+
+       label       |    scenario    | attempt_role | gt_outcome |      verdict       | count 
+-------------------+----------------+--------------+------------+--------------------+-------
+ S4-STACK-1a-SMOKE | BRUTE_FORCE    | ATTACK       | SUCCEEDED  | SUCCEEDED_DETECTED |     1
+ S4-STACK-4-SMOKE  | BRUTE_FORCE    | ATTACK       | SUCCEEDED  | SUCCEEDED_DETECTED |     1
+ S4-STACK-1a-SMOKE | PATH_TRAVERSAL | ATTACK       | SUCCEEDED  | SUCCEEDED_DETECTED |     3
+ S4-STACK-4-SMOKE  | PATH_TRAVERSAL | ATTACK       | SUCCEEDED  | SUCCEEDED_DETECTED |     6
+ S4-STACK-1a-SMOKE | SQLI           | ATTACK       | SUCCEEDED  | SUCCEEDED_MISSED   |     1
+ S4-STACK-4-SMOKE  | SQLI           | ATTACK       | SUCCEEDED  | SUCCEEDED_MISSED   |     1
+ S4-STACK-1a-SMOKE | SSRF           | ATTACK       | SUCCEEDED  | SUCCEEDED_DETECTED |     2
+ S4-STACK-4-SMOKE  | SSRF           | ATTACK       | SUCCEEDED  | SUCCEEDED_DETECTED |     2
+ S4-STACK-1a-SMOKE | SSRF           | CONTROL      | FAILED     | FAILED_UNSEEN      |     1
+ S4-STACK-4-SMOKE  | SSRF           | CONTROL      | FAILED     | FAILED_UNSEEN      |     1
+(10 rows)
+
+      label       |                op_id                 | op_id_resolved |    scenario    | corr |        first_attack        |        last_attack         
+------------------+--------------------------------------+----------------+----------------+------+----------------------------+----------------------------
+ S4-STACK-4-SMOKE |                                      | f              | PATH_TRAVERSAL |    3 | 2026-10-20 13:22:23.775+00 | 2026-10-20 13:22:23.837+00
+ S4-STACK-4-SMOKE | 1779af31-4ab1-49bd-947b-d0094f136f8d | t              | SQLI           |    1 | 2026-10-20 13:22:27.768+00 | 2026-10-20 13:22:27.768+00
+ S4-STACK-4-SMOKE |                                      | f              | BRUTE_FORCE    |    1 | 2026-10-20 13:23:27.793+00 | 2026-10-20 13:23:27.793+00
+ S4-STACK-4-SMOKE | 1779af31-4ab1-49bd-947b-d0094f136f8d | t              | SSRF           |    3 | 2026-10-20 13:23:33.847+00 | 2026-10-20 13:23:34.104+00
+ S4-STACK-4-SMOKE | 1779af31-4ab1-49bd-947b-d0094f136f8d | t              | PATH_TRAVERSAL |    3 | 2026-10-20 13:24:29.793+00 | 2026-10-20 13:24:29.834+00
+(5 rows)
+
+## (3-3) Caldera operations (API, 키 미출력; id·name·state·start·adversary 만) 2026-10-20T22:27:00+09:00
+  1d0da785-934a-4197-a9bf-071724911520	S3-5b measure #12 2026-10-16T17:36:03.082Z	finished	2026-10-16T17:36:03Z	[V] ATT&CK Validation — Web	4 links
+  306c87ea-7e05-429b-9194-91b036df5951	S3-5b measure #13 2026-10-16T17:38:45.547Z	finished	2026-10-16T17:38:45Z	[V] ATT&CK Validation — Web	4 links
+  66edaa70-e139-4ea2-84fa-ab8160addeb9	S3-5b measure #14 2026-10-16T17:42:07.176Z	finished	2026-10-16T17:42:07Z	[V] ATT&CK Validation — Web	4 links
+  8d1d8c76-22ac-494a-8b45-69f7ccffd213	S3-5b measure #15 2026-10-16T17:45:52.832Z	finished	2026-10-16T17:45:52Z	[V] ATT&CK Validation — Web	4 links
+  f32f0946-bf7c-4bd1-b418-4cf8c77a986f	S3-5b measure #16 2026-10-16T17:48:50.353Z	finished	2026-10-16T17:48:50Z	[V] ATT&CK Validation — Web	4 links
+  b13b964b-e3b7-4430-8d76-a0cfeeafcb4f	S3-5b measure #17 2026-10-16T17:52:32.991Z	finished	2026-10-16T17:52:32Z	[V] ATT&CK Validation — Web	4 links
+  1fcb4401-c1ed-4d03-8e83-bcebdf0bb03f	S3-5b measure #18 2026-10-16T17:56:33.573Z	finished	2026-10-16T17:56:33Z	[V] ATT&CK Validation — Web	4 links
+  3b42715c-351c-476f-9a97-ee56b755363a	S3-5b measure #19 2026-10-16T18:00:04.133Z	finished	2026-10-16T18:00:04Z	[V] ATT&CK Validation — Web	4 links
+  be46e9a1-7d50-4ab6-b487-382202812e74	S3-5b measure #20 2026-10-16T18:04:01.729Z	finished	2026-10-16T18:04:01Z	[V] ATT&CK Validation — Web	4 links
+  377ed11d-68b8-43ee-9928-fb223e9fb373	S4-measure #1 2026-10-18T10:03:17.187Z	finished	2026-10-18T10:03:17Z	[V] ATT&CK Validation — Web	4 links
+  dfdce3ab-a242-4496-825b-6202c5f1009e	S4-measure #1 2026-10-20T12:59:31.860Z	finished	2026-10-20T12:59:31Z	[V] ATT&CK Validation — Web	4 links
+  1779af31-4ab1-49bd-947b-d0094f136f8d	S4-measure #1 2026-10-20T13:22:15.667Z	finished	2026-10-20T13:22:15Z	[V] ATT&CK Validation — Web	4 links
+## (3-J) D5 판정 2026-10-20T22:27:00+09:00
+- 실패: R10=INVALID ATTACK_MISMATCH (expected attack=7 control=1, actual attack=10 control=1), rows=11(기대 8), 'op_id 교차검증 불일치' WARN
+- RUNBOOK-S4-1b (2) '멈출 것' 조건 해당 → 해석·수정 없이 중단, 원본 보고
+
+## (3-4) WARN 에 나온 operation 736ab6e7… 원본 (API, 키 미출력) 2026-10-20T22:27:40+09:00
+  736ab6e7-bd4b-4b67-907b-a4e3cac8047f	S2-SSRF-validation-01	running	2026-10-11T13:28:25Z	[V] ATT&CK Validation — Web	20 links	group=
+    link 2026-10-11T13:28:25Z	2026-10-11T13:29:09Z	djlycn	SQL Injection - Error-Based Probe (Step 1)	0
+    link 2026-10-11T13:29:10Z	2026-10-11T13:30:16Z	djlycn	SSRF - Cloud Metadata Access (Mock IMDS, verdict)	0
+    link 2026-10-11T13:30:20Z	2026-10-11T13:30:52Z	djlycn	Path Traversal - Text System File Access (Tier 1)	0
+    link 2026-10-11T13:30:55Z	2026-10-11T13:31:42Z	djlycn	Brute Force - Dictionary-Based Authentication Attack	0
+    link 2026-10-16T09:31:21Z	2026-10-16T09:31:24Z	mcukpa	SQL Injection - Error-Based Probe (Step 1)	0
+    link 2026-10-16T09:31:26Z	2026-10-16T09:32:10Z	mcukpa	SSRF - Cloud Metadata Access (Mock IMDS, verdict)	0
+    link 2026-10-16T09:31:26Z	2026-10-16T09:31:56Z	cdqyzu	SQL Injection - Error-Based Probe (Step 1)	0
+    link 2026-10-16T09:32:11Z	2026-10-16T09:32:51Z	mcukpa	Path Traversal - Text System File Access (Tier 1)	0
+    link 2026-10-16T09:32:11Z	2026-10-16T09:33:03Z	cdqyzu	SSRF - Cloud Metadata Access (Mock IMDS, verdict)	0
+    link 2026-10-16T09:33:06Z	2026-10-16T09:33:34Z	mcukpa	Brute Force - Dictionary-Based Authentication Attack	0
+    link 2026-10-16T09:33:06Z	2026-10-16T09:33:47Z	cdqyzu	Path Traversal - Text System File Access (Tier 1)	0
+    link 2026-10-16T09:33:51Z	2026-10-16T09:34:49Z	cdqyzu	Brute Force - Dictionary-Based Authentication Attack	0
+    link 2026-10-16T09:33:52Z	2026-10-16T09:34:08Z	giszwr	SQL Injection - Error-Based Probe (Step 1)	0
+    link 2026-10-16T09:34:52Z	2026-10-16T09:34:53Z	giszwr	SSRF - Cloud Metadata Access (Mock IMDS, verdict)	0
+    link 2026-10-16T09:34:57Z	2026-10-16T09:35:39Z	giszwr	Path Traversal - Text System File Access (Tier 1)	0
+    link 2026-10-16T09:35:42Z	2026-10-16T09:36:20Z	giszwr	Brute Force - Dictionary-Based Authentication Attack	0
+    link 2026-10-20T13:19:48Z	2026-10-20T13:20:41Z	oeintf	SQL Injection - Error-Based Probe (Step 1)	0
+    link 2026-10-20T13:20:43Z	2026-10-20T13:21:37Z	oeintf	SSRF - Cloud Metadata Access (Mock IMDS, verdict)	0
+    link 2026-10-20T13:21:38Z	2026-10-20T13:22:23Z	oeintf	Path Traversal - Text System File Access (Tier 1)	0
+    link 2026-10-20T13:22:28Z	2026-10-20T13:23:28Z	oeintf	Brute Force - Dictionary-Based Authentication Attack	0
+  operations total: 39
+
+## (3-J 추가) DRI 판정 (현성 2026-10-20)
+- R10 INVALID — 잔여 operation 736ab6e7 끼어들기, 이미지 동일, D5에 따라 원인 제거 후 재측정 1회
+- 실패 run S4-STACK-4-SMOKE(dd433bc4-975f-453a-9e11-351890237e95)은 DB에 그대로 둠, 슬라이스 되돌리지 않음(① Image ID SAME)
+
+## (4-A) Caldera operation 전체 (API GET /api/v2/operations, 키 미출력) 2026-10-20T22:31:17+09:00
+  total=39  state: finished=36 running=3 
+  id	name	state	start	group	links
+  b08f0883-e87a-4509-98e0-a1945fdafc77	S2-VAL-RUN	finished	2026-10-11T12:15:55Z	group=red	4
+  736ab6e7-bd4b-4b67-907b-a4e3cac8047f	S2-SSRF-validation-01	running	2026-10-11T13:28:25Z	group=	20
+  eef6111c-3f6c-4dda-a30f-26ce2b2fb9be	S3-INFRA2-BF-user1-01	running	2026-10-16T09:22:08Z	group=red	6
+  625ba6e7-67f0-4809-b8bc-2ce3d1ee0861	S3-INFRA2-BF-user1-02	running	2026-10-16T09:39:08Z	group=red	4
+  193a58b6-40dc-421a-9e56-e42ba2471dfe	S3-5b-1 smoke 2026-10-16T10:21:55.052127384Z	finished	2026-10-16T10:21:55Z	group=red	4
+  19e2d916-851f-435e-b457-6a36deab3538	S3-5b-1 smoke 2026-10-16T10:31:45.570345871Z	finished	2026-10-16T10:31:45Z	group=red	4
+  7bd84d76-96fe-4d97-bcfc-da07ead802c8	S3-5b-2a smoke 2026-10-16T13:47:39.791983809Z	finished	2026-10-16T13:47:40Z	group=red	0
+  76f73e3c-cf20-4ec0-a147-1541cf6f73e0	S3-5b-2a smoke 2026-10-16T13:48:09.828630508Z	finished	2026-10-16T13:48:09Z	group=red	0
+  921cbaee-c22b-4388-85b4-d54bc9fbb9ff	S3-5b-2a smoke 2026-10-16T13:49:24.041942789Z	finished	2026-10-16T13:49:24Z	group=red	0
+  9efd4f59-4f47-477c-84c6-603b56699b45	S3-5b-2a smoke 2026-10-16T13:49:46.226359979Z	finished	2026-10-16T13:49:46Z	group=red	0
+  4991d545-c9f2-48a2-9313-e4aafb0e8a17	S3-5b-2a smoke 2026-10-16T13:50:52.780064922Z	finished	2026-10-16T13:50:52Z	group=red	0
+  768c331e-50f6-45f7-abf3-2f1e6fe75734	S3-5b-2a smoke 2026-10-16T13:51:11.272661205Z	finished	2026-10-16T13:51:11Z	group=red	0
+  793e0e89-7f92-417d-bed1-648008ac6159	S3-5b-2a smoke 2026-10-16T14:00:09.931130218Z	finished	2026-10-16T14:00:10Z	group=red	4
+  c6ed207e-35e0-45d0-a647-6e6f9d36fd27	S3-5b-2b smoke 2026-10-16T14:31:50.186765699Z	finished	2026-10-16T14:31:50Z	group=red	4
+  7587deba-0e5a-4a12-9a01-f964a7c7560f	S3-5b measure #1 2026-10-16T15:15:54.859Z	finished	2026-10-16T15:15:55Z	group=red	4
+  9c62c1eb-1655-4ea6-a814-fab3eb29b659	S3-5b measure #2 2026-10-16T15:19:28.805Z	finished	2026-10-16T15:19:28Z	group=red	4
+  6056e597-111c-479b-9c4d-dd113d15e5ad	S3-5b measure #1 2026-10-16T17:00:20.596Z	finished	2026-10-16T17:00:20Z	group=red	4
+  6b2d2e9d-a3b7-4f26-ad87-ad07ea2c80ec	S3-5b measure #2 2026-10-16T17:04:01.241Z	finished	2026-10-16T17:04:01Z	group=red	4
+  92a2773d-675b-4dff-a8c9-34633eb375dd	S3-5b measure #3 2026-10-16T17:07:38.610Z	finished	2026-10-16T17:07:38Z	group=red	4
+  cde70f42-5aa2-4806-a9e1-146df3e2645b	S3-5b measure #4 2026-10-16T17:11:06.953Z	finished	2026-10-16T17:11:06Z	group=red	4
+  3b518339-13cc-4420-b380-7109ea90da5a	S3-5b measure #5 2026-10-16T17:14:14.230Z	finished	2026-10-16T17:14:14Z	group=red	4
+  4c13ca6c-a75d-473d-911b-5a308e263c17	S3-5b measure #6 2026-10-16T17:17:06.332Z	finished	2026-10-16T17:17:06Z	group=red	4
+  2e65ebde-2549-4c16-881b-73bfdb411e82	S3-5b measure #7 2026-10-16T17:20:13.509Z	finished	2026-10-16T17:20:13Z	group=red	4
+  8d9ff450-c19c-41cb-a8f2-bd43852e023c	S3-5b measure #8 2026-10-16T17:23:14.123Z	finished	2026-10-16T17:23:14Z	group=red	4
+  166aadd3-df2d-4513-be10-fde81fd0188e	S3-5b measure #9 2026-10-16T17:26:29.696Z	finished	2026-10-16T17:26:29Z	group=red	4
+  78fb8471-c962-47fd-920d-8987699a8eb5	S3-5b measure #10 2026-10-16T17:29:45.280Z	finished	2026-10-16T17:29:45Z	group=red	4
+  120d1588-eb1e-4208-802a-4ae5272655fb	S3-5b measure #11 2026-10-16T17:32:45.802Z	finished	2026-10-16T17:32:45Z	group=red	4
+  1d0da785-934a-4197-a9bf-071724911520	S3-5b measure #12 2026-10-16T17:36:03.082Z	finished	2026-10-16T17:36:03Z	group=red	4
+  306c87ea-7e05-429b-9194-91b036df5951	S3-5b measure #13 2026-10-16T17:38:45.547Z	finished	2026-10-16T17:38:45Z	group=red	4
+  66edaa70-e139-4ea2-84fa-ab8160addeb9	S3-5b measure #14 2026-10-16T17:42:07.176Z	finished	2026-10-16T17:42:07Z	group=red	4
+  8d1d8c76-22ac-494a-8b45-69f7ccffd213	S3-5b measure #15 2026-10-16T17:45:52.832Z	finished	2026-10-16T17:45:52Z	group=red	4
+  f32f0946-bf7c-4bd1-b418-4cf8c77a986f	S3-5b measure #16 2026-10-16T17:48:50.353Z	finished	2026-10-16T17:48:50Z	group=red	4
+  b13b964b-e3b7-4430-8d76-a0cfeeafcb4f	S3-5b measure #17 2026-10-16T17:52:32.991Z	finished	2026-10-16T17:52:32Z	group=red	4
+  1fcb4401-c1ed-4d03-8e83-bcebdf0bb03f	S3-5b measure #18 2026-10-16T17:56:33.573Z	finished	2026-10-16T17:56:33Z	group=red	4
+  3b42715c-351c-476f-9a97-ee56b755363a	S3-5b measure #19 2026-10-16T18:00:04.133Z	finished	2026-10-16T18:00:04Z	group=red	4
+  be46e9a1-7d50-4ab6-b487-382202812e74	S3-5b measure #20 2026-10-16T18:04:01.729Z	finished	2026-10-16T18:04:01Z	group=red	4
+  377ed11d-68b8-43ee-9928-fb223e9fb373	S4-measure #1 2026-10-18T10:03:17.187Z	finished	2026-10-18T10:03:17Z	group=red	4
+  dfdce3ab-a242-4496-825b-6202c5f1009e	S4-measure #1 2026-10-20T12:59:31.860Z	finished	2026-10-20T12:59:31Z	group=red	4
+  1779af31-4ab1-49bd-947b-d0094f136f8d	S4-measure #1 2026-10-20T13:22:15.667Z	finished	2026-10-20T13:22:15Z	group=red	4
+### running/paused
+  736ab6e7-bd4b-4b67-907b-a4e3cac8047f	S2-SSRF-validation-01	running	2026-10-11T13:28:25Z	group=	20 links
+  eef6111c-3f6c-4dda-a30f-26ce2b2fb9be	S3-INFRA2-BF-user1-01	running	2026-10-16T09:22:08Z	group=red	6 links
+  625ba6e7-67f0-4809-b8bc-2ce3d1ee0861	S3-INFRA2-BF-user1-02	running	2026-10-16T09:39:08Z	group=red	4 links
+## (4-B) 736ab6e7 정리 (승인 범위: 이 operation 하나만) 2026-10-20T22:31:34+09:00
+  before: running	20 links
+  $ curl -X PATCH http://127.0.0.1:8888/api/v2/operations/736ab6e7-bd4b-4b67-907b-a4e3cac8047f -H 'KEY: …' -H 'Content-Type: application/json' -d '{"state":"finished"}'
+  HTTP=200  response.state=finished
+  after (재조회 2026-10-20T13:31:34Z): finished	20 links
+  1분 후 재조회 (checked_at=2026-10-20T13:32:54Z[exited with code 0], PATCH 후 102초 경과 시점 기록):
+    736ab6e7 state=finished links=20 last_link_decide=2026-10-20T13:22:28Z
+  -> link 수 변화: 20 → 20
+### 4-B-3 다른 running/paused (건드리지 않음 — 지시에 따라 목록만 보고하고 멈춤)
+  eef6111c-3f6c-4dda-a30f-26ce2b2fb9be	S3-INFRA2-BF-user1-01	running	2026-10-16T09:22:08Z	group=red	6 links	last_link_decide=2026-10-20T13:19:48Z
+  625ba6e7-67f0-4809-b8bc-2ce3d1ee0861	S3-INFRA2-BF-user1-02	running	2026-10-16T09:39:08Z	group=red	4 links	last_link_decide=2026-10-20T13:19:48Z
+  state counts: finished=37 running=2 
+
+### 4-B-3 남은 running 2개의 link 원본 (decide, paw, ability) — 상태 변경 없음
+  eef6111c  2026-10-16T09:22:09Z	mcukpa	Brute Force - Dictionary-Based Authentication Attack
+  eef6111c  2026-10-17T08:31:35Z	cdqyzu	Brute Force - Dictionary-Based Authentication Attack
+  eef6111c  2026-10-17T08:31:35Z	giszwr	Brute Force - Dictionary-Based Authentication Attack
+  eef6111c  2026-10-18T08:00:08Z	cdqyzu	Brute Force - Dictionary-Based Authentication Attack
+  eef6111c  2026-10-18T08:00:08Z	giszwr	Brute Force - Dictionary-Based Authentication Attack
+  eef6111c  2026-10-20T13:19:48Z	oeintf	Brute Force - Dictionary-Based Authentication Attack
+  625ba6e7  2026-10-16T09:39:08Z	mcukpa	Brute Force - Dictionary-Based Authentication Attack
+  625ba6e7  2026-10-16T09:39:08Z	cdqyzu	Brute Force - Dictionary-Based Authentication Attack
+  625ba6e7  2026-10-16T09:39:08Z	giszwr	Brute Force - Dictionary-Based Authentication Attack
+  625ba6e7  2026-10-20T13:19:48Z	oeintf	Brute Force - Dictionary-Based Authentication Attack
+  -> 4-B-3 조건(736ab6e7 외 running 존재)에 해당: 4-C 재측정 진행하지 않고 중단, 보고
+
+## (4-B2) 남은 running 2개 정리 (승인 범위: 아래 두 operation만) 2026-10-20T22:35:31+09:00
+- DRI 판단(현성 2026-10-20): 둘 다 10-16 S3 INFRA2 BF 시험용 잔여 operation이고, Caldera 재시작 때 새 agent에 BF link를 실행함(10-17, 10-18, 10-20).
+  기존 측정 영향 없음(S4-1b-SMOKE·S4-STACK-1a-SMOKE 모두 link 시각과 겹치지 않고 VALID).
+  --- eef6111c-3f6c-4dda-a30f-26ce2b2fb9be
+  before: running	6 links
+  $ curl -X PATCH http://127.0.0.1:8888/api/v2/operations/eef6111c-3f6c-4dda-a30f-26ce2b2fb9be -H 'KEY: …' -H 'Content-Type: application/json' -d '{"state":"finished"}'
+  HTTP=200  response.state=finished
+  after (재조회 2026-10-20T13:35:31Z): finished	6 links
+  --- 625ba6e7-67f0-4809-b8bc-2ce3d1ee0861
+  before: running	4 links
+  $ curl -X PATCH http://127.0.0.1:8888/api/v2/operations/625ba6e7-67f0-4809-b8bc-2ce3d1ee0861 -H 'KEY: …' -H 'Content-Type: application/json' -d '{"state":"finished"}'
+  HTTP=200  response.state=finished
+  after (재조회 2026-10-20T13:35:31Z): finished	4 links
+  1분 후 재조회 (checked_at=2026-10-20T13:36:50Z[exited with code 0]):
+    736ab6e7 state=finished links=20
+    eef6111c state=finished links=6
+    625ba6e7 state=finished links=4
+  -> link 수 변화: eef6111c 6→6, 625ba6e7 4→4, 736ab6e7 20→20
+### 전체 operation 재조회: total=39 state: finished=39  running/paused=0
+
+## (5-0) R2 사전 확인 2026-10-20T22:37:20+09:00 HEAD=3550c67 porcelain=4(미커밋 → git_dirty=true 예상)
+  ① running/paused operation: 0
+  ② red agent:
+    mcukpa	red	false	2026-10-16T18:23:26Z
+    jznjpj	red	false	2026-10-18T10:10:09Z
+    oeintf	red	true	2026-10-20T13:37:09Z
+    now=2026-10-20T13:37:20Z
+  ③ label S4-STACK-4-SMOKE-R2 기존 run: 0
+## (5-1) R2 스모크 실행 (RUNBOOK-S4-1b (2), 라벨만 변경) 2026-10-20T22:41:41+09:00
+$ RUN_CALDERA_MEASURE=1 MEASURE_N=1 MEASURE_LABEL='S4-STACK-4-SMOKE-R2' APP_CALDERA_APIKEY=… INDEXER_USERNAME=… INDEXER_PASSWORD=… POSTGRES_DB=… VALIDATION_DB_PASSWORD=… ./gradlew cleanTest test --tests 'com.capstone.vuln.measure.CampaignRunnerIT' -i | grep -E '<RUNBOOK 필터>'   (값은 docker/.env 에서 env 로만 주입, 미출력)
+  start=2026-10-20T13:37:36Z
+  CampaignRunnerIT STANDARD_OUT
+      2026-10-20T22:37:40.178+09:00  INFO 147520 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Starting CampaignRunnerIT using Java 17.0.20.1 with PID 147520 (started by hyeonseong in /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2)
+      2026-10-20T22:37:40.186+09:00 DEBUG 147520 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Running with Spring Boot v3.5.13, Spring v6.2.17
+      2026-10-20T22:37:40.187+09:00  INFO 147520 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : No active profile set, falling back to 1 default profile: "default"
+      2026-10-20T22:37:41.049+09:00  INFO 147520 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Started CampaignRunnerIT in 1.249 seconds (process running for 2.076)
+  CampaignRunnerIT > measure() STANDARD_OUT
+      MEASURE>> starting campaign run label=S4-STACK-4-SMOKE-R2 n=1 truncate=false
+      PER-RUN op=8e1617f3-58e6-4c23-a0d3-372459426c0a rows=8
+        [SQLI/SINGLE] rid=cfa0bf58-0911-4cf4-9753-e59b4005070f gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_MISSED conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [SSRF/SINGLE] rid=89061b47-194f-4bb7-966f-f42451c1a66a gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1387
+        [SSRF/SINGLE] rid=cfbd2e65-debb-4d09-90ff-23dc793e7af7 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1306
+        [SSRF/SINGLE] rid=6d77e970-76c0-4de1-9439-d1eba84b0af5 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [PATH_TRAVERSAL/SINGLE] rid=9408a7b2-6a0f-4db8-b9f4-88a7d1b28fd8 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1440
+        [PATH_TRAVERSAL/SINGLE] rid=3220b4f9-f6a8-4bed-a4c0-02cdc5865d9e gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1406
+        [PATH_TRAVERSAL/SINGLE] rid=5f2b7b43-5a21-479e-9a0c-b748237e763b gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1384
+        [BRUTE_FORCE/BF_SEQUENCE] rid=5397c88b-3e91-4206-8403-910e7be50852 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=820
+      GATE overall=INCONCLUSIVE totalSamples=7 totalUncertain=0 report=detections/measurements/gate-report-2026-10-20T13-41-13-419Z.md
+      RUN run_id=7f72e521-23cb-4014-b9e4-626e5898f86c R10=VALID
+      MEASURE>> done overall=INCONCLUSIVE totalSamples=7
+  BUILD SUCCESSFUL in 3m 36s
+  end=2026-10-20T13:41:13Z
+  op_id 교차검증 WARN 줄 수: 0
+## (5-2) DB 확인 (validation_rw SELECT) 2026-10-20T22:41:41+09:00
+        label        |  kind  | status | expected_attempts | expected_controls | actual_attack | actual_control | r10_status |   r10_reason    
+---------------------+--------+--------+-------------------+-------------------+---------------+----------------+------------+-----------------
+ S4-STACK-1a-SMOKE   | ATTACK | CLOSED |                 7 |                 1 |             7 |              1 | VALID      | 
+ S4-STACK-4-SMOKE    | ATTACK | CLOSED |                 7 |                 1 |            10 |              1 | INVALID    | ATTACK_MISMATCH
+ S4-STACK-4-SMOKE-R2 | ATTACK | CLOSED |                 7 |                 1 |             7 |              1 | VALID      | 
+(3 rows)
+
+        label        |                git_commit                | git_dirty |         started_at         |          ended_at          
+---------------------+------------------------------------------+-----------+----------------------------+----------------------------
+ S4-STACK-4-SMOKE-R2 | 3550c67cdf5c2652104d218ed0b1d358a3edbf09 | t         | 2026-10-20 13:37:41.536+00 | 2026-10-20 13:41:13.412+00
+(1 row)
+
+        label        | attempt_role | gt_outcome | count 
+---------------------+--------------+------------+-------
+ S4-STACK-1a-SMOKE   | ATTACK       | SUCCEEDED  |     7
+ S4-STACK-1a-SMOKE   | CONTROL      | FAILED     |     1
+ S4-STACK-4-SMOKE-R2 | ATTACK       | SUCCEEDED  |     7
+ S4-STACK-4-SMOKE-R2 | CONTROL      | FAILED     |     1
+(4 rows)
+
+        label        | op_id_resolved | count 
+---------------------+----------------+-------
+ S4-STACK-4-SMOKE-R2 | t              |     8
+(1 row)
+
+    scenario    |  role   | k |   gt_1a   |   gt_r2   |     verdict_1a     |     verdict_r2     |  atk_1a   |  atk_r2   | ovr_1a | ovr_r2 | cmp  
+----------------+---------+---+-----------+-----------+--------------------+--------------------+-----------+-----------+--------+--------+------
+ BRUTE_FORCE    | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | same
+ PATH_TRAVERSAL | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | same
+ PATH_TRAVERSAL | ATTACK  | 2 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | same
+ PATH_TRAVERSAL | ATTACK  | 3 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | same
+ SQLI           | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED | SUCCEEDED | f      | f      | same
+ SSRF           | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | same
+ SSRF           | ATTACK  | 2 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | same
+ SSRF           | CONTROL | 1 | FAILED    | FAILED    | FAILED_UNSEEN      | FAILED_UNSEEN      | SUCCEEDED | SUCCEEDED | t      | t      | same
+(8 rows)
+
+(비교: S4-STACK-1a-SMOKE ↔ S4-STACK-4-SMOKE-R2, 시나리오·attempt_role 안 verdict·id 순 k번째 짝. 6개 컬럼 gt_outcome·verdict·initial_verdict·attacker_verdict·overestimate·detection_status)
+## (5-3) 사후: running/paused operation 0개 2026-10-20T22:41:41+09:00
+## (5-J) R2 D5 판정 2026-10-20T22:41:56+09:00
+- R10: VALID (expected 7/1 = actual 7/1) → 충족
+- GT: ATTACK 7 SUCCEEDED, CONTROL 1 FAILED (S4-STACK-1a-SMOKE와 동일) → 충족
+- verdict 비교(vs S4-STACK-1a-SMOKE, 6개 컬럼): 8행 모두 same, DIFF 0
+- op_id 교차검증 WARN 0줄, correlation op_id_resolved=t 8/8, rows=8
+- 기록 사항: run git_commit=3550c67, git_dirty=true(compose 수정·증거 로그 미커밋 상태에서 측정). 실패 run S4-STACK-4-SMOKE(INVALID)는 DB에 유지
+- 하네스 생성 gate-report: 실패 run 2026-10-20T13-25-38-862Z.{md,json}, R2 2026-10-20T13-41-13-419Z.{md,json}
+

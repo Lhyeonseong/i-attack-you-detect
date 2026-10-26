@@ -1,0 +1,6 @@
+id: adv-av-sqli-001
+name: '[V2] Validation — SQLi (T1190)'
+description: 'SQLi 단일 검증. Error-based probe + 공격자 verdict(sqli.verdict). 탐지 대상 Wazuh 100210.'
+atomic_ordering:
+- e3f1a9c7-2b4d-4e6f-a8c2-5d7e9f1b3a5c
+objective: 495a9828-cab1-44dd-a0ca-66e58177d8cc

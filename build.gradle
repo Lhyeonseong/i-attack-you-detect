@@ -1,0 +1,47 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.1.1'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.capstone'
+version = '0.0.1-SNAPSHOT'
+description = 'vulnerable-webapp'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+
+    // validation schema 마이그레이션 (validation datasource 전용, ValidationSchemaMigrator 가 직접 실행)
+    // Boot 4 의 Flyway 자동설정은 spring-boot-starter-flyway 에만 있다 — 취약 앱 datasource 에 돌지 않도록 스타터는 넣지 않는다
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // logback-spring.xml 의 기본 경로(/var/log/target)는 컨테이너 전용이므로 테스트에서는 build/ 아래로 돌린다
+    systemProperty 'ATTACK_JSON_LOG_FILE', layout.buildDirectory.file('logs/attack.json.log').get().asFile.path
+}

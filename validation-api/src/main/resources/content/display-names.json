@@ -1,0 +1,7 @@
+{
+  "S4-STACK-6-BASELINE": "개선 전 측정 (10/21)",
+  "S5-SQLI-AFTER": "개선 후 측정 (10/22)",
+  "S4-5-BENIGN-WEB-R2": "정상 트래픽·웹 (개선 전)",
+  "S5-SQLI-AFTER-BENIGN-WEB": "정상 트래픽·웹 (개선 후)",
+  "S4-5-BENIGN-LOGIN": "정상 트래픽·로그인"
+}

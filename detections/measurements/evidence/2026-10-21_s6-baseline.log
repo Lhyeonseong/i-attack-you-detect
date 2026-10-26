@@ -1,0 +1,264 @@
+# 슬라이스 6 — 새 baseline 20회 (본측정, 하네스 20회 연속) label S4-STACK-6-BASELINE
+# 근거: 결정3 게이트 표본≥20(conclusive), MITRE Evals 반복·Wilson 구간(methodology-2). 스택: e3b5f52 (Suricata 8.0.7·Wazuh 4.14.9·PG 16.15·Boot 4.1.1·digest·IFN·bootstrap [])
+
+## (6-0) 시작 전 확인 2026-10-21T10:02:03Z
+--- 1. git: HEAD=e3b5f52851521f0d389705f9dd6fdcd4d07b3cbd status --short 줄 수=1 (tee 가 만든 이 로그 제외 전 0)
+--- 2. (0-b)
+  total=46
+  finished=46
+  agents (trusted 만):
+    eiwwvn red trusted=true created=2026-10-21T09:56:40Z last_seen=2026-10-21T10:01:59Z links=0
+--- 5. bootstrap 재검증: 새 agent link 목록
+  eiwwvn links=[]
+  config/agents bootstrap_abilities length=0
+  ~/.bash_history: 242 bytes mtime=2026-10-21 18:41:39.393807624 +0900
+--- 3. (0-c)
+app0 172.20.0.3/16
+atk0 172.18.0.2/16
+imds0 169.254.169.2/24
+sec0 172.19.0.5/16
+eth_count=0
+security-lab_app_net 172.20.0.0/16
+security-lab_attack_net 172.18.0.0/16
+security-lab_imds_net 169.254.169.0/24
+security-lab_security_net 172.19.0.0/16
+["-i","app0","-i","atk0","-i","imds0","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.5.stats.enabled=no","--set","outputs.1.eve-log.types.32.stats.enabled=no"]
+NM_OK
+--- 3. (0-d)
+outputs.5 stats enabled=no
+eve-log.types.0 alert enabled=yes(미지정)
+eve-log.types.3 http enabled=yes(미지정)
+eve-log.types.7 files enabled=yes(미지정)
+eve-log.types.32 stats enabled=no
+eve-log.types.33 flow enabled=yes(미지정)
+--- 4. 운영 DB (READ ONLY)
+  history: 1 1 -302875525 t
+  history: 2 2 1699786641 t
+  history: 3 3 -1339579969 t
+  history: 4 4 -254580708 t
+  label S4-STACK-6-BASELINE run 수: 0
+  measurement_run 전체 / verdict_result 전체: 11 / 243
+  컨테이너 restarts: caldera=0 target-web=0 suricata=0 postgres=0 
+  → (6-0) 1~5 전부 기대와 같음: HEAD e3b5f52·미커밋 0(이 로그 제외), (0-b) running/paused 0, red alive 1 = eiwwvn(새 paw, links [] — bootstrap 미실행),
+     (0-c) 짝 서브넷·eth_count=0·-i app0/atk0/imds0·NM_OK, (0-d) 통과, flyway_schema_history 4행(위 checksum), S4-STACK-6-BASELINE run 0
+  git_dirty 처리: 하네스는 GitStateSource.java:18 '!run(repoDir, "git", "status", "--porcelain").isBlank()' — 미추적 파일도 dirty.
+     이 증거 로그가 저장소 안에 있으면 git_dirty=true 가 되므로 측정 동안 scratchpad 로 옮겨 두고(삭제 아님) 끝난 뒤 되돌려 이어 씀
+start=2026-10-21T10:03:05Z porcelain=0
+
+## (6-1) 측정 — RUNBOOK (2) 명령, MEASURE_N=20 MEASURE_LABEL='S4-STACK-6-BASELINE' (키는 .env 주입·미출력), gradle -i
+  gradle_exit=0 end=2026-10-21T11:12:05Z (start 위)
+  측정 중 이 증거 로그는 scratchpad 에 있었고 측정 후 되돌림
+  진행 기록 (Monitor, 출력 파일 tail — 시각은 이벤트 수신 시각):
+       1	    MEASURE>> starting campaign run label=S4-STACK-6-BASELINE n=20 truncate=false
+       2	    PER-RUN op=8378c817-4f95-42a8-84d4-031f6a5ca173 rows=8
+       3	    PER-RUN op=5d006052-338b-4193-8a13-955290be81c4 rows=8
+       4	    PER-RUN op=49e9aa47-cab1-417a-b31e-e8b0e6a84750 rows=8
+       5	    PER-RUN op=0d1e5ed7-0cc8-40cc-bd77-ddc50e381a09 rows=8
+       6	    PER-RUN op=b50d81cb-f640-4d72-b855-7c76310cb76b rows=8
+       7	    PER-RUN op=0f0b5174-40a1-474f-97e6-e5a39de244cc rows=8
+       8	    PER-RUN op=c94957b1-99f4-499b-a6e9-0ca18b816556 rows=8
+       9	    PER-RUN op=52419b85-02d1-4e8c-bdf8-ff5951cba0de rows=8
+      10	    PER-RUN op=c6563bf0-f000-489b-bf51-466338915182 rows=8
+      11	    PER-RUN op=964b7014-f75d-431c-bbfe-059e97beb3cf rows=8
+      12	    PER-RUN op=5cea5f3d-8f51-4095-9bc3-fdf81d03eca7 rows=8
+      13	    PER-RUN op=e2d74232-3af7-4cc7-9d5f-c967c36e875c rows=8
+      14	    PER-RUN op=b05b71f0-2927-4c5b-aabf-b397febacef7 rows=8
+      15	    PER-RUN op=1a992704-46ef-424e-b3e0-8d34ba3ac674 rows=8
+      16	    PER-RUN op=8a6139d7-911e-4613-8bb1-c1d3b5d28780 rows=8
+      17	    PER-RUN op=61061d12-ff99-4e29-b785-2f92fdbca35f rows=8
+      18	    PER-RUN op=93c4601e-be48-4451-a273-7ce1bd436edb rows=8
+      19	    PER-RUN op=e90d68c1-ec00-4a57-8a0e-4ae9ffa6cece rows=8
+      20	    PER-RUN op=6204d6b2-468d-4cd1-a4c0-244d4bc2c9b1 rows=8
+      21	    PER-RUN op=36678195-c8af-411a-aa1a-ea8eb54a8fa2 rows=8
+      22	    GATE overall=PASS totalSamples=140 totalUncertain=0 report=detections/measurements/gate-report-2026-10-21T11-12-03-045Z.md
+      23	    RUN run_id=b1c26be1-add2-4d45-8207-0998b0f743b1 R10=VALID
+      24	    MEASURE>> done overall=PASS totalSamples=140
+      25	BUILD SUCCESSFUL in 1h 8m 59s
+  멈춤 조건 줄 수: op_id 교차검증 불일치 0, Caldera operation 조회 실패 0, ' ERROR ' 0, ' WARN ' 0, Exception 0, FAILED 줄 20 (= 대조군 gt=FAILED 행 수 확인용)
+  PER-RUN 줄 20개, 모두 rows=8: 0 개 예외, gt=FAILED 줄 20
+
+## (6-2) 사후 확인 2026-10-21T11:12:55Z
+--- op 20개 (Caldera API, name 'S4-measure #i …' 이고 이번 run 구간)
+  #1 8378c817-4f95-42a8-84d4-031f6a5ca173 state=finished start=2026-10-21T10:03:14Z links=4 paw=eiwwvn link_status=0
+  #2 5d006052-338b-4193-8a13-955290be81c4 state=finished start=2026-10-21T10:07:06Z links=4 paw=eiwwvn link_status=0
+  #3 49e9aa47-cab1-417a-b31e-e8b0e6a84750 state=finished start=2026-10-21T10:10:58Z links=4 paw=eiwwvn link_status=0
+  #4 0d1e5ed7-0cc8-40cc-bd77-ddc50e381a09 state=finished start=2026-10-21T10:14:14Z links=4 paw=eiwwvn link_status=0
+  #5 b50d81cb-f640-4d72-b855-7c76310cb76b state=finished start=2026-10-21T10:17:51Z links=4 paw=eiwwvn link_status=0
+  #6 0f0b5174-40a1-474f-97e6-e5a39de244cc state=finished start=2026-10-21T10:21:19Z links=4 paw=eiwwvn link_status=0
+  #7 c94957b1-99f4-499b-a6e9-0ca18b816556 state=finished start=2026-10-21T10:24:26Z links=4 paw=eiwwvn link_status=0
+  #8 52419b85-02d1-4e8c-bdf8-ff5951cba0de state=finished start=2026-10-21T10:28:42Z links=4 paw=eiwwvn link_status=0
+  #9 c6563bf0-f000-489b-bf51-466338915182 state=finished start=2026-10-21T10:31:49Z links=4 paw=eiwwvn link_status=0
+  #10 964b7014-f75d-431c-bbfe-059e97beb3cf state=finished start=2026-10-21T10:35:10Z links=4 paw=eiwwvn link_status=0
+  #11 5cea5f3d-8f51-4095-9bc3-fdf81d03eca7 state=finished start=2026-10-21T10:38:47Z links=4 paw=eiwwvn link_status=0
+  #12 e2d74232-3af7-4cc7-9d5f-c967c36e875c state=finished start=2026-10-21T10:42:09Z links=4 paw=eiwwvn link_status=0
+  #13 b05b71f0-2927-4c5b-aabf-b397febacef7 state=finished start=2026-10-21T10:45:40Z links=4 paw=eiwwvn link_status=0
+  #14 1a992704-46ef-424e-b3e0-8d34ba3ac674 state=finished start=2026-10-21T10:48:38Z links=4 paw=eiwwvn link_status=0
+  #15 8a6139d7-911e-4613-8bb1-c1d3b5d28780 state=finished start=2026-10-21T10:51:45Z links=4 paw=eiwwvn link_status=0
+  #16 61061d12-ff99-4e29-b785-2f92fdbca35f state=finished start=2026-10-21T10:55:43Z links=4 paw=eiwwvn link_status=0
+  #17 93c4601e-be48-4451-a273-7ce1bd436edb state=finished start=2026-10-21T10:58:59Z links=4 paw=eiwwvn link_status=0
+  #18 e90d68c1-ec00-4a57-8a0e-4ae9ffa6cece state=finished start=2026-10-21T11:02:00Z links=4 paw=eiwwvn link_status=0
+  #19 6204d6b2-468d-4cd1-a4c0-244d4bc2c9b1 state=finished start=2026-10-21T11:05:43Z links=4 paw=eiwwvn link_status=0
+  #20 36678195-c8af-411a-aa1a-ea8eb54a8fa2 state=finished start=2026-10-21T11:08:35Z links=4 paw=eiwwvn link_status=0
+--- 1. run·R10 (validation_rw READ ONLY)
+BEGIN
+        label        |  kind  | status |                git_commit                | git_dirty |         started_at         |          ended_at          | run_ms  |    wazuh     |   suricata   |  adversary   | abilities | expected_attempts | expected_controls 
+---------------------+--------+--------+------------------------------------------+-----------+----------------------------+----------------------------+---------+--------------+--------------+--------------+-----------+-------------------+-------------------
+ S4-STACK-6-BASELINE | ATTACK | CLOSED | e3b5f52851521f0d389705f9dd6fdcd4d07b3cbd | f         | 2026-10-21 10:03:13.914+00 | 2026-10-21 11:12:03.017+00 | 4129103 | 47715556fd0f | 007b188d4e80 | cba127e95e91 |         4 |               140 |                20
+(1 row)
+
+        label        | verdicts | attack | control |  r10  
+---------------------+----------+--------+---------+-------
+ S4-STACK-6-BASELINE |      160 |    140 |      20 | VALID
+(1 row)
+
+                run_id                |        label        |  kind  | status | expected_attempts | expected_controls | actual_attack | actual_control | r10_status | r10_reason 
+--------------------------------------+---------------------+--------+--------+-------------------+-------------------+---------------+----------------+------------+------------
+ b1c26be1-add2-4d45-8207-0998b0f743b1 | S4-STACK-6-BASELINE | ATTACK | CLOSED |               140 |                20 |           140 |             20 | VALID      | 
+(1 row)
+
+ status | count 
+--------+-------
+ CLOSED |    12
+(1 row)
+
+ correlations | distinct_op_ids | all_resolved | op_id_null 
+--------------+-----------------+--------------+------------
+          160 |              20 | t            |          0
+(1 row)
+
+ROLLBACK
+BEGIN
+--- 1. R10 상태 집계 (v_run_integrity, 전체 run)
+ r10_status | count |                                                                                                  labels                                                                                                   
+------------+-------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ INVALID    |     1 | S4-STACK-4-SMOKE
+ VALID      |    11 | S3-GATE-dc66322, S4-1b-SMOKE, S4-STACK-1a-SMOKE, S4-STACK-1b-SMOKE, S4-STACK-1c-SMOKE, S4-STACK-2-SMOKE, S4-STACK-3-SMOKE, S4-STACK-4-SMOKE-R2, S4-STACK-5-SMOKE, S4-STACK-6-BASELINE, S4-STACK-IFN-SMOKE
+(2 rows)
+
+--- 2. 시나리오별 (ATTACK, DB 직접): n·conclusive·match·overestimate·UNCERTAIN
+    scenario    | n  | conclusive | match_true | match_false | match_rate | overestimate | uncertain | uncertain_rate 
+----------------+----+------------+------------+-------------+------------+--------------+-----------+----------------
+ BRUTE_FORCE    | 20 |         20 |         20 |           0 |      1.000 |            0 |         0 |          0.000
+ PATH_TRAVERSAL | 60 |         60 |         60 |           0 |      1.000 |            0 |         0 |          0.000
+ SQLI           | 20 |         20 |         20 |           0 |      1.000 |            0 |         0 |          0.000
+ SSRF           | 40 |         40 |         40 |           0 |      1.000 |            0 |         0 |          0.000
+(4 rows)
+
+--- 2b. 대조군 (CONTROL)
+ scenario | count |  string_agg   | overestimate | detected 
+----------+-------+---------------+--------------+----------
+ SSRF     |    20 | FAILED_UNSEEN |           20 |        0
+(1 row)
+
+--- 3. MTTD v_metric_mttd (type8)
+ split_kind |   split_unit   |  n  | p50_ms | p95_ms  | status  
+------------+----------------+-----+--------+---------+---------
+ ALL        | ALL            | 120 |   1341 | 1986.20 | OK
+ SCENARIO   | BRUTE_FORCE    |  20 |   1563 | 2196.30 | OK
+ SCENARIO   | PATH_TRAVERSAL |  60 | 1365.5 | 1886.50 | OK
+ SCENARIO   | SQLI           |   0 |        |         | NO_DATA
+ SCENARIO   | SSRF           |  40 |   1211 | 1904.05 | OK
+ TECHNIQUE  | T1110          |  20 |   1563 | 2196.30 | OK
+ TECHNIQUE  | T1190          | 100 |   1306 | 1886.50 | OK
+(7 rows)
+
+--- 3b. 이상값 (전체 verdict 160): 음수 / run 길이 초과 / DETECTED-NULL / NOT_DETECTED-with-mttd / late
+ negative | gt_run | detected_null | notdet_with_mttd | late | min | max  
+----------+--------+---------------+------------------+------+-----+------
+        0 |      0 |             0 |                0 |    0 |  11 | 2218
+(1 row)
+
+--- 3c. 시나리오별 mttd min·max·DETECTED 수
+    scenario    | detected | min | max  
+----------------+----------+-----+------
+ BRUTE_FORCE    |       20 | 289 | 2218
+ PATH_TRAVERSAL |       60 |  11 | 2028
+ SQLI           |        0 |     |     
+ SSRF           |       40 |  98 | 1968
+(4 rows)
+
+--- 4. verdict 7상태 분포 (전체·역할별)
+      verdict       | attack | control | total 
+--------------------+--------+---------+-------
+ SUCCEEDED_DETECTED |    120 |       0 |   120
+ FAILED_UNSEEN      |      0 |      20 |    20
+ SUCCEEDED_MISSED   |     20 |       0 |    20
+ BLOCKED            |      0 |       0 |     0
+ FAILED_DETECTED    |      0 |       0 |     0
+ SUCCEEDED_BLOCKED  |      0 |       0 |     0
+ UNCERTAIN          |      0 |       0 |     0
+(7 rows)
+
+--- 4b. SQLi (H1)
+     verdict      | initial_verdict  | detection_status | count 
+------------------+------------------+------------------+-------
+ SUCCEEDED_MISSED | SUCCEEDED_MISSED | NOT_DETECTED     |    20
+(1 row)
+
+--- 5. S3-GATE-dc66322 불변
+      label      | status |          started_at           |           ended_at            | verdicts 
+-----------------+--------+-------------------------------+-------------------------------+----------
+ S3-GATE-dc66322 | CLOSED | 2026-10-16 17:04:01.091971+00 | 2026-10-16 18:07:23.246309+00 |      160
+(1 row)
+
+ split_kind | split_unit |  n  | p50_ms | p95_ms  
+------------+------------+-----+--------+---------
+ ALL        | ALL        | 120 |    966 | 1931.15
+(1 row)
+
+ROLLBACK
+--- 2c. gate-report (하네스 생성)
+  # S3-5b Gate Report
+  
+  - generated: 2026-10-21T11:12:03.045Z
+  - overall: **PASS**
+  - total conclusive samples: 140 | uncertain: 0
+  
+  | scenario | samples | matchRate | overestimate | uncertain | uncertainRate | result |
+  |---|---:|---:|---:|---:|---:|---|
+  | BRUTE_FORCE | 20 | 1.000 | 0 | 0 | 0.000 | PASS |
+  | PATH_TRAVERSAL | 60 | 1.000 | 0 | 0 | 0.000 | PASS |
+  | SQLI | 20 | 1.000 | 0 | 0 | 0.000 | PASS |
+  | SSRF | 40 | 1.000 | 0 | 0 | 0.000 | PASS |
+  
+  _gate: conclusive≥20 & matchRate≥0.95 & overestimate==0 → PASS; samples<20 → INCONCLUSIVE; else FAIL_
+  json thresholds 키 순서: ['minConclusiveSamples', 'minMatchRate', 'maxOverestimate'] {'minConclusiveSamples': 20, 'minMatchRate': 0.95, 'maxOverestimate': 0}
+  json BRUTE_FORCE 20 1.0 0 0 0.0 PASS
+  json PATH_TRAVERSAL 60 1.0 0 0 0.0 PASS
+  json SQLI 20 1.0 0 0 0.0 PASS
+  json SSRF 40 1.0 0 0 0.0 PASS
+  json overall PASS 140 0
+--- 4c. Suricata sid 별 alert 합 (eve.json, run 구간 2026-10-21T10:03:13~11:12:03, IPv6 link-local·multicast 제외, RUNBOOK (3-d) 방식)
+  app_ip=172.20.0.3
+  attack flow      387  
+  attack http      400  
+  imds flow         40  
+  imds http         40  
+  sid 1000001      400  [CALDERA] Agent detected via User-Agent
+  sid 1000002      400  [CALDERA] Operation header detected - X-Caldera-Op-Id
+  sid 1000003      400  [CALDERA] Technique header detected - X-Caldera-Technique
+  sid 1000004      400  [CALDERA] Ability header detected - X-Caldera-Ability
+  sid 1000020       60  [PATH_TRAVERSAL] Directory traversal pattern in URI - T1083
+  sid 1000030      260  [BRUTE_FORCE] Login attempt to /api/auth/login - T1110
+  sid 1000031       20  [BRUTE_FORCE] Multiple login attempts detected - T1110
+  sid 1000032       42  [BRUTE_FORCE] Slow brute force detected (5/180s) - T1110 (Feedback)
+  sid 1000060       40  [SSRF] Cloud metadata IP (169.254.169.254) in URI - T1090
+  alert 합계 2022 / 스모크 1회 기준 ×20 기대: sid 1000001~4 400·1000020 60·1000030 260·1000031 20·1000032 40·1000060 40 (참고, 판정 기준 아님)
+  기록(판정 기준 밖, 원인 판정 안 함): 스모크 1회 값 ×20 과 다른 항목 — sid 1000032 42(×20 기대 40), attack flow 387(스모크 7 ×20 = 140).
+     나머지 sid·attack http 400(20×20)·imds flow/http 40/40 은 ×20 과 같음. run 구간(69분)과 스모크 구간(4분)의 길이가 다름(사실)
+
+## (6-J) 요약 (Claude 집계 — 최종 판정은 DRI)
+  1. R10: S4-STACK-6-BASELINE VALID (ATTACK 140 = 20×7, CONTROL 20 = 20×1, 총 160). 전체 run 12개: VALID 11 · INVALID 1(S4-STACK-4-SMOKE, 기존) · INCOMPLETE 0
+     run: run_id b1c26be1-add2-4d45-8207-0998b0f743b1, git_commit e3b5f52…, git_dirty=f, rules_digest 4종 = 2·3-SMOKE 와 같음, op 20개 finished·op_id 20 distinct·160 correlation 전부 resolved
+  2. 시나리오(ATTACK): BF n20 / PT n60 / SQLi n20 / SSRF n40 — conclusive 전부, 일치율 1.000, 과대평가 0, UNCERTAIN 0 (0.000). gate PASS(시나리오 4 PASS)
+     대조군 SSRF 20: FAILED_UNSEEN 20, overestimate 20(공격자 SUCCEEDED 주장, 게이트 표본 밖), detected 0
+  3. MTTD(type8): ALL n120 p50 1341 p95 1986.20 / BF n20 1563·2196.30 / PT n60 1365.5·1886.50 / SSRF n40 1211·1904.05 / SQLi n0 NO_DATA
+     음수 0·run 길이 초과 0·DETECTED-NULL 0·NOT_DETECTED+mttd 0·late 0, min 11 max 2218
+  4. verdict: SUCCEEDED_DETECTED 120 · SUCCEEDED_MISSED 20 · FAILED_UNSEEN 20 · 나머지 4상태 0. SQLi 20 전부 SUCCEEDED_MISSED(H1, initial 도 같음)
+     Suricata alert 합 2022 (sid 9종, 위 표)
+  5. S3-GATE-dc66322: CLOSED, verdict 160, MTTD ALL n120 p50 966 p95 1931.15 — 불변
+  하네스 생성: detections/measurements/gate-report-2026-10-21T11-12-03-045Z.{md,json} (thresholds 키 순서 고정 반영 확인)
+  git status --short:
+    ?? detections/measurements/evidence/2026-10-21_s6-baseline.log
+    ?? detections/measurements/gate-report-2026-10-21T11-12-03-045Z.json
+    ?? detections/measurements/gate-report-2026-10-21T11-12-03-045Z.md

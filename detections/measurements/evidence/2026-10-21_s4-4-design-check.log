@@ -1,0 +1,30 @@
+# S4-4 implementation — pre-implementation design checks (read only) 2026-10-21T14:15:41Z HEAD=09cc441
+
+## C1 Wazuh 86601 document fields (first hit in S4-STACK-6-BASELINE window)
+timestamp 2026-10-21T10:03:47.641+0000 location /var/log/suricata/eve.json decoder json rule.id 86601 level 3 groups [ids, suricata] mitre None
+data keys: alert app_proto dest_ip dest_port direction event_type flow flow_id http in_iface ip_v pkt_src proto src_ip src_port tc_progress timestamp ts_progress tx_id
+data.flow_id='578501012733101.000000' (string, float-formatted)  data.tx_id='0'  data.timestamp 2026-10-21T10:03:46.211837+0000
+data.alert.signature_id='1000001' (string)  data.http.url='/api/products/search?keyword=%27'  data.http.http_user_agent='Caldera/eiwwvn/T1190/e3f1a9c7-2b4d-4e6f-a8c2-5d7e9f1b3a5c'
+no data.validation.technique_id, no data.rid, no data.correlation.* on 86601
+
+## C2 join Wazuh 86601 (data.flow_id, data.tx_id) <-> eve http (flow_id, tx_id), window 10:03:05-11:12:05Z (indexer to 11:12:30Z)
+$ curl indexer _search rule.id=86601 size 5000 > scratchpad/wz86601.json ; docker exec suricata cat eve.json > scratchpad/eve_copy.json ; python3 -I scratchpad/join_wazuh_eve.py
+wazuh 86601 hits 2022 total {'value': 2022, 'relation': 'eq'}
+  flow_id > 2^53                   0
+  flow_id integral string          2022
+  join and same url                2022
+  join exact (flow_id,tx_id)       2022
+eve http keys in window 460 max flow_id 2247612882690626 2^53 9007199254740992
+note: step0 2022/2022 was eve alert <-> eve http (both eve.json); this C2 is the Wazuh-indexed alert <-> eve http
+
+## C3 app OCSF log url/args format vs eve http.url
+app (attack.json.log): http_request.url.path + http_request.args, args DECODED; BF args from body:
+  ('/api/products/search', "keyword=x' UNION SELECT 1--")  ('/api/files/download', 'filename=../../../../etc/passwd')
+  ('/api/auth/login', 'username=user1')  ('/api/preview', 'url=http://169.254.169.254/latest/meta-data/iam/security-credentials/mock-iam-role')
+  app also has http_request.user_agent = Caldera/<paw>/<tech>/<ability>
+eve http.url: RAW (encoded) path+query: '/api/products/search?keyword=%27', SSRF url=http%3A%2F%2F169.254... (python quote safe=''), BF '/api/auth/login' (no query; POST body not in eve)
+-> BF: eve url has no query, app args 'username=user1' -> literal path+query equality = 0 candidates for all 13 BF requests
+
+## C4 Confidence (correlation/Confidence.java): UA_FALLBACK 0.7, THRESHOLD 0.7 -> usable
+## C5 VerdictEngine.detectSingle requires link.technique == attempt technique; 86601 has no technique field
+## C6 VerdictEngine.detectBruteForce counts only rule 100230/100232 links -> NIDS links never change BF detection

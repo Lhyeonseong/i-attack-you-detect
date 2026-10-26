@@ -1,0 +1,13 @@
+id: adv-attack-validation-web-001
+name: '[V] ATT&CK Validation — Web'
+description: >-
+  S2 재작성 검증 프로파일. 공격자 측 verdict(결정1)를 산출하는 4종 ability 를 한 번에 실행한다.
+  탐지 커버리지: T1190×3 (SQLi 100210 / Path Traversal 100220 / SSRF 100240) + T1110 (Brute Force 100230~100233).
+  각 ability 는 응답을 파싱해 <scenario>.verdict / <scenario>.evidence.kind fact 를 남기며,
+  이를 webapp 측 ground-truth(Validator)와 대조해 탐지 정확도를 측정한다.
+atomic_ordering:
+- e3f1a9c7-2b4d-4e6f-a8c2-5d7e9f1b3a5c
+- a7f3c1d9-5e2b-4a6c-9f08-1b2c3d4e5f60
+- c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b
+- 7aa89a87-3fd7-4d52-8c9e-1e5b2f4c6a3d
+objective: 495a9828-cab1-44dd-a0ca-66e58177d8cc

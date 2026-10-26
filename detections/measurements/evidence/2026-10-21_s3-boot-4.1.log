@@ -1,0 +1,1063 @@
+# 슬라이스 3 — target-web Spring Boot 3.5.13 → 4.1.x
+# 근거: ADR-S4-03 D8 (3.5.x OSS 지원 종료, 3.5.16 마지막 → 4.1.x, 실패 시 보수안 3.5.16). 판정 기준 = 정답지 동일 + 로그 골든 동일
+# 주 위험: Jackson 3(tools.jackson), ObjectMapper 빈 주입, Security 7 필터 체인, Flyway 스타터 분리
+
+## Step 0 — 확인만 (읽기 전용) 2026-10-21T07:45:19Z HEAD=4da6234
+### (0-1) 현재 빌드 설정
+--- build.gradle (원문, cat -n)
+     1	plugins {
+     2	    id 'java'
+     3	    id 'org.springframework.boot' version '3.5.13'
+     4	    id 'io.spring.dependency-management' version '1.1.7'
+     5	}
+     6	
+     7	group = 'com.capstone'
+     8	version = '0.0.1-SNAPSHOT'
+     9	description = 'vulnerable-webapp'
+    10	
+    11	java {
+    12	    toolchain {
+    13	        languageVersion = JavaLanguageVersion.of(17)
+    14	    }
+    15	}
+    16	
+    17	repositories {
+    18	    mavenCentral()
+    19	}
+    20	
+    21	dependencies {
+    22	    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    23	    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    24	    implementation 'org.springframework.boot:spring-boot-starter-web'
+    25	    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    26	    runtimeOnly 'org.postgresql:postgresql'
+    27	
+    28	    implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+    29	    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+    30	    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+    31	
+    32	    // validation schema 마이그레이션 (validation datasource 전용 — 자동설정은 spring.flyway.enabled=false 로 끔)
+    33	    implementation 'org.flywaydb:flyway-core'
+    34	    implementation 'org.flywaydb:flyway-database-postgresql'
+    35	
+    36	    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    37	    testImplementation 'org.testcontainers:postgresql'
+    38	    testImplementation 'org.testcontainers:junit-jupiter'
+    39	    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    40	}
+    41	
+    42	tasks.named('test') {
+    43	    useJUnitPlatform()
+    44	    // logback-spring.xml 의 기본 경로(/var/log/target)는 컨테이너 전용이므로 테스트에서는 build/ 아래로 돌린다
+    45	    systemProperty 'ATTACK_JSON_LOG_FILE', layout.buildDirectory.file('logs/attack.json.log').get().asFile.path
+    46	}
+--- settings.gradle: rootProject.name = 'vulnerable-webapp'
+--- gradle/wrapper/gradle-wrapper.properties distributionUrl: distributionUrl=https\://services.gradle.org/distributions/gradle-8.14.4-bin.zip
+--- ./gradlew --version
+Gradle 8.14.4
+Kotlin:        2.0.21
+Groovy:        3.0.25
+Launcher JVM:  17.0.20.1 (Ubuntu 17.0.20.1+1-1-24.04-Ubuntu)
+OS:            Linux 7.0.0-38-generic amd64
+--- Java toolchain: build.gradle:11-15 languageVersion = JavaLanguageVersion.of(17)
+--- compose target-web 빌드: docker/docker-compose.yml:31-33 (context .., dockerfile docker/services/target-web/Dockerfile)
+--- docker/services/target-web/Dockerfile (원문)
+     1	# 최신 main의 루트 src/를 직접 빌드하는 Dockerfile
+     2	# build context는 프로젝트 루트(../../)를 사용
+     3	FROM gradle:8.10.2-jdk17 AS builder
+     4	WORKDIR /workspace
+     5	COPY build.gradle settings.gradle gradlew ./
+     6	COPY gradle ./gradle
+     7	COPY src ./src
+     8	RUN chmod +x gradlew && ./gradlew bootJar --no-daemon
+     9	
+    10	FROM eclipse-temurin:17-jre
+    11	WORKDIR /app
+    12	COPY --from=builder /workspace/build/libs/*.jar app.jar
+    13	COPY docker/services/target-web/docker-entrypoint.sh /app/docker-entrypoint.sh
+    14	RUN mkdir -p /opt/target/uploads /var/log/target \
+    15	    && chmod +x /app/docker-entrypoint.sh
+    16	EXPOSE 8080
+    17	ENTRYPOINT ["/app/docker-entrypoint.sh"]
+--- 루트 Dockerfile (compose 미사용, 원문)
+     1	FROM eclipse-temurin:17-jre
+     2	WORKDIR /app
+     3	COPY build/libs/vulnerable-webapp-0.0.1-SNAPSHOT.jar app.jar
+     4	RUN mkdir -p /var/app/uploads
+     5	EXPOSE 8080
+     6	ENTRYPOINT ["java", "-jar", "app.jar"]
+     7	
+--- 베이스 이미지 로컬 상태 (docker image inspect, 읽기)
+
+Error response from daemon: No such image: gradle:8.10.2-jdk17
+
+Error response from daemon: No such image: eclipse-temurin:17-jre
+target-web Config.Image=security-lab-target-web Image=sha256:e33f35d940b6b66d52ab4d4b629a9a622fbb9272b1e4c67f2f59f4cb197e9e17
+target-web image created=2026-10-16T17:13:49.406053406+09:00 tags=[security-lab-target-web:latest]
+  (주) 두 베이스 이미지 모두 로컬에 없음(정리된 것으로 보임) + 태그만 있고 digest 고정 아님 → Step 4 재빌드 때 지금 태그가 가리키는 이미지를 새로 받음
+  (주) 빌더 단계는 이미지의 gradle 8.10.2 가 아니라 ./gradlew(wrapper 8.14.4)로 빌드 — 이미지에서 쓰는 건 JDK 17 뿐
+  (주) 실행 중 target-web 이미지는 2026-10-16T08:13:49Z 빌드(security-lab-target-web:latest)
+--- 직접 의존성 → 해석 버전 (./gradlew -q dependencies, runtimeClasspath / testRuntimeClasspath 최상위 줄)
+  +--- org.springframework.boot:spring-boot-starter-actuator -> 3.5.13
+  +--- org.springframework.boot:spring-boot-starter-jdbc -> 3.5.13
+  +--- org.springframework.boot:spring-boot-starter-web -> 3.5.13
+  +--- io.jsonwebtoken:jjwt-api:0.11.5
+  +--- org.flywaydb:flyway-core -> 11.7.2
+  +--- org.flywaydb:flyway-database-postgresql -> 11.7.2
+  +--- org.postgresql:postgresql -> 42.7.10
+  +--- io.jsonwebtoken:jjwt-impl:0.11.5
+  +--- io.jsonwebtoken:jjwt-jackson:0.11.5
+  +--- org.springframework.boot:spring-boot-starter-test -> 3.5.13
+  +--- org.testcontainers:postgresql -> 1.21.4
+  +--- org.testcontainers:junit-jupiter -> 1.21.4
+  \--- org.junit.platform:junit-platform-launcher -> 1.12.2 (*)
+  (runtime 전용) +--- org.springframework.boot:spring-boot-devtools -> 3.5.13
+--- 주요 전이 의존성 해석 버전 (testRuntimeClasspath)
+  ch.qos.logback:logback-classic:1.5.32
+  com.fasterxml.jackson.core:jackson-annotations:2.10.3 -> 2.21
+  com.fasterxml.jackson.core:jackson-annotations:2.21
+  com.fasterxml.jackson.core:jackson-core:2.21.2
+  com.fasterxml.jackson.core:jackson-databind:2.12.6.1 -> 2.21.2
+  com.fasterxml.jackson.core:jackson-databind:2.21.2
+  com.fasterxml.jackson.dataformat:jackson-dataformat-toml:2.15.2 -> 2.21.2
+  com.fasterxml.jackson.dataformat:jackson-dataformat-toml:2.21.2
+  com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.21.2
+  com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2 -> 2.21.2
+  com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.2
+  com.fasterxml.jackson:jackson-bom:2.21.2
+  com.fasterxml.jackson.module:jackson-module-parameter-names:2.21.2
+  org.apache.tomcat.embed:tomcat-embed-core:10.1.53
+  org.junit.jupiter:junit-jupiter:5.12.2
+  org.mockito:mockito-core:5.17.0
+  org.slf4j:slf4j-api:2.0.17
+  org.springframework.boot:spring-boot:3.5.13
+  org.springframework:spring-core:6.2.17
+  org.springframework:spring-webmvc:6.2.17
+  org.testcontainers:testcontainers:1.21.4
+--- Jackson 2(com.fasterxml) 를 끌어오는 경로 (dependencies 트리 발췌)
+  spring-boot-starter-web → spring-boot-starter-json → jackson-databind/jsr310/jdk8/parameter-names 2.21.2
+  io.jsonwebtoken:jjwt-jackson:0.11.5 → jackson-databind 2.12.6.1 (BOM 으로 2.21.2)
+  org.flywaydb:flyway-core:11.7.2 → jackson-dataformat-toml 2.15.2, jackson-datatype-jsr310 2.15.2 (BOM 으로 2.21.2)
+
+### (0-2) 대상 버전 — Maven Central 메타데이터 2026-10-21T07:48:38Z
+--- https://repo1.maven.org/maven2/org/springframework/boot/spring-boot/maven-metadata.xml
+  <latest>4.2.0-M2</latest>
+  <release>4.2.0-M2</release>
+  <lastUpdated>20260924090821</lastUpdated>
+  3.5.x·4.x 버전 목록: 3.5.0 3.5.1 3.5.2 3.5.3 3.5.4 3.5.5 3.5.6 3.5.7 3.5.8 3.5.9 3.5.10 3.5.11 3.5.12 3.5.13 3.5.14 3.5.15 3.5.16 4.0.0-M1 4.0.0-M2 4.0.0-M3 4.0.0-RC1 4.0.0-RC2 4.0.0 4.0.1 4.0.2 4.0.3 4.0.4 4.0.5 4.0.6 4.0.7 4.0.8 4.1.0-M1 4.1.0-M2 4.1.0-M3 4.1.0-M4 4.1.0-RC1 4.1.0 4.1.1 4.2.0-M1 4.2.0-M2 
+--- 디렉터리 게시 시각 (repo1 목록) + pom Last-Modified
+  3.5.13/ 2026-03-26 10:12 - 
+  3.5.14/ 2026-04-23 15:49 - 
+  3.5.15/ 2026-06-10 19:20 - 
+  3.5.16/ 2026-06-25 10:09 - 
+  4.0.8/ 2026-08-20 12:51 - 
+  4.1.0/ 2026-06-10 17:58 - 
+  4.1.1/ 2026-08-20 12:51 - 
+  4.2.0-M2/ 2026-09-24 08:51 - 
+  spring-boot-4.1.1.pom last-modified: Thu, 20 Aug 2026 12:51:48 GMT / spring-boot-gradle-plugin-4.1.1.pom: Thu, 20 Aug 2026 12:51:49 GMT
+  → 4.1.x 최신 패치 = 4.1.1 (2026-08-20). 4.1.0 = 2026-06-10. (같은 날 4.0.8 도 게시) 4.2.0-M2 는 마일스톤이라 제외
+  io.spring.dependency-management 플러그인 maven-metadata release = 1.1.7 (현재와 같음)
+--- Gradle·Java 요구사항: https://docs.spring.io/spring-boot/system-requirements.html (4.1/ 경로는 302 로 이 주소로 감) 원문
+  'Spring Boot 4.1.1 requires at least Java 17 and is compatible with versions up to and including Java 26. Spring Framework 7.0.9 or above is also required.'
+  'Build Tool Version Maven 3.6.3 or later Gradle Gradle 8.x (8.14 or later) and 9.x'
+  'Tomcat 11.0.x 6.1 Jetty 12.1.x 6.1'
+  spring-boot-gradle-plugin-4.1.1.module: org.gradle.jvm.version=17 (3.5.13 과 같음), org.gradle.plugin.api-version 속성 없음
+  비교: 현재 wrapper 8.14.4 ≥ 8.14 → 충족. toolchain 17 ≥ 17 → 충족. 런타임 베이스 eclipse-temurin:17-jre → 충족
+--- 관리 버전 비교 spring-boot-dependencies 3.5.13 vs 4.1.1 pom <properties> (발췌)
+  assertj.version                  3.5.13=3.27.7         4.1.1=3.27.7
+  flyway.version                   3.5.13=11.7.2         4.1.1=12.4.0
+  jackson-2-bom.version            3.5.13=-              4.1.1=2.21.5
+  jackson-bom.version              3.5.13=2.21.2         4.1.1=3.1.5
+  jakarta-servlet-jsp-jstl.version 3.5.13=3.0.2          4.1.1=3.0.2
+  jakarta-servlet.version          3.5.13=6.0.0          4.1.1=6.1.0
+  junit-jupiter.version            3.5.13=5.12.2         4.1.1=6.0.3
+  junit.version                    3.5.13=4.13.2         4.1.1=4.13.2
+  logback.version                  3.5.13=1.5.32         4.1.1=1.5.38
+  micrometer-tracing.version       3.5.13=1.5.10         4.1.1=1.7.1
+  micrometer.version               3.5.13=1.15.10        4.1.1=1.17.1
+  mockito.version                  3.5.13=5.17.0         4.1.1=5.23.0
+  postgresql.version               3.5.13=42.7.10        4.1.1=42.7.13
+  r2dbc-postgresql.version         3.5.13=1.0.9.RELEASE  4.1.1=1.1.2.RELEASE
+  slf4j.version                    3.5.13=2.0.17         4.1.1=2.0.18
+  spring-framework.version         3.5.13=6.2.17         4.1.1=7.0.9
+  spring-security.version          3.5.13=6.5.9          4.1.1=7.1.1
+  testcontainers-redis-module.version 3.5.13=2.2.4          4.1.1=2.2.4
+  testcontainers.version           3.5.13=1.21.4         4.1.1=2.0.5
+  tomcat.version                   3.5.13=10.1.53        4.1.1=11.0.24
+  4.1.1 BOM 은 jackson-bom 두 개를 import: com.fasterxml.jackson:jackson-bom ${jackson-2-bom.version}=2.21.5 (pom:3344-3350) + tools.jackson:jackson-bom ${jackson-bom.version}=3.1.5 (pom:3351-3356)
+  4.1.1 BOM 에 새 모듈: spring-boot-flyway(:1693), spring-boot-jackson2(:1788), spring-boot-starter-flyway(:2353), spring-boot-starter-jackson(:2453), spring-boot-starter-webmvc(:2873)
+--- testcontainers-bom 2.0.5 의 postgresql/junit-jupiter artifactId: testcontainers-junit-jupiter testcontainers-postgresql 
+  → build.gradle:37-38 'org.testcontainers:postgresql'·'org.testcontainers:junit-jupiter' 는 2.0.5 BOM 에 없음 → 버전 미지정 해석 실패 예상(Step 2 에서 이름 변경 필요)
+--- io.jsonwebtoken:jjwt-jackson maven-metadata release = 0.13.0 (현재 0.11.5, Jackson 2 의존)
+
+### (0-3) 영향 목록 (파일:줄, HEAD 4da6234, grep 결과) — [사실]=코드/메타데이터로 확인, [확인 필요]=4.1.1 에서 Step 2 빌드로 확인할 것
+--- A. com.fasterxml.jackson import (main 12파일·test 2파일)
+  main controller/AuthController.java:11-12      JsonProcessingException, ObjectMapper
+  main controller/ProductController.java:13-14   JsonProcessingException, ObjectMapper
+  main logging/AttackLogger.java:6-7             JsonProcessingException, ObjectMapper   ← OCSF 로그 생성
+  main correlation/CalderaOperationsHttpClient.java:3-5  JsonProcessingException, JsonNode, ObjectMapper
+  main measure/RulesDigest.java:3-4 · MeasureJson.java:3 · AlertIndexReader.java:5-6 · AttackerVerdictResolver.java:4-5 · GateReportWriter.java:3 · GtLogReader.java:8-9 · CalderaOperationsHttpClient.java:3-5
+  test measure/RulesDigestTest.java:3-4 · logging/AttackLoggerHttpActivityTest.java:11-12
+--- B. ObjectMapper 생성·주입·커스터마이저
+  [사실] Spring 빈 주입 2곳: AuthController.java:31 '@Autowired private ObjectMapper objectMapper;', ProductController.java:33 (같음)
+         → 용도: 응답 body 직렬화 바이트 수 = OCSF http_response.body_length (AuthController.java:110-114, ProductController.java:82-86)
+         → Boot 4.1.1 기본 자동설정 빈은 Jackson 3(tools.jackson). com.fasterxml ObjectMapper 빈은 spring-boot-jackson2(BOM :1788) 를 넣어야 생김
+           [확인 필요] 미조치 시 컨텍스트 기동 실패(NoSuchBeanDefinition) 예상
+  [사실] 자체 new ObjectMapper() (Spring 설정 영향 없음): AttackLogger.java:25, GtLogReader.java:38, AlertIndexReader.java:24, AttackerVerdictResolver.java:22,
+         GateReportWriter.java:21, RulesDigest.java:38, measure/CalderaOperationsHttpClient.java:28, correlation/CalderaOperationsHttpClient.java:19 (+ test 2곳)
+  [사실] 커스터마이저·Jackson2ObjectMapperBuilder·@Json* 어노테이션·SerializationFeature 사용 없음
+  [사실] Spring Jackson 설정: application.yaml:21-23 spring.jackson.serialization.indent-output: true (빈 주입 ObjectMapper 와 HTTP 응답 직렬화에 적용)
+--- C. OCSF 로그 생성 경로 (attack.json.log)
+  AttackLogger.java:22   LoggerFactory.getLogger("attack.http.activity") → logback-spring.xml:13-23 FileAppender, pattern '%msg%n', UTF-8, additivity=false
+  AttackLogger.java:25   private static final ObjectMapper JSON = new ObjectMapper();  ← 기본 설정 Jackson 2, indent 없음 → 한 줄
+  AttackLogger.java:79-105  LinkedHashMap 으로 키 순서 고정(:131-138 ordered()), time = Instant.toEpochMilli() long(:80, 날짜 직렬화 없음),
+                            null 값은 Map 에 그대로 넣어 JSON null 로 출력(correlation.op_id/ability_id/source, :101-104), evidence = [{kind}] 리스트
+  body_length 원천: Product/AuthController = Spring 빈 ObjectMapper(indent-output true) 바이트 수 / FileController.java:95-100·PreviewController.java:107-112 = 인자로 받은 값
+  [사실] 4.1.1 BOM 이 Jackson 2(2.21.5)도 관리하고 jjwt-jackson 0.11.5 가 jackson-databind 2 를 끌어옴 → AttackLogger 를 Jackson 2 로 둘지, 3 으로 옮길지 선택 필요
+  [확인 필요] Jackson 3 기본값 변화가 이 경로에 주는 영향 — Map 직렬화(키 순서·null 포함)는 같을 것으로 보이나, Bean 직렬화 쪽(컨트롤러 응답 → body_length)은
+              속성 순서·날짜 형식 기본값이 바뀌면 바이트 수가 달라질 수 있음(Jackson 3 릴리스 노트로 확인 — 이번 Step 0 은 버전 메타데이터만 조회해 미확인)
+  application.log 텍스트 줄(ATTACK_REQUEST/RESPONSE, AttackLogger.java:37·56): Wazuh decoder 는 prematch 'ATTACK_REQUEST \|' / 'ATTACK_RESPONSE \|' 이후 본문만 정규식
+         (docker/config/wazuh_manager/decoders/vuln_decoder.xml:50-90) → Boot 기본 로그 접두 패턴(logback base.xml) 변화와 무관. 본문 형식은 slf4j {} 그대로
+  Wazuh JSON 룰 필드 의존(vuln_rules.xml <field name=> 집계): http_request.url.path 5, http_request.args 3, http_response.code 2, metadata.log_name 1, result_type 16(텍스트 줄 decoder)
+--- D. Security
+  [사실] spring-boot-starter-security 의존성 없음(build.gradle:21-40), SecurityFilterChain·@EnableWebSecurity·org.springframework.security import 0건
+  [사실] 커스텀 Filter·OncePerRequestFilter·FilterRegistrationBean·HandlerInterceptor·WebMvcConfigurer 0건. JWT 는 jjwt 0.11.5 직접 사용 → Security 7 위험 해당 없음
+--- E. Flyway
+  [사실] build.gradle:33-34 flyway-core·flyway-database-postgresql 직접 의존(스타터 아님), application.yaml:27-28 spring.flyway.enabled: false
+  [사실] 사용처 correlation/ValidationSchemaMigrator.java:21 Flyway.configure() 수동 실행(validation datasource 전용), 마이그레이션 db/validation/V1~V4
+  [사실] 4.1.1: flyway.version 11.7.2 → 12.4.0, 자동설정은 spring-boot-flyway 모듈로 분리(BOM :1693, 스타터 :2353)
+         → 스타터를 안 넣으면 자동설정 자체가 없어져 spring.flyway.enabled=false 의 목적(public 에 flyway_schema_history 생성 방지)은 그대로 유지될 것으로 봄
+  [확인 필요] Flyway 12 API(Flyway.configure()…) 호환 + flyway-database-postgresql 12 의 PostgreSQL 16.15 지원
+--- F. HttpClient·RestClient
+  java.net.http.HttpClient(Spring 무관): controller/PreviewController.java:39-42 (SSRF 대상 요청), measure/IndexerAlertSearchSource.java:46
+  RestClient(Spring 7 로 바뀜): correlation/CalderaOperationsHttpClient.java:27·36 (.body(String.class) → 자체 MAPPER), measure/CalderaOperationFactsSource.java:21·34 (.body(String.class)),
+         measure/CalderaOperationsHttpClient.java:36·63 (POST .body(Map) → RestClient 메시지 컨버터가 직렬화) ← [확인 필요] Spring 7 에서 Jackson 3 컨버터로 바뀜(Map→JSON 이라 결과 동일 예상)
+--- G. 4.x 에서 바뀐 속성
+  application.yaml 키: server.port, spring.datasource.*, spring.sql.init.*, spring.jackson.serialization.indent-output, spring.flyway.enabled,
+         management.endpoints.web.exposure.include, logging.level.* (+ app.* 사용자 정의)
+  spring.mvc.problemdetails 등 사용 없음. [확인 필요] 위 키들이 4.1.1 에서 이름 그대로인지 — Step 2 에서 spring-boot-properties-migrator 를 임시로 넣어 경고 확인 제안
+--- H. Testcontainers
+  [사실] 사용처 test 4파일: correlation/ValidationPersistenceTest.java:13-16, correlation/ValidationMigrateEntryTest.java:9-12, correlation/ValidationDbFixture.java:6-7,
+         measure/MeasurementRunPersistenceTest.java:26-29 (org.testcontainers.containers.PostgreSQLContainer, junit.jupiter.@Container/@Testcontainers, utility.MountableFile)
+  [사실] 4.1.1 BOM testcontainers 1.21.4 → 2.0.5, 2.0.5 BOM 에는 testcontainers-postgresql·testcontainers-junit-jupiter 만 있음 → build.gradle:37-38 이름 변경 필요
+  [확인 필요] 2.x 에서 org.testcontainers.containers.PostgreSQLContainer 패키지 유지 여부
+--- I. 테스트 쪽 Boot API
+  @SpringBootTest 2곳: VulnerableWebappApplicationTests.java:16 (전체 컨텍스트), measure/CampaignRunnerIT.java:35 (env 게이트)
+  ApplicationContextRunner: correlation/ValidationPersistenceTest.java:8, measure/MeasureConfigWiringTest.java:7
+  @MockBean·@WebMvcTest·MockMvc·TestRestTemplate 사용 없음. JUnit 5.12.2 → 6.0.3 (BOM)
+  [사실·중요] 전체 컨텍스트 테스트(VulnerableWebappApplicationTests)는 application.yaml 의 spring.datasource.url(기본 localhost:5432/vulndb)에 연결될 때만 실행(:17,:25-41).
+         호스트 postgres 는 127.0.0.1:5433 에만 열림(docker port postgres: '5432/tcp -> 127.0.0.1:5433') → 기본 실행에서는 skip 예상
+         → B 의 ObjectMapper 빈 주입 실패는 현재 테스트로 잡히지 않을 수 있음 (Step 1 에서 보강 필요)
+--- J. 컨테이너·빌드 이미지
+  docker/services/target-web/Dockerfile:3 gradle:8.10.2-jdk17 (빌더 JDK, 빌드는 wrapper 8.14.4), :10 eclipse-temurin:17-jre — digest 고정 아님, 로컬에 없음
+
+### (0-5) OCSF 로그 형식을 지키는 기존 테스트
+  생산(형식) 쪽 — 1파일:
+  src/test/java/com/capstone/vuln/logging/AttackLoggerHttpActivityTest.java
+    :47      한 줄 JSON('\n' 없음)
+    :51-75   SQLi resultType 6종 → validation.outcome·evidence[{kind}]·validator_version·technique_id
+    :78-92   http_response 필드 집합 = {code, latency_ms, body_length}, 값, validation 값이 http_* 로 새지 않음
+    :95-120  최상위 키 순서 = [time, metadata, class_uid, class_name, activity_id, rid, src_endpoint, http_request, http_response, validation, correlation],
+             detection 없음, time = epoch ms, metadata·class·activity_id·rid·src_endpoint·http_request·correlation 값
+    빈틈: SQLi 1경로만(PT·BF·SSRF·대조군 없음), null 표기(correlation 미태깅·source null) 미검사, 하위 객체 키 순서 미검사,
+          바이트 단위 골든 없음, 컨트롤러 body_length(Spring ObjectMapper·indent-output) 경로 미검사(입력에 1234 고정)
+  소비(파서) 쪽 — 형식 변화 감지는 못 함(고정 문자열 입력): measure/GtLogReaderTest.java:25-27 (time·rid·correlation·validation·src_endpoint·http_request JSON 줄), MeasurementCollectorTest
+  Wazuh 룰·decoder 쪽 자동 테스트: 저장소에 없음(detections/ 에 fixture·golden 없음)
+
+### (0-4) 테스트 기준선 — ./gradlew clean build (3.5.13, HEAD 4da6234) start=2026-10-21T07:52:45Z end=2026-10-21T07:54:02Z
+  exit=0, 'BUILD SUCCESSFUL in 1m 17s', '8 actionable tasks: 8 executed'
+  build/test-results/test/TEST-*.xml 집계:
+  총 tests=219 failures=0 errors=0 skipped=3 passed=216 (suite 45개)
+  -- skip 목록 --
+  VulnerableWebappApplicationTests#contextLoads() — None
+  correlation.ValidationMigrateIT#migrate() — None
+  measure.CampaignRunnerIT#measure() — None
+  skip 사유(소스): VulnerableWebappApplicationTests.java:17 @EnabledIf(isDatabaseAvailable) — localhost:5432 연결 불가 / ValidationMigrateIT.java:22 RUN_VALIDATION_MIGRATE=1 아님 / CampaignRunnerIT.java:43 RUN_CALDERA_MEASURE=1 아님
+  Testcontainers 테스트는 실행됨: ValidationPersistenceTest 9·ValidationMigrateEntryTest 2·MeasurementRunPersistenceTest 11 통과 (임시 컨테이너, 빌드 전후 docker ps -a 이름 목록 변화 없음)
+  컴파일 경고: 'CorrelationTest.java uses or overrides a deprecated API.' (test 1건)
+  소스 변경 없음: git status --porcelain = '?? detections/measurements/evidence/2026-10-21_s3-boot-4.1.log' (이 증거 로그 자신), build/ 는 산출물
+
+### (0-7a) 2-SMOKE 실측값 (DB validation_rw READ ONLY, 앱 로그) 2026-10-21T07:55:22Z
+BEGIN
+      label       | run_ms | attack | control | exp_a | exp_c | atk_gt_succ | ctl_gt_fail | min_mttd | max_mttd | mttd_le_run_plus_30s | mttd_ge_0 
+------------------+--------+--------+---------+-------+-------+-------------+-------------+----------+----------+----------------------+-----------
+ S4-STACK-5-SMOKE | 219996 |      7 |       1 |     7 |     1 |           7 |           1 |     1180 |     2438 | t                    | t
+ S4-STACK-2-SMOKE | 233302 |      7 |       1 |     7 |     1 |           7 |           1 |       47 |     1149 | t                    | t
+(2 rows)
+
+ROLLBACK
+--- 2-SMOKE run 구간(20:06:58.085Z~20:10:51.387Z) attack.json.log 줄 구조(키 경로:값 타입)·body_length
+  구간 줄 수=20, 서로 다른 구조=2
+  [13줄] time:int metadata.version:str metadata.log_name:str class_uid:int class_name:str activity_id:int rid:str src_endpoint.ip:str http_request.http_method:str http_request.url.path:str http_request.user_agent:str http_request.args:str http_response.code:int http_response.latency_ms:int http_response.body_length:int validation.outcome:str validation.evidence[]:list validation.validator_version:str validation.technique_id:str correlation.op_id:str correlation.ability_id:str correlation.source:str
+  [7줄] time:int metadata.version:str metadata.log_name:str class_uid:int class_name:str activity_id:int rid:str src_endpoint.ip:str http_request.http_method:str http_request.url.path:str http_request.user_agent:str http_request.args:str http_response.code:int http_response.latency_ms:int http_response.body_length:int validation.outcome:str validation.evidence[]:list validation.evidence[].kind:str validation.validator_version:str validation.technique_id:str correlation.op_id:str correlation.ability_id:str correlation.source:str
+  body_length /api/auth/login FAILED: [60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60]
+  body_length /api/auth/login SUCCEEDED: [266]
+  body_length /api/files/download SUCCEEDED: [888, 13, 247]
+  body_length /api/preview FAILED: [577]
+  body_length /api/preview SUCCEEDED: [40, 40]
+  body_length /api/products/search SUCCEEDED: [141]
+--- 같은 계산을 5-SMOKE 구간(19:18:16.785Z~19:21:56.781Z)에 (2-SMOKE 와 같은지 = 기준 성립 여부 전제 확인)
+  구간 줄 수=20, 서로 다른 구조=2
+  [13줄] time:int metadata.version:str metadata.log_name:str class_uid:int class_name:str activity_id:int rid:str src_endpoint.ip:str http_request.http_method:str http_request.url.path:str http_request.user_agent:str http_request.args:str http_response.code:int http_response.latency_ms:int http_response.body_length:int validation.outcome:str validation.evidence[]:list validation.validator_version:str validation.technique_id:str correlation.op_id:str correlation.ability_id:str correlation.source:str
+  [7줄] time:int metadata.version:str metadata.log_name:str class_uid:int class_name:str activity_id:int rid:str src_endpoint.ip:str http_request.http_method:str http_request.url.path:str http_request.user_agent:str http_request.args:str http_response.code:int http_response.latency_ms:int http_response.body_length:int validation.outcome:str validation.evidence[]:list validation.evidence[].kind:str validation.validator_version:str validation.technique_id:str correlation.op_id:str correlation.ability_id:str correlation.source:str
+  body_length /api/auth/login FAILED: [60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60]
+  body_length /api/auth/login SUCCEEDED: [266]
+  body_length /api/files/download SUCCEEDED: [888, 13, 247]
+  body_length /api/preview FAILED: [577]
+  body_length /api/preview SUCCEEDED: [40, 40]
+  body_length /api/products/search SUCCEEDED: [141]
+  (0-7a 해석) 5-SMOKE·2-SMOKE 두 구간 모두 20줄, 구조 2종(evidence 빈 리스트 13줄 / evidence[{kind}] 7줄), body_length 경로별 값까지 같음
+  Suricata local.rules 69개 룰 전부 요청 쪽(URI·헤더·POST body) — file_data·http.response_body·http.stat_code·to_client 0건 → 응답 형식 변화가 sid 수에 직접 영향 없음
+
+### (0-6) Step 1 제안 (작성 안 함, 목록만) — 3.5.13 에서 먼저 green, 단독 커밋
+(가) OCSF 로그 골든
+  G1 AttackLogger.toHttpActivityJson 바이트 단위 골든 (현재 출력 문자열을 고정값으로) — 경우 7개:
+     SQLi SUCCEEDED(UNION_DATA_LEAKED) / PT SUCCEEDED / BF FAILED / BF SUCCEEDED / SSRF SUCCEEDED / SSRF 대조 FAILED /
+     미태깅(correlation.op_id·ability_id·source = null). 검사: 하위 객체 포함 키 순서·필드 집합, time = epoch ms 정수, null 리터럴, evidence [] / [{"kind":…}], 한 줄
+  G2 body_length 경로: Spring 자동설정 ObjectMapper(application.yaml indent-output true)로 Product/AuthController 응답 객체를 직렬화한 바이트 수 골든
+     (2-SMOKE 실측: login FAILED 60, products/search 141 — login SUCCEEDED 266 은 JWT 포함이라 구조로만). Jackson 3 기본값 변화를 여기서 잡음
+  G3 DB 없이 도는 웹 계층 배선 테스트: 현재 전체 컨텍스트 테스트가 skip(0-4) → 컨트롤러의 ObjectMapper 빈 주입(B)이 4.1.1 에서 깨져도 build 가 green 일 수 있음
+  G4 application.log 텍스트 줄: logRequest/logResponse 메시지 본문이 Wazuh decoder 정규식(vuln_decoder.xml:58·84, \S+·\d+·\w+)에 맞는지 Java 정규식으로 확인
+(나) MTTD-1 회귀
+  (a) 읽기 창 밖(과거 3h) 태그된 PT 줄 + 같은 rid alert → correlation 0개 (GtLogReader 창 필터 + CorrelationEngine, 가짜 AttackLogSource/AlertSearchSource)
+  (b) 창 안 공격 + 창 밖 alert 만 → NOT_DETECTED (IndexerAlertSearchSourceTest 에 range = [attackTime, opFinish+30s] 확인 포함)
+  (c) 하네스 불변식: MeasurementHarness 결과 모든 mttd_ms 에 대해 0 ≤ mttd ≤ durationMs + 30s (fixture 기반)
+(참고) measure 패키지의 Jackson 파싱(GtLogReader·AlertIndexReader·AttackerVerdictResolver)은 GtLogReaderTest·AlertIndexReaderTest·AttackerVerdictResolverTest 가 이미 지킴
+
+### (0-7) Step 5 스모크 판정 기준 초안 (D9-3) — 2-SMOKE 실제 값으로 전제 확인
+  | # | 기준 (S4-STACK-3-SMOKE ↔ S4-STACK-2-SMOKE) | 2-SMOKE 실제 값 (원천) | 전제 성립 |
+  | 1 | R10 VALID, ATTACK 7 / CONTROL 1 | VALID 7/1, expected 7/1 (0-7a, s2 로그 6-2) | 성립 |
+  | 2 | verdict·GT 8/8 동일 (scenario·role 안 k번째 짝, gt·verdict·initial·attacker·overestimate·detection 6컬럼) | 5↔2 8행 전부 same, ATTACK GT SUCCEEDED 7·CONTROL FAILED 1 (s2 로그 6-2, 0-7a) | 성립 |
+  | 3 | Suricata (a) sid 별 alert 수 동일 | 9종 20/20/20/20/3/13/1/2/2 = 5-SMOKE 와 same (s2 로그 6-3) | 성립 |
+  | 4 | (b) 공격 경로 dest=앱IP:8080 flow·http 동일 | flow 7·http 20, same (s2 로그 6-3) | 성립 |
+  | 5 | (c) IMDS 169.254.169.254 flow·http 동일 | flow 2·http 2, same (s2 로그 6-3) | 성립 |
+  | 6 | run 별 mttd_ms 가 0 이상, run 길이+30s 이내 | 2-SMOKE max 1149 ≤ 233302+30000, min 47 ≥ 0 / 5-SMOKE max 2438 ≤ 249996 (0-7a) | 성립 |
+  | 7 (추가 제안) | attack.json.log run 구간 줄 구조(키 경로:값 타입) 동일 + 경로별 body_length 동일 | 20줄·구조 2종·body_length 경로별 값 5↔2 같음 (0-7a) | 성립 |
+  기록만(판정 아님): in_iface 합계, mttd 크기, fileinfo 수(응답 크기에 따라 변할 수 있음)
+  사전 결정 필요(DRI): 기준 7 의 body_length 가 Jackson 3 기본값 때문에 달라질 경우 — 실패로 볼지, G2 골든에서 원인이 설명되면 "Configuration Change(라이브러리)"로 허용할지
+  주: 앱 IP 는 target-web 재생성 후 inspect 로 다시 읽음(RUNBOOK (3-d)). op_id 교차검증 WARN 0 은 RUNBOOK (2) 멈춤 조건으로 유지
+
+## DRI 결정 (2026-10-21, Step 0 후)
+  - Jackson: Jackson 3 로 전부 전환(AttackLogger 포함). spring-boot-jackson2·use-jackson2-defaults 사용 안 함
+    (근거: Boot 4 문서 "Jackson 2 support is deprecated and will be removed in a future Spring Boot 4.x release")
+  - 기준 7(body_length) 허용 조건(모두 충족 시만 Configuration Change-라이브러리): ① G2 가 원인을 Jackson 3 기본값으로 보여 줌
+    ② 로그 body_length = 실제 응답 바이트 수 ③ body_length 를 쓰는 룰·Validator 없음, 또는 GT·verdict 8/8 동일. Step 2 에서 소비처 목록 보고
+  - 베이스 이미지: 실행 eclipse-temurin:17-jre@digest, 빌드 eclipse-temurin:17-jdk@digest (gradle 이미지 제거) — Step 2
+  - Step 5 판정 기준 1~7 고정 (0-7 표 그대로)
+
+## Step 1 — 골든·회귀 테스트 (3.5.13, 테스트만 추가 — 프로덕션 코드·build.gradle 변경 없음)
+### 신규 테스트 5파일 20개
+  src/test/java/com/capstone/vuln/logging/AttackLoggerGoldenTest.java (G1, 7개)
+    기대값 = S4-STACK-2-SMOKE 실제 attack.json.log 줄 원문(L1057 SQLi·L1061 PT·L1064 BF 실패·L1076 BF 성공·L1058 SSRF·L1060 SSRF 대조)
+             + 슬라이스 2 Gap 시험 curl 줄 L1045(미태깅: op_id/ability_id null, source "NONE"). 입력도 그 줄 값 그대로 → 바이트 비교(assertArrayEquals)
+  src/test/java/com/capstone/vuln/controller/ControllerBodyLengthTest.java (G2, 4개) — @WebMvcTest(DB 없음), 실제 컨트롤러·Validator·AttackLogger(spy)·application.yaml Jackson 설정
+    SQLi 오류(keyword=', BadSqlGrammarException) body_length=141, login 실패 401 = 60, SSRF 스킴 차단 400 = 32, PT 404 — 모두 "로그 body_length = 응답 바이트 수" 함께 확인
+    2-SMOKE 대조: 141·60 일치 (손계산: Jackson 2 DefaultPrettyPrinter 형식 '{\n  "k" : "v",\n ...\n}' 로 141·60, e.getMessage() 는 application.log 4310행 detail 의 첫 부분)
+  src/test/java/com/capstone/vuln/controller/WebLayerWiringTest.java (G3, 2개) — 컨트롤러 4개 배선, Product/AuthController.objectMapper == 컨텍스트 ObjectMapper 빈, INDENT_OUTPUT 켜짐
+  src/test/java/com/capstone/vuln/logging/AttackLoggerDecoderRegexTest.java (G4, 4개) — vuln_decoder.xml 의 prematch/regex 를 파일에서 읽어 OS_Regex→Java 변환
+    (\w=[A-Za-z0-9_@-], \d, \S, \s, \| 만 허용, 그 밖 이스케이프는 실패) 후 logRequest/logResponse 메시지에 적용: rid·endpoint·opId·ip, username, status·result_type 8종
+  src/test/java/com/capstone/vuln/measure/MttdBoundsRegressionTest.java (MTTD-1 (a)(b)(c), 3개) — 실제 MeasurementCollector·GtLogReader·AlertIndexReader·엔진, 인덱서만 range 지키는 가짜
+    (a) 3h 전 태그 PT 줄 + 같은 rid alert(창 안) → attacks 0·alerts 1, 저장 correlation 0
+    (b) 창 안 PT + alert 는 opFinish+31s·+3h 만 → NOT_DETECTED·mttd null, 인덱서 창 = [attackTime, opFinish+30s], searchBody gte/lte 값 확인
+    (c) PT 정상·PT 경계·이른 alert·SSRF 늦은 탐지(창 끝)·BF 12실패+성공 → mttd 4건 모두 [0, durationMs+30s], 상한 100000+30000 정확히 1건 포함, 이른 alert 건 NOT_DETECTED
+### ./gradlew clean build — start=2026-10-21T08:09:40Z end=2026-10-21T08:10:27Z
+  exit=0, BUILD SUCCESSFUL in 46s
+  총 tests=239 failures=0 errors=0 skipped=3 passed=236 (suite 50개)
+  -- skip 목록 --
+  VulnerableWebappApplicationTests#contextLoads() — None
+  correlation.ValidationMigrateIT#migrate() — None
+  measure.CampaignRunnerIT#measure() — None
+  controller.ControllerBodyLengthTest                       4 0 0 0
+  controller.WebLayerWiringTest                             2 0 0 0
+  logging.AttackLoggerDecoderRegexTest                      4 0 0 0
+  logging.AttackLoggerGoldenTest                            7 0 0 0
+  measure.MttdBoundsRegressionTest                          3 0 0 0
+  기준선 대비: 219/216 통과/3 skip → 239/236 통과/3 skip (신규 20 전부 통과, 실패 0, skip 3 은 기준선과 같은 env/DB 게이트)
+
+## Step 2 — Boot 4.1.1 (DRI 승인 2026-10-21)
+### (2-0) 시작 전 기준선 — ValidationMigrateIT 대상 확인 (HEAD 8aa6e6f, 3.5.13)
+  src/test/java/com/capstone/vuln/correlation/ValidationMigrateIT.java 원문:
+    :19  ' * 접속은 CampaignRunnerIT 와 같다 — 127.0.0.1:${POSTGRES_PORT:-5433}/${POSTGRES_DB}, role validation_rw.'
+    :22  '@EnabledIfEnvironmentVariable(named = "RUN_VALIDATION_MIGRATE", matches = "1")'
+    :32  '        ValidationSchemaMigrator.migrate(validationDataSource);'
+    :49  '        String port = System.getenv().getOrDefault("POSTGRES_PORT", "5433");'
+    :55-56 '        DataSource ds = new DriverManagerDataSource(' / '"jdbc:postgresql://127.0.0.1:" + port + "/" + db, "validation_rw", password);'
+  판정: Testcontainers 임시 DB 아님 — 운영 postgres 컨테이너(127.0.0.1:5433 = docker port postgres 5432/tcp)의 validation 스키마에 접속해 Flyway migrate 실행(쓰기 가능)
+  → 지시대로 실행하지 않음. 보고 후 대기
+  참고(사실): 같은 진입점 ValidationMigrateIT.migrateAndReport 를 Testcontainers postgres:16 임시 DB 로 검사하는 테스트가 이미 기본 build 에서 돈다
+    ValidationMigrateEntryTest.java:30-31 '@Container static final PostgreSQLContainer<?> PG = new PostgreSQLContainer<>("postgres:16");'
+    :80 assertThrows(… ValidationMigrateIT.migrateAndReport(ds)) / :101·:111 migrateAndReport(ds) — Step 0·1 build 에서 2개 통과
+    ValidationDbFixture.java:18·36 (postgres:16 임시 DB + ValidationSchemaMigrator.migrate) — 지표 뷰 테스트들이 공유
+  DRI 결정(2-0 후): (A) — ValidationMigrateIT 실행 안 함, 2-2 비교는 ValidationMigrateEntryTest(임시 DB) 결과로 대신
+
+### (2-1) 수정 — 근거 문서 (공식)
+  - https://docs.spring.io/spring-boot/4.1/gradle-plugin/managing-dependencies.html (→ /spring-boot/gradle-plugin/…) 예시 원문:
+    'id("org.springframework.boot") version "4.1.1" apply false  id("io.spring.dependency-management") version "1.1.7"'
+    교차: spring-boot-gradle-plugin-4.1.1.pom 의 io.spring.gradle:dependency-management-plugin <version>1.1.7</version> → 1.1.7 유지
+  - Spring Boot 4.0 Migration Guide (github wiki) 원문 발췌:
+    'Deprecated Starters … spring-boot-starter-web → spring-boot-starter-webmvc'
+    'Spring Web MVC  spring-boot-starter-webmvc  spring-boot-starter-webmvc-test'
+    'Given that all test "starter" POMs bring spring-boot-starter-test transitively, you don't need to define this starter anymore.'
+    'if you are using Flyway or Liquibase you used to only have the relevant third-party dependency. You now need to replace that with spring-boot-starter-flyway'
+    'Jackson 3 uses new group IDs and package names with com.fasterxml.jackson becoming tools.jackson. An exception to this is the jackson-annotations module
+     which continues to use the com.fasterxml.jackson.core group ID and com.fasterxml.jackson.annotation package.'
+    'A JsonMapper is auto-configured for working with JSON … defining an ObjectMapper bean is no longer sufficient.'
+    'The JSON-specific spring.jackson.read.* and spring.jackson.write.* properties have moved beneath spring.jackson.json.read and spring.jackson.json.write'
+  - 4.0 Release Notes: 'TestContainers 2.0' (의존성 업그레이드 목록). Testcontainers 아티팩트 이름은 testcontainers-bom-2.0.5.pom 기준(Step 0-2)
+--- 1. build.gradle
+  org.springframework.boot 3.5.13 → 4.1.1 / io.spring.dependency-management 1.1.7 유지
+  spring-boot-starter-web → spring-boot-starter-webmvc (deprecated 이름 교체)
+  spring-boot-starter-test → spring-boot-starter-webmvc-test (@WebMvcTest 사용, starter-test 는 전이 포함)
+  org.testcontainers:postgresql → testcontainers-postgresql, junit-jupiter → testcontainers-junit-jupiter (2.0.5)
+  Flyway: flyway-core·flyway-database-postgresql 직접 의존 유지, spring-boot-starter-flyway 넣지 않음 — [Migration Guide 와 다름, DRI 확인 필요]
+    이유: 이 앱은 Flyway 자동설정을 쓰지 않는다(application.yaml spring.flyway.enabled=false, ValidationSchemaMigrator 가 validation datasource 에만 수동 실행).
+    가이드 문장은 자동설정을 쓰는 경우의 안내. 스타터를 넣으면 자동설정이 취약 앱 datasource(public)에 걸릴 수 있는 경로가 다시 생김 → 넣지 않는 쪽이 원래 의도(Gap 방지)를 구조로 보장
+    확인: 4.1.1 runtimeClasspath 에 spring-boot-flyway 없음(메타데이터 spring.flyway.enabled 없음, 아래 3)
+  해석 결과(./gradlew dependencies): flyway-core 12.4.0(→ tools.jackson databind 3.1.1→3.1.5), postgresql 42.7.13, testcontainers 2.0.5, junit 6.0.3
+  Jackson: compileClasspath = tools.jackson 3.1.5 + com.fasterxml.jackson.core:jackson-annotations 2.21 만(Jackson 2 databind 없음)
+           runtimeClasspath 에 com.fasterxml jackson-databind 2.21.5 가 남음 — 유일 경로 io.jsonwebtoken:jjwt-jackson:0.11.5 (외부 라이브러리, JWT 직렬화). 우리 코드는 사용 안 함
+--- 2. Jackson 3 전환 (프로덕션 11파일)
+  import com.fasterxml.jackson.databind.* → tools.jackson.databind.*, JsonProcessingException → tools.jackson.core.JacksonException (Jackson 3 에서 unchecked)
+  AuthController.java:31 · ProductController.java:33  @Autowired private ObjectMapper → JsonMapper (Boot 4 자동설정 빈 타입). 필드 이름 objectMapper 유지(G3 가 이 이름으로 확인)
+  AttackLogger.java:25 'new ObjectMapper()' 는 tools.jackson.databind.ObjectMapper 로 (자체 인스턴스, Spring 설정 영향 없음)
+  JsonNode.asText()/asText(String) → asString()/asString(String) 7곳: correlation/CalderaOperationsHttpClient.java:49·56·57·66, measure/MeasureJson.java:15, measure/CalderaOperationsHttpClient.java:71·91
+    근거: jackson-databind-3.1.5-sources JsonNode.java '@Deprecated // since 3.0  public final String asText() { return asString(); }', 'asText(String defaultValue) { return asString(defaultValue); }' — 같은 동작의 별칭
+    (Jackson 2 대비 의미 차이 — 기록: Jackson 3 asString() 은 JSON null·missing → "" (Jackson 2 NullNode.asText() 는 "null"), Object/Array 노드 → JsonNodeException.
+     MeasureJson.text 는 isMissingNode·isNull 을 먼저 거르므로 영향 없음. CalderaOperationsHttpClient 의 id·paw·ability_id 가 JSON null 이면 "null" → "" 로 바뀜 — Caldera 응답에서 이 값들이 null 인 경우는 관찰된 적 없음)
+  Jackson 어노테이션: 코드에 @Json* 사용 0건 → 변경 없음(문서상 com.fasterxml.jackson.annotation 패키지 유지)
+  주석만: AttackLogger.java:24, AuthController.java:110, ProductController.java:82 (ObjectMapper → JsonMapper), ValidationSchemaMigrator.java:10-11 (Boot 4 Flyway 설명)
+--- 3. 설정 속성 (4.1.1 runtimeClasspath 67 jar 의 META-INF/spring-configuration-metadata.json 대조)
+  server.port                                        → spring-boot-web-server-4.1.1.jar type=java.lang.Integer deprecation=None
+  spring.datasource.url                              → spring-boot-jdbc-4.1.1.jar type=java.lang.String deprecation=None
+  spring.datasource.username                         → spring-boot-jdbc-4.1.1.jar type=java.lang.String deprecation=None
+  spring.datasource.password                         → spring-boot-jdbc-4.1.1.jar type=java.lang.String deprecation=None
+  spring.datasource.driver-class-name                → spring-boot-jdbc-4.1.1.jar type=java.lang.String deprecation=None
+  spring.sql.init.mode                               → spring-boot-sql-4.1.1.jar type=org.springframework.boot.sql.init.DatabaseInitializationMode deprecation=None
+  spring.sql.init.schema-locations                   → spring-boot-sql-4.1.1.jar type=java.util.List<java.lang.String> deprecation=None
+  spring.sql.init.data-locations                     → spring-boot-sql-4.1.1.jar type=java.util.List<java.lang.String> deprecation=None
+  spring.jackson.serialization.indent-output         → Map 키 spring.jackson.serialization (spring-boot-jackson-4.1.1.jar) type=java.util.Map<tools.jackson.databind.SerializationFeature,java.lang.Boolean> deprecation=None
+  spring.flyway.enabled                              → 메타데이터 없음
+  management.endpoints.web.exposure.include          → spring-boot-actuator-autoconfigure-4.1.1.jar type=java.util.Set<java.lang.String> deprecation=None
+  logging.level.org.springframework.jdbc.core        → Map 키 logging.level (spring-boot-4.1.1.jar) type=java.util.Map<java.lang.String,java.lang.String> deprecation=None
+  spring.jackson.serialization.indent-output: 이름 그대로, Map 키 타입이 tools.jackson.databind.SerializationFeature. jackson-databind-3.1.5 SerializationFeature.INDENT_OUTPUT(false) 존재
+    같은 효과 근거: jackson-core-3.1.5 Separators() = this(':', ',', ',') → objectNameValueSpacing Spacing.BOTH (" : ", Jackson 2 와 같음) + G2 실측 141·60·32 통과 + G3 isEnabled(INDENT_OUTPUT) 통과
+  spring.flyway.enabled: 메타데이터 없음(spring-boot-flyway 미포함 → 자동설정 자체 없음). 키는 유지, application.yaml:27 위에 주석 1줄 추가
+  application.yaml 에 spring.jackson.read/write/parser.* 없음 → 이동 대상 없음
+--- 4. Dockerfile (docker/services/target-web/Dockerfile): 빌드 gradle:8.10.2-jdk17 → eclipse-temurin:17-jdk@sha256:fe947d99…, 실행 eclipse-temurin:17-jre → 17-jre@sha256:e04fa72b… (digest 는 2-3)
+--- 5. 테스트 (5파일) — import 경로·타입 이름
+  ControllerBodyLengthTest.java:17, WebLayerWiringTest.java:14  org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest → org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
+  WebLayerWiringTest.java:20-21·55  ObjectMapper/SerializationFeature(com.fasterxml) → tools.jackson.databind.json.JsonMapper / tools.jackson.databind.SerializationFeature, getBean(JsonMapper.class)
+  ValidationPersistenceTest.java:7  org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration → org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+  AttackLoggerHttpActivityTest.java:11-12, RulesDigestTest.java:3-4  com.fasterxml.jackson.databind → tools.jackson.databind
+  [허용 범위 밖 1건, DRI 확인 필요] AttackLoggerHttpActivityTest.java:124 'node.fieldNames().forEachRemaining(names::add)' → 'node.propertyNames().forEach(names::add)'
+    Jackson 3 에 fieldNames() 없음(컴파일 오류). jackson-databind-3.1.5 ObjectNode 'public Collection<String> propertyNames() { return _children.keySet(); }', '_children' = LinkedHashMap → 순서 보존, 검사 항목·기대값 그대로
+  기대값(G1 바이트·G2 141/60/32/404)·검사 항목 변경 0
+  Testcontainers PostgreSQLContainer 는 deprecated 인 org.testcontainers.containers 패키지 그대로 둠 — 새 org.testcontainers.postgresql.PostgreSQLContainer 는 제네릭 아님
+    (javap: 'class org.testcontainers.postgresql.PostgreSQLContainer extends JdbcDatabaseContainer<org.testcontainers.postgresql.PostgreSQLContainer>') → 옮기려면 '<?>'·'<>' 까지 바뀌어 import 범위 밖
+
+### (2-2) 빌드·테스트 (4.1.1) — 최종 ./gradlew clean build start=2026-10-21T08:27:18Z end=2026-10-21T08:28:04Z
+  exit=0, BUILD SUCCESSFUL in 45s
+  총 tests=239 failures=0 errors=0 skipped=3 passed=236 (suite 50개)
+  -- skip 목록 --
+  VulnerableWebappApplicationTests#contextLoads() — None
+  correlation.ValidationMigrateIT#migrate() — None
+  measure.CampaignRunnerIT#measure() — None
+  suite 50개 tests/fail/err/skip 이 Step 1(3.5.13) 과 전부 같음 (diff 0). 골든 G1 7·G2 4·G3 2·G4 4·MTTD 3 통과
+  (중간 build 2026-10-21T08:23Z 도 같은 결과 — 그 뒤 주석 1곳(ValidationSchemaMigrator)만 바꾸고 최종 build 재실행)
+  ValidationMigrateEntryTest(임시 DB, Flyway 12.4.0): v3SucceedsOnceEveryVerdictIsAttributedToARun ok, v3RefusesWhileRunIdNullRowsRemainAndKeepsThem ok — 3.5.13(Flyway 11.7.2) 2/2 와 같음
+  산출물: build/libs/vulnerable-webapp-0.0.1-SNAPSHOT.jar (bootJar) + -plain.jar
+--- deprecated 경고 (init script -Xlint:deprecation,removal, 저장소 변경 없음) — main 0건, test 28건
+        1 correlation/CorrelationTest.java: warning: [deprecation] getVerdict() in Correlation has been deprecated
+        2 correlation/ValidationDbFixture.java: warning: [deprecation] PostgreSQLContainer in org.testcontainers.containers has been deprecated
+        2 correlation/ValidationMigrateEntryTest.java: warning: [deprecation] PostgreSQLContainer in org.testcontainers.containers has been deprecated
+        2 correlation/ValidationPersistenceTest.java: warning: [deprecation] PostgreSQLContainer in org.testcontainers.containers has been deprecated
+       16 logging/AttackLoggerHttpActivityTest.java: warning: [deprecation] asText() in JsonNode has been deprecated
+        2 measure/MeasurementRunPersistenceTest.java: warning: [deprecation] PostgreSQLContainer in org.testcontainers.containers has been deprecated
+        3 measure/RulesDigestTest.java: warning: [deprecation] asText() in JsonNode has been deprecated
+  줄 번호: correlation/ValidationMigrateEntryTest.java:31 correlation/ValidationMigrateEntryTest.java:31 correlation/ValidationDbFixture.java:18 correlation/ValidationDbFixture.java:18 correlation/ValidationPersistenceTest.java:39 correlation/ValidationPersistenceTest.java:39 correlation/CorrelationTest.java:21 measure/MeasurementRunPersistenceTest.java:52 measure/MeasurementRunPersistenceTest.java:52 measure/RulesDigestTest.java:71 measure/RulesDigestTest.java:72 measure/RulesDigestTest.java:73 logging/AttackLoggerHttpActivityTest.java:64 logging/AttackLoggerHttpActivityTest.java:71 logging/AttackLoggerHttpActivityTest.java:73 logging/AttackLoggerHttpActivityTest.java:74 logging/AttackLoggerHttpActivityTest.java:104 logging/AttackLoggerHttpActivityTest.java:105 logging/AttackLoggerHttpActivityTest.java:107 logging/AttackLoggerHttpActivityTest.java:109 logging/AttackLoggerHttpActivityTest.java:110 logging/AttackLoggerHttpActivityTest.java:112 logging/AttackLoggerHttpActivityTest.java:113 logging/AttackLoggerHttpActivityTest.java:114 logging/AttackLoggerHttpActivityTest.java:115 logging/AttackLoggerHttpActivityTest.java:117 logging/AttackLoggerHttpActivityTest.java:118 logging/AttackLoggerHttpActivityTest.java:119 
+  (CorrelationTest getVerdict 1건은 3.5.13 기준선에도 있던 것)
+--- body_length 소비처 (DRI 기준 7 허용 조건 ③)
+  쓰는 곳(생산): logging/AttackLogger.java:95 '"body_length", exchange.bodyLength()' ← HttpExchange.bodyLength
+    값 원천: ProductController.java:77·83-89, AuthController.java:106·111-117 (Spring JsonMapper 직렬화 바이트), FileController.java:60·76·84·100 (content.length / UTF-8 길이),
+             PreviewController.java:102·112·129-131 (UTF-8 길이)
+  읽는 곳: 없음
+    - Wazuh vuln_rules.xml: <field name> 는 http_request.url.path·http_request.args·http_response.code·metadata.log_name·result_type 만 (body_length 0건)
+      :465 원문 '원칙: http_request.* / http_response.* 만 참조한다' — http_response 중 쓰는 것은 code(:510 '^401$', :534 '^200$') 뿐
+    - Suricata local.rules·detections/sigma: body_length·latency_ms 0건 (grep)
+    - Validator·Evaluator: body_length 미사용. 비슷한 이름은 별개 값 —
+      SqliEvaluator.java:69 contentLength = ProductController.java:55 'results.toString().length()' (Java toString, Jackson 무관),
+      SsrfInput.bodyLength = 업스트림 응답 UTF-8 길이(PreviewController.java:85, 판정은 internalTarget·sentinel 만 — SsrfValidator observe),
+      PathTraversalInput.contentLength = 파일 바이트(FileController.java:77, PathTraversalValidator.java:55 summary 문자열에만)
+    - verdict 입력: GtLogReader(:85-91)·AlertIndexReader(:51-67) 는 http_response.* 를 읽지 않음 → correlation·verdict 에 들어가지 않음
+--- 측정 하네스(CampaignRunnerIT 경로)의 운영 DB migrate 호출 — [사실] 호출함
+  src/test/java/com/capstone/vuln/measure/CampaignRunnerIT.java:35-42
+    '@SpringBootTest(classes = {CorrelationConfig.class, ValidationPersistenceConfig.class, MeasureConfig.class})'
+    '"app.validation.persistence.enabled=true",'
+    '"app.validation.datasource.url=jdbc:postgresql://127.0.0.1:5433/${POSTGRES_DB}?currentSchema=validation",'
+    '"app.validation.datasource.username=validation_rw",'
+  src/main/java/com/capstone/vuln/correlation/ValidationPersistenceConfig.java:20 '@ConditionalOnProperty(name = "app.validation.persistence.enabled", havingValue = "true")'
+    :37-40 '@Bean public VerdictRepository verdictRepository(@Qualifier("validationDataSource") DataSource validationDataSource) {'
+           '    ValidationSchemaMigrator.migrate(validationDataSource);'
+  → 스모크(RUNBOOK (2)) 시작 때마다 운영 validation 스키마에 Flyway migrate 가 실행된다. Step 5(S4-STACK-3-SMOKE)는 Flyway 12.4.0 으로 이 호출을 하게 됨
+  target-web 컨테이너: docker-compose.yml:49 'APP_VALIDATION_PERSISTENCE_ENABLED: "false"' + application.yaml:81-82 persistence.enabled: false → 컨테이너 앱은 migrate 안 함
+--- Testcontainers postgres 이미지 vs 운영
+  테스트: 'new PostgreSQLContainer<>("postgres:16")' — ValidationMigrateEntryTest.java:31, ValidationPersistenceTest.java:39, ValidationDbFixture.java:18, MeasurementRunPersistenceTest.java:52
+          (태그만, digest 고정 없음. ValidationPersistenceTest.java:31 주석 'compose 와 같은 postgres:16' 은 지금 compose 와 다름)
+  로컬 postgres:16: RepoDigests postgres@sha256:a902560563d3a5661228585f53474c5065e7f273b21ffd77e555a8b5682c5690, created 2026-10-21T00:38:09Z, PG_VERSION=16.15-1.pgdg13+2
+  운영: docker-compose.yml:232 'image: postgres:${POSTGRES_VERSION}@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d'
+        컨테이너 Config.Image = postgres:16.15-trixie@sha256:ca0bd484…, created 2026-10-06T01:33:18Z, PG_VERSION=16.15-1.pgdg13+2, 'postgres (PostgreSQL) 16.15 (Debian 16.15-1.pgdg13+2)'
+  차이: PostgreSQL 패키지 버전 같음(16.15-1.pgdg13+2), 이미지 digest·빌드일 다름(같은 버전의 재빌드로 보임 — 추정). 테스트 태그는 떠다니는 'postgres:16' 이라 16.16 등으로 바뀔 수 있음
+
+### (2-3) 베이스 이미지 digest (docker pull 2026-10-21, 빌드 안 함)
+  | 이미지 | index digest (RepoDigests = 레지스트리 docker-content-digest, OCI image index) | JAVA_VERSION | 생성일 | 기반 |
+  | eclipse-temurin:17-jdk | sha256:fe947d993c32dd9cf651a4353a6ed723c2370b3a9d034ea4cab4775404ea531a | jdk-17.0.20.1+1 | 2026-10-17T00:19:01Z | Ubuntu 26.04 (label org.opencontainers.image.version) |
+  | eclipse-temurin:17-jre | sha256:e04fa72be13b257a59fdec6dc14af78c8f80f035d3c1ed4e03e45552a231d4c8 | jdk-17.0.20.1+1 | 2026-10-17T00:19:06Z | Ubuntu 26.04 |
+  교차 확인: registry-1.docker.io HEAD manifests/17-jdk·17-jre 'content-type: application/vnd.oci.image.index.v1+json', docker-content-digest 위 값과 같음
+  Dockerfile:4 'FROM eclipse-temurin:17-jdk@sha256:fe947d99… AS builder', :11 'FROM eclipse-temurin:17-jre@sha256:e04fa72b…'
+  참고: 호스트 측정 JVM 도 17.0.20.1 (Step 0-1 './gradlew --version' Launcher JVM 17.0.20.1)
+
+## Step 3 (DRI 승인 2026-10-21: Flyway 스타터 미추가·propertyNames 변경 승인)
+### (3-1) 테스트 postgres 이미지 고정
+  새 파일 src/test/java/com/capstone/vuln/correlation/PostgresTestImage.java — 상수 IMAGE 한 곳. 사용 4곳:
+    ValidationPersistenceTest.java:39, ValidationMigrateEntryTest.java:31, ValidationDbFixture.java:18, MeasurementRunPersistenceTest.java:53 → new PostgreSQLContainer<>(PostgresTestImage.IMAGE)
+    주석 3곳 'postgres:16' 표기 갱신 (ValidationPersistenceTest:31, ValidationDbFixture:13, MeasurementRunPersistenceTest:46)
+  1차 시도: IMAGE = "postgres:16.15-trixie@sha256:ca0bd484…" → ./gradlew clean build 실패 (exit=1, 220 tests, 55 failures — Testcontainers 사용 테스트 전부 초기화 실패) 원문:
+    'Caused by: java.lang.IllegalStateException: Failed to verify that image 'postgres:16.15-trixie@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d'
+     is a compatible substitute for 'postgres'. … at org.testcontainers.utility.DockerImageName.assertCompatibleWith(DockerImageName.java:279)
+     at org.testcontainers.containers.PostgreSQLContainer.<init>(PostgreSQLContainer.java:61)'
+    해석: Testcontainers DockerImageName 은 'repo:tag@digest' 에서 '@' 앞 전체('postgres:16.15-trixie')를 repo 로 읽음 → 'postgres' 호환 검사 실패
+  2차(채택, 지시 형식과 다름 — DRI 확인 필요): IMAGE = "postgres@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d" (태그는 주석에 기록)
+    digest = 운영 compose(docker-compose.yml:232)와 같은 index digest → 같은 이미지. 대안 asCompatibleSubstituteFor 는 쓰지 않음(호환 검사를 끄는 것이라)
+  ./gradlew clean build -i  start=2026-10-21T08:35:29Z end=2026-10-21T08:36:14Z exit=0, BUILD SUCCESSFUL in 44s
+  총 tests=239 failures=0 errors=0 skipped=3 passed=236 (suite 50개)
+  suite 50개 결과가 Step 1 과 같음. ValidationMigrateEntryTest 2/2, ValidationPersistenceTest 9/9, MeasurementRunPersistenceTest 11/11
+  Testcontainers 로그 원문(발췌):
+    2026-10-21T17:35:39.162+09:00  INFO 61574 --- [    Test worker] tc.postgres@sha256:ca0bd4...             : Creating container for image: postgres@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5
+    2026-10-21T17:35:40.848+09:00  INFO 61574 --- [    Test worker] tc.postgres@sha256:ca0bd4...             : Container is started (JDBC URL: jdbc:postgresql://localhost:32789/test?loggerLevel=OFF)
+  빌드 로그의 'postgres:16' 문자열: 0건
+
+### (3-2) jjwt 확인 (읽기만, 이번 슬라이스에서 변경 없음) 2026-10-21
+--- 위치: build.gradle:28-30 jjwt-api(implementation)·jjwt-impl·jjwt-jackson(runtimeOnly) 0.11.5 (2022-04-28 게시)
+  Maven Central io.jsonwebtoken:jjwt-api maven-metadata: '<latest>0.13.0</latest> <release>0.13.0</release>'
+  0.11.5 이후 9개 릴리스: 0.12.0(2023-10-03) 0.12.1 0.12.2 0.12.3 0.12.4 0.12.5 0.12.6 0.12.7(2025-08-14) 0.13.0(2025-08-20)
+  CHANGELOG.md(master) 맨 위 '### 0.14.0' 은 아직 Maven Central 에 없음(미릴리스)
+--- 취약점
+  GitHub Advisory (api.github.com/advisories, ecosystem=maven, affects=io.jsonwebtoken:<artifact>): jjwt-api 0건, jjwt-jackson 0건, jjwt 0건, jjwt-impl 1건
+    GHSA-r65j-6h5f-4f92 / CVE-2024-31033 severity=medium, range jjwt-impl '<= 0.12.5', first_patched none
+    summary 'Withdrawn: JJWT improperly generates signing keys', withdrawn_at 2024-04-03T14:52:58Z
+    원문 'This advisory has been withdrawn because it has been found to be disputed. Please see the issue [here](https://github.com/jwtk/jjwt/issues/930#issuecomment-2032699358)'
+  NVD CVE-2024-31033: vulnStatus=Deferred, published 2024-04-01, lastModified 2026-06-17, CVSS 3.1 6.8 'CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:H/A:N'
+    원문 '… NOTE: the vendor disputes this because the "ignores" behavior cannot occur (in any version) unless there is a user error in how JJWT is used,
+          and because the version that was actually tested must have been more than six years out of date.'
+    NVD keywordSearch=jjwt totalResults=1 (이 건뿐)
+  OSV (api.osv.dev query, version 0.11.5): jjwt-api 0, jjwt-impl 0, jjwt-jackson 0
+  → 확정 취약점 없음. CVE-2024-31033 은 철회(GitHub)·이의 제기·Deferred(NVD) 상태. 우리 사용: Keys.hmacShaKeyFor(JwtUtil.java:26) — 주장된 문제의 대상 메서드(setSigningKey·signWith)를 씀(기록)
+--- 0.12+ 전환 시 API 변경 범위 (jjwt CHANGELOG 0.12.0 원문 기준) — 영향 파일 1개 src/main/java/com/capstone/vuln/util/JwtUtil.java:26-46
+  JwtUtil.java:40 Jwts.parserBuilder()  → 'The previous Jwts.parserBuilder() method has been …' (CHANGELOG 0.12.0, parser() 가 JwtParserBuilder 반환)
+  JwtUtil.java:41 .setSigningKey(key)   → JwtParserBuilder 의 verifyWith(SecretKey) (0.12 API, 이름은 0.12.0 javadoc 으로 확인 필요)
+  JwtUtil.java:43 .parseClaimsJws(token) → 'parseClaimsJws methods have been deprecated in favor of … parseSignedClaims'
+  JwtUtil.java:44 .getBody()            → 'getBody() method has been deprecated in favor of a new getPayload() method'
+  JwtUtil.java:35 signWith(key, SignatureAlgorithm.HS256) → 'The io.jsonwebtoken.SignatureAlgorithm enum has been deprecated in favor of new io.jsonwebtoken.security.SignatureAlgorithm' (Jwts.SIG.HS256)
+  JwtUtil.java:31-34 setSubject/claim/setIssuedAt/setExpiration — 0.12 에서 deprecated 여부는 이번에 원문 확인 못 함(확인 필요)
+  0.12.0 Breaking: 'Claims and Header instances are now immutable', 'JwtParser is now immutable … setters … removed' — 우리 코드는 Claims 읽기(getSubject)만
+  Jackson: jjwt-jackson-0.13.0.pom 도 com.fasterxml.jackson.core:jackson-databind (Jackson 2) 의존 → 0.13.0 으로 올려도 런타임 Jackson 2 는 남음
+           (Jackson 2 를 없애려면 직렬화 모듈 교체 검토 필요 — jjwt 는 jjwt-gson·jjwt-orgjson 모듈도 제공. 이번 범위 아님)
+  JWT 는 측정 판정과 무관(BF 성공 응답의 accessToken 만, body_length 266 의 원천) — 전환 시 G2 외 골든 영향 없음, login 성공 본문 길이는 토큰 길이에 따라 달라질 수 있음
+
+### (3-3) 이미지 빌드 (컨테이너 재생성 없음)
+  빌드 전:
+    before 2026-10-21T08:39:10Z
+    id=sha256:e33f35d940b6b66d52ab4d4b629a9a622fbb9272b1e4c67f2f59f4cb197e9e17 created=2026-10-16T17:13:49.406053406+09:00 size=136810110
+    security-lab-target-web:latest e33f35d940b6 489MB
+    container target-web Image=sha256:e33f35d940b6b66d52ab4d4b629a9a622fbb9272b1e4c67f2f59f4cb197e9e17 started=2026-10-21T07:15:37.059064471Z
+  명령: docker compose -p security-lab -f docker/docker-compose.yml build target-web  start=2026-10-21T08:39:11Z end=2026-10-21T08:40:04Z exit=0
+  빌드 로그 원문(발췌):
+    #13 0.998 Downloading https://services.gradle.org/distributions/gradle-8.14.4-bin.zip
+    #13 49.95 BUILD SUCCESSFUL in 48s
+    #17 exporting manifest list sha256:29369098bfa0b0512b4e74ff3f57fdbc709e831f0e3ba922af03f8e4b6e892d5 done
+    #17 naming to docker.io/library/security-lab-target-web:latest done
+    #6 [target-web builder 1/6] FROM docker.io/library/eclipse-temurin:17-jdk@sha256:fe947d993c32dd9cf651a4353a6ed723c2370b3a9d034ea4cab4775404ea531a
+    #7 [target-web stage-1 1/5] FROM docker.io/library/eclipse-temurin:17-jre@sha256:e04fa72be13b257a59fdec6dc14af78c8f80f035d3c1ed4e03e45552a231d4c8
+     target-web  Built
+  | 항목 | 이전 (3.5.13) | 새 (4.1.1) |
+  | 이미지 ID | sha256:e33f35d940b6b66d52ab4d4b629a9a622fbb9272b1e4c67f2f59f4cb197e9e17 | sha256:29369098bfa0b0512b4e74ff3f57fdbc709e831f0e3ba922af03f8e4b6e892d5 |
+  | 생성 | 2026-10-16T08:13:49Z | 2026-10-21T08:40:03Z |
+  | 크기 (docker image ls / inspect .Size) | 489MB / 136810110 | 481MB / 135221954 (−1588156 B) |
+  | 빌드 베이스 | gradle:8.10.2-jdk17 (태그) | eclipse-temurin:17-jdk@sha256:fe947d99… |
+  | 실행 베이스 | eclipse-temurin:17-jre (태그) | eclipse-temurin:17-jre@sha256:e04fa72b… |
+  새 이미지 내용 (docker image save → tar 안 파일 읽기, 컨테이너 만들지 않음):
+    /opt/java/openjdk/release: IMPLEMENTOR="Eclipse Adoptium" IMPLEMENTOR_VERSION="Temurin-17.0.20.1+1" JAVA_VERSION="17.0.20.1" JAVA_VERSION_DATE="2026-08-18" IMAGE_TYPE="JRE"
+    /app/app.jar META-INF/MANIFEST.MF: 'Spring-Boot-Version: 4.1.1', 'Start-Class: com.capstone.vuln.VulnApplication', 'Main-Class: org.springframework.boot.loader.launch.JarLauncher', 'Build-Jdk-Spec: 17'
+    BOOT-INF/lib 59개 중: spring-boot-4.1.1, spring-core-7.0.9, spring-webmvc-7.0.9, tomcat-embed-core-11.0.24, jackson-databind-3.1.5, jackson-databind-2.21.5(jjwt-jackson 경유),
+                         flyway-core-12.4.0, flyway-database-postgresql-12.4.0, postgresql-42.7.13, jjwt-*-0.11.5
+  실행 중 target-web: Image=sha256:e33f35d9… (이전), started 2026-10-21T07:15:37Z, running — 그대로 둠
+  [주의] 이전 이미지 e33f35d9 는 이제 목록·조회에 없음: 'docker image inspect sha256:e33f35d9…' → 'Error response from daemon: No such image'
+         (docker info: driver=overlayfs, containerd snapshotter. 태그를 새 이미지가 가져가면서 이전 이미지 레코드가 사라짐 — 실행 중 컨테이너는 기존 스냅샷으로 계속 동작)
+         → Step 4 재생성 후 3.5.13 으로 되돌리려면 이전 커밋(8aa6e6f)에서 다시 빌드해야 함. 그때 베이스는 gradle:8.10.2-jdk17·eclipse-temurin:17-jre 태그(digest 미고정)라 바이트 동일 재현은 안 됨
+
+### (3-4) 운영 validation 스키마 안전장치
+--- (3-4-1) 백업 2026-10-21T08:41:36Z
+  명령: docker exec postgres sh -c 'pg_dump -U validation_rw -d "$POSTGRES_DB" -n validation --no-owner' > ~/capstone-backups/2026-10-21_validation_pre-flyway12.sql
+        (컨테이너 안 로컬 접속 — 비밀번호 사용·출력 없음. --no-owner 는 복원 대상 role 에 맞추려고 덧붙임(owner 는 validation_rw 하나라 정보 손실 없음))
+  pg_dump (PostgreSQL) 16.15 (Debian 16.15-1.pgdg13+2), exit=0, stderr 0줄
+  파일: /home/hyeonseong/capstone-backups/2026-10-21_validation_pre-flyway12.sql  244329 bytes  sha256 e27c85108580b81c3e810a2279d2461665a69cf4e4c6ede45d63331c50eb9a5d (저장소 밖)
+  | 테이블 | dump COPY 행 | 운영 count(*) (READ ONLY) |
+  | correlation | 259 | 259 |
+  | detection_link | 579 | 579 |
+  | flyway_schema_history | 4 | 4 |
+  | measurement_run | 10 | 10 |
+  | metric_scope | 6 | 6 |
+  | verdict_history | 0 | 0 |
+  | verdict_member | 235 | 235 |
+  | verdict_result | 235 | 235 |
+  총 1328 행 일치. CREATE TABLE 8 · CREATE VIEW 13 포함
+--- (3-4-2) Flyway 12.4.0 CLI info/validate — 설정 근거 src/main/java/com/capstone/vuln/correlation/ValidationSchemaMigrator.java:21-28
+  ':22 .dataSource(validationDataSource)' → url jdbc:postgresql://127.0.0.1:5433/$POSTGRES_DB, user validation_rw (CampaignRunnerIT.java:39-40 와 같은 접속)
+  ':23 .schemas(SCHEMA)' ':15 SCHEMA = "validation"' → -schemas=validation
+  ':24 .defaultSchema(SCHEMA)' → -defaultSchema=validation
+  ':25 .createSchemas(false)' → -createSchemas=false
+  ':26 .locations("classpath:db/validation")' → src/main/resources/db/validation 를 :ro 마운트, -locations=filesystem:/flyway/validation
+  table 미지정(기본 flyway_schema_history) → CLI 도 기본값
+2026-10-21T08:42:40Z
+docker.io/flyway/flyway:12.4.0
+id=sha256:5be18367a9b3979a9f37234c371b80da457a448fb9577bd94d4bf24d923fafac digests=[flyway/flyway@sha256:5be18367a9b3979a9f37234c371b80da457a448fb9577bd94d4bf24d923fafac] created=2026-04-14T09:55:01.12514718Z os=linux/amd64
+  이미지: flyway/flyway:12.4.0 pull 2026-10-21T08:42:40Z → RepoDigests flyway/flyway@sha256:5be18367a9b3979a9f37234c371b80da457a448fb9577bd94d4bf24d923fafac, created 2026-04-14T09:55:01Z, linux/amd64
+  실행 래퍼 /tmp/claude-1000/-home-hyeonseong-capstone-dev-mitre-attack-capstone-v2/563a9648-9420-44a9-b915-b399696f7b28/scratchpad/fw.sh (info|validate 외 인자 거부, 저장소 밖):
+    docker run --rm --network host -e FLYWAY_URL -e FLYWAY_PASSWORD -e FLYWAY_USER=validation_rw -e REDGATE_DISABLE_TELEMETRY=true
+      -v $PWD/src/main/resources/db/validation:/flyway/validation:ro flyway/flyway:12.4.0@sha256:5be18367…
+      -schemas=validation -defaultSchema=validation -createSchemas=false -locations=filesystem:/flyway/validation <info|validate>
+    FLYWAY_PASSWORD 는 docker/.env 에서 읽어 환경변수 이름으로만 전달(값 미출력), FLYWAY_URL = jdbc:postgresql://127.0.0.1:5433/$POSTGRES_DB
+  마이그레이션 파일 sha256 (마운트 원본): V1 0d81be46… V2 5db0fb3c… V3 c51ab24d… V4 7b6a47e8…
+--- info 2026-10-21T08:43:39Z exit=0 원문
+    Flyway OSS Edition 12.4.0 by Redgate
+    
+    See release notes here: https://help.red-gate.com/help/flyway-cli12/help_4.aspx?topic=release-notes-and-older-versions/release-notes-for-flyway-engine
+    Database: jdbc:postgresql://127.0.0.1:5433/vulndb (PostgreSQL 16.15)
+    Schema version: 4
+    
+    +-----------+---------+-------------------+------+---------------------+---------+----------+
+    | Category  | Version | Description       | Type | Installed On        | State   | Undoable |
+    +-----------+---------+-------------------+------+---------------------+---------+----------+
+    | Versioned | 1       | validation schema | SQL  | 2026-10-16 23:31:49 | Success | No       |
+    | Versioned | 2       | measurement run   | SQL  | 2026-10-18 18:31:27 | Success | No       |
+    | Versioned | 3       | metric foundation | SQL  | 2026-10-20 00:13:32 | Success | No       |
+    | Versioned | 4       | metric views      | SQL  | 2026-10-20 00:13:32 | Success | No       |
+    +-----------+---------+-------------------+------+---------------------+---------+----------+
+    
+--- validate 2026-10-21T08:43:59Z exit=0 원문
+    Flyway OSS Edition 12.4.0 by Redgate
+    
+    See release notes here: https://help.red-gate.com/help/flyway-cli12/help_4.aspx?topic=release-notes-and-older-versions/release-notes-for-flyway-engine
+    Database: jdbc:postgresql://127.0.0.1:5433/vulndb (PostgreSQL 16.15)
+    Successfully validated 4 migrations (execution time 00:00.064s)
+--- 사후 flyway_schema_history (READ ONLY)
+    BEGIN
+     installed_rank | version |    description    | type |          script           |  checksum   | installed_by  |        installed_on        | execution_time | success 
+    ----------------+---------+-------------------+------+---------------------------+-------------+---------------+----------------------------+----------------+---------
+                  1 | 1       | validation schema | SQL  | V1__validation_schema.sql |  -302875525 | validation_rw | 2026-10-16 23:31:49.334494 |             79 | t
+                  2 | 2       | measurement run   | SQL  | V2__measurement_run.sql   |  1699786641 | validation_rw | 2026-10-18 18:31:27.483012 |             49 | t
+                  3 | 3       | metric foundation | SQL  | V3__metric_foundation.sql | -1339579969 | validation_rw | 2026-10-20 00:13:32.325208 |             82 | t
+                  4 | 4       | metric views      | SQL  | V4__metric_views.sql      |  -254580708 | validation_rw | 2026-10-20 00:13:32.457942 |             65 | t
+    (4 rows)
+    
+    ROLLBACK
+  백업 덤프의 flyway_schema_history (rank, version, checksum) ↔ 사후 운영: same
+  flyway/flyway:12.4.0 으로 남은 컨테이너 0개(--rm), 이미지는 증거 재현용으로 유지
+--- (3-4-3) 판정: V1~V4 전부 Success, validate 'Successfully validated 4 migrations', pending 0 (info 표에 Pending 행 없음, Schema version 4) → 통과
+  주: Flyway 11.7.2 가 남긴 checksum 을 12.4.0 이 같은 파일로 검증 통과 — 체크섬 계산 방식 호환 확인. Step 5 스모크 시작 때 ValidationPersistenceConfig.java:39 의 migrate 는
+      이 상태(pending 0)에서 실행되므로 적용할 마이그레이션 없음이 예상됨(추정 — 실제 동작은 Step 5 에서 확인)
+
+## Step 4 — target-web·suricata 재생성 (DRI 승인 2026-10-21: digest 전용 테스트 이미지 승인, 이전 이미지 소실 수용 — 되돌리기 = 8aa6e6f 재빌드 또는 D8 3.5.16)
+### (4-0) 재생성 전 2026-10-21T08:47:59Z HEAD=8aa6e6f
+  README 운영 규칙 원문 (docker/README.md:42-48):
+    - **target-web 재생성 시 suricata 재생성 필수** — suricata는 `network_mode: service:target-web` 으로
+      target-web의 네트워크 네임스페이스를 공유한다. target-web만 재생성(`--force-recreate target-web`,
+      이미지 재빌드 후 `up` 등)하면 suricata는 사라진 옛 네임스페이스에 남아 `lo`만 보이고 아무것도 캡처하지 못한다.
+    
+      ```bash
+      docker compose -p security-lab up -d --no-deps --force-recreate target-web
+      docker compose -p security-lab up -d --no-deps --force-recreate suricata
+  /caldera id=655ec54ec456926998ff447b37a98bbe8c32f8323f25cc8c8c4c382ac035f4e6 image=sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7 started=2026-10-21T07:15:37.093831197Z restarts=0 status=running
+  /mock-imds id=aadb7b5b54d16b20a9a06eeb55db2bdaf93831d54c295dadf25f83ceb6a3665c image=sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 started=2026-10-21T07:15:37.062028664Z restarts=0 status=running
+  /postgres id=03c8a168cf37686b3f680b277d7bfd52a83aeafc34f249b6b34ac4c2875ba078 image=sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d started=2026-10-21T07:15:37.064938795Z restarts=0 status=running
+  /security-lab-wazuh.agent-1 id=ea593a328c20824ab1cdf6fa8fc875ac8d55f62493529a8fd516d7a0864f2d87 image=sha256:db274c1e2c56106f108fa1469f7ee99995ad3cac41003e8ca7a975cda2af20d8 started=2026-10-21T07:15:37.06021795Z restarts=0 status=running
+  /security-lab-wazuh.indexer-1 id=4de121e938e7f6b077307aecf1287a37da683601ca926d9b2803bd48964e9a3a image=sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6 started=2026-10-21T07:15:37.062511986Z restarts=0 status=running
+  /security-lab-wazuh.manager-1 id=2e981a803ed5b7671a8fd948bc7c06a9aeeeed3f84df17f6b293900853c8756d image=sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b started=2026-10-21T07:15:37.06306438Z restarts=0 status=running
+  /suricata id=6a62da528da08549dc173c461985af3fa4aa03d226fd6322687b502e583931e2 image=sha256:bf4bea5b45d9c10265a3ee6628e2ec8930b9d1fb7caf9d1afb63af413b9cbb26 started=2026-10-21T07:15:40.621757796Z restarts=0 status=running
+  /target-web id=83f741aa894993bd8cbfd8639039303aeb47efcdf84c56767b18e5edc52088e9 image=sha256:e33f35d940b6b66d52ab4d4b629a9a622fbb9272b1e4c67f2f59f4cb197e9e17 started=2026-10-21T07:15:37.059064471Z restarts=0 status=running
+  attack.json.log 줄 수: 1076
+  application.log 줄 수: 4389
+  agent_control:    ID: 004, Name: wazuh.agent, IP: any, Active
+### (4-1) 재생성
+  2026-10-21T08:48:14Z docker compose -p security-lab -f docker/docker-compose.yml up -d --no-build --pull never --no-deps --force-recreate target-web
+     Container target-web  Recreate
+     Container target-web  Recreated
+     Container target-web  Starting
+     Container target-web  Started
+  exit=0
+  2026-10-21T08:48:19Z docker compose -p security-lab -f docker/docker-compose.yml up -d --no-build --pull never --no-deps --force-recreate suricata
+     Container suricata  Recreate
+     Container suricata  Recreated
+     Container suricata  Starting
+     Container suricata  Started
+  exit=0
+### (4-2) 확인 2026-10-21T08:48:49Z
+--- ① target-web
+  Image=sha256:29369098bfa0b0512b4e74ff3f57fdbc709e831f0e3ba922af03f8e4b6e892d5 started=2026-10-21T08:48:18.197902747Z restarts=0 status=running
+  docker logs 원문(발췌):
+     :: Spring Boot ::                (v4.1.1)
+    2026-10-21T08:48:21.483Z  INFO 1 --- [           main] com.capstone.vuln.VulnApplication        : Starting VulnApplication v0.0.1-SNAPSHOT using Java 17.0.20.1 with PID 1 (/app/app.jar started by root in /app)
+    2026-10-21T08:48:21.495Z DEBUG 1 --- [           main] com.capstone.vuln.VulnApplication        : Running with Spring Boot v4.1.1, Spring v7.0.9
+    2026-10-21T08:48:23.408Z  INFO 1 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
+    2026-10-21T08:48:25.208Z  INFO 1 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 8080 (http) with context path '/'
+    2026-10-21T08:48:25.219Z  INFO 1 --- [           main] com.capstone.vuln.VulnApplication        : Started VulnApplication in 4.918 seconds (process running for 5.9)
+  docker logs 전체 24줄, ' ERROR '/Exception/Caused by/FAILED 0줄, ' WARN ' 0줄
+  application.log 총 4406줄 (재생성 전 4389), 새 줄 17, 그중 ERROR/WARN/Exception 0줄
+  → ① 통과
+--- ② RUNBOOK (0-c) 2026-10-21T08:49:04Z
+app0 172.20.0.3/16
+atk0 172.18.0.3/16
+imds0 169.254.169.2/24
+sec0 172.19.0.5/16
+eth_count=0
+security-lab_app_net 172.20.0.0/16
+security-lab_attack_net 172.18.0.0/16
+security-lab_imds_net 169.254.169.0/24
+security-lab_security_net 172.19.0.0/16
+["-i","app0","-i","atk0","-i","imds0","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.5.stats.enabled=no","--set","outputs.1.eve-log.types.32.stats.enabled=no"]
+NM_OK
+--- ② RUNBOOK (0-d)
+outputs.5 stats enabled=no
+eve-log.types.0 alert enabled=yes(미지정)
+eve-log.types.3 http enabled=yes(미지정)
+eve-log.types.7 files enabled=yes(미지정)
+eve-log.types.32 stats enabled=no
+eve-log.types.33 flow enabled=yes(미지정)
+suricata started=2026-10-21T08:48:22.871074544Z restarts=0 status=running image=sha256:bf4bea5b45d9c10265a3ee6628e2ec8930b9d1fb7caf9d1afb63af413b9cbb26
+  suricata.log: 0
+  suricata.log: [1 - Suricata-Main] 2026-10-21 07:15:42 Info: runmodes: app0: creating 4 threads
+  suricata.log: [1 - Suricata-Main] 2026-10-21 07:15:42 Info: runmodes: atk0: creating 4 threads
+  suricata.log: [1 - Suricata-Main] 2026-10-21 07:15:42 Info: runmodes: imds0: creating 4 threads
+  suricata.log: [1 - Suricata-Main] 2026-10-21 07:15:42 Notice: threads: Threads created -> W: 12 FM: 1 FR: 1   Engine started.
+  suricata.log: [1 - Suricata-Main] 2026-10-21 08:48:23 Info: runmodes: app0: creating 4 threads
+  suricata.log: [1 - Suricata-Main] 2026-10-21 08:48:23 Info: runmodes: atk0: creating 4 threads
+  suricata.log: [1 - Suricata-Main] 2026-10-21 08:48:23 Info: runmodes: imds0: creating 4 threads
+  suricata.log: [1 - Suricata-Main] 2026-10-21 08:48:23 Notice: threads: Threads created -> W: 12 FM: 1 FR: 1   Engine started.
+--- ③ health 2026-10-21T08:49:19Z
+  attack.json.log 줄 수(요청 전): 1076
+  GET http://127.0.0.1:8080/actuator/health → HTTP 200 content-type=application/vnd.spring-boot.actuator.v3+json size=49
+  body: {"groups":["liveness","readiness"],"status":"UP"}
+  attack.json.log 줄 수(요청 후): 1076
+  → ② 통과: (0-c) 4개 이름 모두 짝 서브넷 안·eth_count=0·-i app0/atk0/imds0·NM_OK / (0-d) stats no 2줄·alert/http/files/flow 4줄, MEASURE_FAIL 0
+       suricata 재생성 2026-10-21T08:48:22Z, suricata.log 'Engine started.'(08:48:23), Error 줄 0
+--- ③ 결과: health 정상(HTTP 200, {"groups":["liveness","readiness"],"status":"UP"}) / attack.json.log 새 줄 0 (요청 전·후 1076) → 기대("새 줄 1개") 불충족, 지시대로 멈춤
+  원인(코드, 사실): attack.json.log 는 AttackLogger.logHttpActivity 가 쓰고, 이를 부르는 곳은 4개 컨트롤러 엔드포인트뿐 —
+    ProductController.java:78 (/api/products/search), AuthController.java:107 (/api/auth/login), FileController.java:101 (/api/files/download), PreviewController.java:113 (/api/preview)
+    /actuator/health 는 Spring Boot actuator 엔드포인트라 이 경로를 거치지 않음 → health 요청으로는 attack.json.log 줄이 생기지 않는 것이 설계상 정상
+  ④·⑤ 는 실행하지 않음(③ 에서 멈춤). target-web·suricata 는 재생성된 상태로 실행 중
+### (4-3) 재지시(2026-10-21, 승인 단위 변경 후) — 재생성은 (4-1) 08:48:14Z/08:48:19Z 에 이미 끝남, 반복하지 않음. ①② 는 (4-2) 결과 유지
+  /target-web image=sha256:29369098bfa0b0512b4e74ff3f57fdbc709e831f0e3ba922af03f8e4b6e892d5 started=2026-10-21T08:48:18.197902747Z restarts=0
+  /suricata image=sha256:bf4bea5b45d9c10265a3ee6628e2ec8930b9d1fb7caf9d1afb63af413b9cbb26 started=2026-10-21T08:48:22.871074544Z restarts=0
+--- ③ 재확인 2026-10-21T08:52:55Z: health 는 (4-2) 08:49:19Z HTTP 200 UP. attack.json.log 새 줄을 만들기 위해 정상 요청 1회(공격 패턴·Caldera 헤더 없음)
+  attack.json.log 줄 수(요청 전): 1076
+  GET http://127.0.0.1:8080/api/products/search?keyword=Laptop → HTTP 200 size=111
+  attack.json.log 줄 수(요청 후): 1077 (새 줄 1)
+  새 줄 원문: {"time":1792572775880,"metadata":{"version":"1.9.0","log_name":"attack_http_activity"},"class_uid":4002,"class_name":"HTTP Activity","activity_id":3,"rid":"d8cec38d-5305-489c-81e6-44b09589b0a7","src_endpoint":{"ip":"172.20.0.1"},"http_request":{"http_method":"GET","url":{"path":"/api/products/search"},"user_agent":"curl/8.5.0","args":"keyword=Laptop"},"http_response":{"code":200,"latency_ms":11,"body_length":111},"validation":{"outcome":"FAILED","evidence":[],"validator_version":"v1","technique_id":"T1190"},"correlation":{"op_id":null,"ability_id":null,"source":"NONE"}}
+  응답 바이트 111 vs 새 줄 body_length 111
+  골든(G1 미태깅) 키 경로:타입 순서 = time:int metadata.version:str metadata.log_name:str class_uid:int class_name:str activity_id:int rid:str src_endpoint.ip:str http_request.http_method:str http_request.url.path:str http_request.user_agent:str http_request.args:str http_response.code:int http_response.latency_ms:int http_response.body_length:int validation.outcome:str validation.evidence[]:list validation.evidence[].kind:str validation.validator_version:str validation.technique_id:str correlation.op_id:null correlation.ability_id:null correlation.source:str
+  새 줄          키 경로:타입 순서 = time:int metadata.version:str metadata.log_name:str class_uid:int class_name:str activity_id:int rid:str src_endpoint.ip:str http_request.http_method:str http_request.url.path:str http_request.user_agent:str http_request.args:str http_response.code:int http_response.latency_ms:int http_response.body_length:int validation.outcome:str validation.evidence[]:list validation.validator_version:str validation.technique_id:str correlation.op_id:null correlation.ability_id:null correlation.source:str
+  최상위 키 순서 같음: True / 전체 키 경로·순서 같음: False / 타입까지 같음: False
+  차이: validation.evidence[].kind:str ≠ validation.validator_version:str
+  차이: validation.validator_version:str ≠ validation.technique_id:str
+  차이: validation.technique_id:str ≠ correlation.op_id:null
+  차이: correlation.op_id:null ≠ correlation.ability_id:null
+  차이: correlation.ability_id:null ≠ correlation.source:str
+  (재비교) G1 골든 7개 파일에서 읽음: ['sqliSucceeded', 'pathTraversalSucceeded', 'bruteForceFailed', 'bruteForceSucceeded', 'ssrfSucceeded', 'ssrfControlFailed', 'untaggedRequestWritesNullCorrelationIds']
+  새 줄 vs G1 미태깅 골든 — evidence 원소 제외 키 경로:타입·순서 같음: True
+  새 줄 vs G1 BF 실패 골든(evidence []) — validation 블록 키·타입·순서 같음: True evidence = [] / []
+  새 줄 하위 객체별 키 순서: {'metadata': ['version', 'log_name'], 'src_endpoint': ['ip'], 'http_request': ['http_method', 'url', 'user_agent', 'args'], 'http_response': ['code', 'latency_ms', 'body_length'], 'validation': ['outcome', 'evidence', 'validator_version', 'technique_id'], 'correlation': ['op_id', 'ability_id', 'source']}
+  G1 골든 하위 객체별 키 순서: {'metadata': ['version', 'log_name'], 'src_endpoint': ['ip'], 'http_request': ['http_method', 'url', 'user_agent', 'args'], 'http_response': ['code', 'latency_ms', 'body_length'], 'validation': ['outcome', 'evidence', 'validator_version', 'technique_id'], 'correlation': ['op_id', 'ability_id', 'source']}
+  → ③ 판정: 키 구조 G1 골든과 같음 (차이는 evidence 원소 유무뿐 — outcome FAILED 의 값 차이, 2-SMOKE 구조 2종과 같은 분류)
+grep: /var/log/suricata/eve.json: binary file matches
+  정상 요청 부작용 확인 2026-10-21T08:54:15Z: Wazuh alerts.json 에서 rid d8cec38d… 또는 vuln-webapp 그룹 08:52Z 이후 줄 = 2건, Suricata eve alert(08:52:50Z 이후) = 0건
+--- ④ 다른 6개 컨테이너 2026-10-21T08:54:16Z (재생성 전 (4-0) 값과 비교)
+  caldera now=[2026-10-21T07:15:37.093831197Z restarts=0 running] before=[2026-10-21T07:15:37.093831197Z restarts=0 running] same
+  mock-imds now=[2026-10-21T07:15:37.062028664Z restarts=0 running] before=[2026-10-21T07:15:37.062028664Z restarts=0 running] same
+  postgres now=[2026-10-21T07:15:37.064938795Z restarts=0 running] before=[2026-10-21T07:15:37.064938795Z restarts=0 running] same
+  security-lab-wazuh.agent-1 now=[2026-10-21T07:15:37.06021795Z restarts=0 running] before=[2026-10-21T07:15:37.06021795Z restarts=0 running] same
+  security-lab-wazuh.indexer-1 now=[2026-10-21T07:15:37.062511986Z restarts=0 running] before=[2026-10-21T07:15:37.062511986Z restarts=0 running] same
+  security-lab-wazuh.manager-1 now=[2026-10-21T07:15:37.06306438Z restarts=0 running] before=[2026-10-21T07:15:37.06306438Z restarts=0 running] same
+  agent_control:    ID: 004, Name: wazuh.agent, IP: any, Active
+--- ⑤ RUNBOOK (0-b)
+total=45
+finished=45
+  (정정) 위 '2건' 은 rid 문자열 일치 건수만(그룹 조건 없음). 원문:
+    timestamp=2026-10-21T08:52:57.408+0000 rule.id=1002 level=2 groups=['syslog','errors'] 'Unknown problem somewhere in the system.' location=/var/log/target/application.log decoder=vuln-attack-request
+    timestamp=2026-10-21T08:52:57.407+0000 rule.id=100002 level=3 groups=['vuln-webapp','attack-logger','attack_response'] 'AttackLogger: ATTACK_RESPONSE received' decoder=vuln-attack-response
+    → 매 요청마다 생기던 기본 룰(2026-10-21_s2-suricata-8.log:166-168 의 1002·100002 와 같은 유형). 탐지 룰(SQLi·PT·BF·SSRF) 0건
+    → Boot 4.1.1 이 쓴 application.log 줄에 Wazuh decoder vuln-attack-request / vuln-attack-response 가 실제로 적용됨(G4 의 운영 확인)
+  Suricata eve(grep -a, 08:52:5x): alert 0, http 1, flow 2, fileinfo 1
+  → ③ 통과(health 정상, 새 줄 키 구조 = G1 골든, body_length 111 = 응답 111 바이트)
+  → ④ 통과: 6개 컨테이너 StartedAt·restarts 재생성 전과 같음, agent 004 Active
+  → ⑤ 통과: total=45 finished=45 (running/paused 0)
+### (4-J) Step 4 판정: ①~⑤ 통과. Step 5 스모크(S4-STACK-3-SMOKE)는 승인 대기
+  Step 5 전 참고: 스모크 시작 시 ValidationPersistenceConfig.java:39 가 운영 validation 스키마에 Flyway 12.4.0 migrate 실행(운영 DB 쓰기 가능 경로, (3-4) 에서 pending 0 확인)
+                  RUNBOOK (0) 의 red agent 확인 필요(이번 재생성과 무관, sandcat 미기동 상태일 수 있음)
+
+## Step 5 — 스모크 S4-STACK-3-SMOKE (DRI 승인 2026-10-21, 비교 대상 S4-STACK-2-SMOKE)
+### (5-0) 시작 전 확인 2026-10-21T09:01:35Z HEAD=8aa6e6f porcelain=25
+--- (0-b)
+total=45
+finished=45
+--- agents (RUNBOOK (0))
+mcukpa	red	false	2026-10-16T18:23:26Z	2026-10-16T09:08:02Z
+jznjpj	red	false	2026-10-18T10:10:09Z	2026-10-18T09:59:18Z
+oeintf	red	false	2026-10-20T13:45:21Z	2026-10-20T12:57:25Z
+pqkuqm	red	false	2026-10-20T14:30:41Z	2026-10-20T14:21:08Z
+zetofr	red	false	2026-10-20T19:32:51Z	2026-10-20T17:11:55Z
+qpiere	red	false	2026-10-20T20:18:02Z	2026-10-20T19:35:42Z
+dmceil	red	true	2026-10-21T09:01:24Z	2026-10-21T08:59:46Z
+now=2026-10-21T09:01:35Z
+--- link c816f227 추적 (Caldera API 읽기) 2026-10-21T09:01:49Z
+  (operations chain 에서 id c816f227* 또는 paw dmceil 인 link — 위 줄이 없으면 0건)
+  agent dmceil: group=red trusted=true created=2026-10-21T08:59:46Z last_seen=2026-10-21T09:01:24Z platform=linux executors=["proc","sh"] pending_contact=HTTP links=1
+    link id=c816f227-c4df-4ede-8399-f329784711b9 status=0 ability=43b3754c-def4-4699-a673-1d85648fda6a Avoid logs decide=2026-10-21T08:59:46Z finish=2026-10-21T08:59:46Z
+  config/agents: {"bootstrap_abilities":["43b3754c-def4-4699-a673-1d85648fda6a"],"deadman_abilities":null,"sleep_min":30,"sleep_max":60,"untrusted_timer":90,"watchdog":0}
+  ability 43b3754c-def4-4699-a673-1d85648fda6a name=Avoid logs tactic=defense-evasion technique=T1070.003 Indicator Removal on Host: Clear Command History plugin=stockpile
+    executor platform=darwin name=sh command=> $HOME/.bash_history && unset HISTFILE
+    executor platform=linux name=sh command=> $HOME/.bash_history && unset HISTFILE
+    executor platform=windows name=psh command=Clear-History;Clear
+  link c816f227 command(decoded)=> $HOME/.bash_history && unset HISTFILE executor=sh pid=77891 output=False
+  해석(사실): link c816f227 은 operation 이 아니라 agent bootstrap ability — config/agents bootstrap_abilities=[43b3754c…], decide=finish=agent created(08:59:46Z).
+    실행 위치 = sandcat 프로세스가 도는 호스트(executor sh, pid 77891). 명령 '> $HOME/.bash_history && unset HISTFILE' (stockpile 'Avoid logs', T1070.003)
+    호스트 ~/.bash_history 상태(크기만): 0 bytes, mtime 2026-10-21 17:59:46.140477462 +0900
+    이전 agent 들(mcukpa·jznjpj·oeintf·pqkuqm·zetofr·qpiere)도 같은 설정이었다면 기동 때마다 실행됐을 것(추정 — 이번에 이전 agent 의 link 기록은 확인 안 함)
+--- (0-c) 2026-10-21T09:03:37Z
+app0 172.20.0.3/16
+atk0 172.18.0.3/16
+imds0 169.254.169.2/24
+sec0 172.19.0.5/16
+eth_count=0
+security-lab_app_net 172.20.0.0/16
+security-lab_attack_net 172.18.0.0/16
+security-lab_imds_net 169.254.169.0/24
+security-lab_security_net 172.19.0.0/16
+["-i","app0","-i","atk0","-i","imds0","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.5.stats.enabled=no","--set","outputs.1.eve-log.types.32.stats.enabled=no"]
+NM_OK
+--- (0-d)
+outputs.5 stats enabled=no
+eve-log.types.0 alert enabled=yes(미지정)
+eve-log.types.3 http enabled=yes(미지정)
+eve-log.types.7 files enabled=yes(미지정)
+eve-log.types.32 stats enabled=no
+eve-log.types.33 flow enabled=yes(미지정)
+--- 운영 validation.flyway_schema_history (READ ONLY)
+  1 1 -302875525 t
+  2 2 1699786641 t
+  3 3 -1339579969 t
+  4 4 -254580708 t
+--- 기타: label S4-STACK-3-SMOKE run 수 = 0, target-web/suricata restarts = 0/0
+### (5-0) 판정: (0-b) 0·red alive 1(dmceil)·(0-c)·(0-d) 기대와 같음. 단 예상 밖 사실(bootstrap ability 가 호스트에서 실행됨) → 승인 단위 규칙에 따라 스모크 시작 전 멈춤
+
+### (5-1) 스모크 실행 (DRI 승인: link c816f227 = bootstrap_abilities 'Avoid logs', operation 밖·측정 무관, bootstrap 비우기는 별도 슬라이스)
+  측정 HEAD 8aa6e6f9e16248fa9d1f1cdafd22dae972ecc97e + 미커밋 diff (porcelain 25줄 → git_dirty=true 예상)
+  직전 alive: dmceil red trusted=true last_seen=2026-10-21T09:08:27Z
+  start=2026-10-21T09:08:53Z
+  RUN_CALDERA_MEASURE=1 MEASURE_N=1 MEASURE_LABEL='S4-STACK-3-SMOKE' … ./gradlew cleanTest test --tests 'com.capstone.vuln.measure.CampaignRunnerIT' -i  (RUNBOOK (2), 키는 .env 에서 주입·미출력)
+  gradle_exit=0 end=2026-10-21T09:13:01Z
+  출력(RUNBOOK (2) grep 필터):
+  CampaignRunnerIT STANDARD_OUT
+      2026-10-21T18:09:08.395+09:00  INFO 82669 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Starting CampaignRunnerIT using Java 17.0.20.1 with PID 82669 (started by hyeonseong in /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2)
+      2026-10-21T18:09:08.399+09:00 DEBUG 82669 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Running with Spring Boot v4.1.1, Spring v7.0.9
+      2026-10-21T18:09:08.400+09:00  INFO 82669 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : No active profile set, falling back to 1 default profile: "default"
+      2026-10-21T18:09:10.120+09:00  INFO 82669 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Started CampaignRunnerIT in 2.971 seconds (process running for 5.446)
+  CampaignRunnerIT > measure() STANDARD_OUT
+      MEASURE>> starting campaign run label=S4-STACK-3-SMOKE n=1 truncate=false
+      PER-RUN op=ecd61cb6-8223-4aad-8510-533d138a3b4a rows=8
+        [SQLI/SINGLE] rid=7815c210-6b06-4f15-93c7-574c952e5d04 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_MISSED conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [SSRF/SINGLE] rid=3bca5339-cad8-4721-bb10-05b8fce8bea3 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1772
+        [SSRF/SINGLE] rid=91d7b7f2-0c02-4541-bb30-922a37ecabf2 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=913
+        [SSRF/SINGLE] rid=d01ad42d-d46e-4a00-96b0-6005fd39be74 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [PATH_TRAVERSAL/SINGLE] rid=3d017c62-1d03-4d93-a12c-f9d064e2d81f gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1957
+        [PATH_TRAVERSAL/SINGLE] rid=30ff50d5-8479-4424-8a05-fe9d1da0c5a9 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1917
+        [PATH_TRAVERSAL/SINGLE] rid=dd6b67cc-8b06-4aec-b58e-f56c2f8e59f8 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1893
+        [BRUTE_FORCE/BF_SEQUENCE] rid=37adaafa-abcb-41bc-bdc9-666c786ba43d gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=2140
+      GATE overall=INCONCLUSIVE totalSamples=7 totalUncertain=0 report=detections/measurements/gate-report-2026-10-21T09-13-00-331Z.md
+      RUN run_id=eaa088d8-e621-4d3a-9f8d-5b999956c174 R10=VALID
+      MEASURE>> done overall=INCONCLUSIVE totalSamples=7
+  BUILD SUCCESSFUL in 4m 6s
+  멈춤 조건 줄 수: op_id 교차검증 불일치 0, Caldera operation 조회 실패 0, FAILED 1, WARN 0, ERROR 0
+
+### (5-2) 사후 확인 2026-10-21T09:13:21Z
+--- 1. Flyway (스모크 출력 원문, org.flywaydb 로거)
+  2026-10-21T18:09:09.656+09:00  INFO 82669 --- [    Test worker] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://127.0.0.1:5433/vulndb?currentSchema=validation (PostgreSQL 16.15)
+  2026-10-21T18:09:09.801+09:00  INFO 82669 --- [    Test worker] o.f.core.internal.command.DbValidate     : Successfully validated 4 migrations (execution time 00:00.052s)
+  2026-10-21T18:09:09.845+09:00  INFO 82669 --- [    Test worker] o.f.core.internal.command.DbMigrate      : Current version of schema "validation": 4
+  2026-10-21T18:09:09.850+09:00  INFO 82669 --- [    Test worker] o.f.core.internal.command.DbMigrate      : Schema "validation" is up to date. No migration necessary.
+  운영 flyway_schema_history (READ ONLY):
+    1 1 -302875525 t
+    2 2 1699786641 t
+    3 3 -1339579969 t
+    4 4 -254580708 t
+  (FAILED 1줄 = 출력 480행 '[SSRF/SINGLE] rid=d01ad42d… gt=FAILED … verdict=FAILED_UNSEEN' — 대조군 행의 값, 실패 아님)
+  → 1. 판정: migrate 는 'No migration necessary', flyway_schema_history 4행 rank·version·checksum 시작 전과 같음(새 행 0)
+--- 2. DB (validation_rw, BEGIN READ ONLY … ROLLBACK)
+BEGIN
+      label       |  kind  | status | ended |                git_commit                | git_dirty |         started_at         |          ended_at          | run_ms | wazuh_rules  | suricata_rules |  adversary   | abilities | expected_attempts | expected_controls 
+------------------+--------+--------+-------+------------------------------------------+-----------+----------------------------+----------------------------+--------+--------------+----------------+--------------+-----------+-------------------+-------------------
+ S4-STACK-2-SMOKE | ATTACK | CLOSED | t     | 72d10dbc9a64e9b1ea250796efade0c459805d1d | t         | 2026-10-20 20:06:58.085+00 | 2026-10-20 20:10:51.387+00 | 233302 | 47715556fd0f | 007b188d4e80   | cba127e95e91 |         4 |                 7 |                 1
+ S4-STACK-3-SMOKE | ATTACK | CLOSED | t     | 8aa6e6f9e16248fa9d1f1cdafd22dae972ecc97e | t         | 2026-10-21 09:09:11.058+00 | 2026-10-21 09:13:00.319+00 | 229261 | 47715556fd0f | 007b188d4e80   | cba127e95e91 |         4 |                 7 |                 1
+(2 rows)
+
+      label       | attack | control |  r10  
+------------------+--------+---------+-------
+ S4-STACK-2-SMOKE |      7 |       1 | VALID
+ S4-STACK-3-SMOKE |      7 |       1 | VALID
+(2 rows)
+
+      label       | attempt_role | gt_outcome | count 
+------------------+--------------+------------+-------
+ S4-STACK-2-SMOKE | ATTACK       | SUCCEEDED  |     7
+ S4-STACK-2-SMOKE | CONTROL      | FAILED     |     1
+ S4-STACK-3-SMOKE | ATTACK       | SUCCEEDED  |     7
+ S4-STACK-3-SMOKE | CONTROL      | FAILED     |     1
+(4 rows)
+
+ correlations | op_id_not_null | all_resolved | distinct_op_ids |                op_id                 
+--------------+----------------+--------------+-----------------+--------------------------------------
+            8 |              8 | t            |               1 | ecd61cb6-8223-4aad-8510-533d138a3b4a
+(1 row)
+
+    scenario    |  role   | k |   gt_2    |   gt_3    |     verdict_2      |     verdict_3      |       init_2       |       init_3       |   atk_2   |   atk_3   | ovr_2 | ovr_3 |    det_2     |    det_3     | cmp  
+----------------+---------+---+-----------+-----------+--------------------+--------------------+--------------------+--------------------+-----------+-----------+-------+-------+--------------+--------------+------
+ BRUTE_FORCE    | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f     | f     | DETECTED     | DETECTED     | same
+ PATH_TRAVERSAL | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f     | f     | DETECTED     | DETECTED     | same
+ PATH_TRAVERSAL | ATTACK  | 2 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f     | f     | DETECTED     | DETECTED     | same
+ PATH_TRAVERSAL | ATTACK  | 3 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f     | f     | DETECTED     | DETECTED     | same
+ SQLI           | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED | SUCCEEDED | f     | f     | NOT_DETECTED | NOT_DETECTED | same
+ SSRF           | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f     | f     | DETECTED     | DETECTED     | same
+ SSRF           | ATTACK  | 2 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f     | f     | DETECTED     | DETECTED     | same
+ SSRF           | CONTROL | 1 | FAILED    | FAILED    | FAILED_UNSEEN      | FAILED_UNSEEN      | FAILED_UNSEEN      | FAILED_UNSEEN      | SUCCEEDED | SUCCEEDED | t     | t     | NOT_DETECTED | NOT_DETECTED | same
+(8 rows)
+
+      label       |    scenario    |    mttd_ms_list    | min  | max  | ge0 | le_run_plus_30s 
+------------------+----------------+--------------------+------+------+-----+-----------------
+ S4-STACK-2-SMOKE | BRUTE_FORCE    | 1149               | 1149 | 1149 | t   | t
+ S4-STACK-2-SMOKE | PATH_TRAVERSAL | 183 | 88 | 47      |   47 |  183 | t   | t
+ S4-STACK-2-SMOKE | SQLI           | NULL               |      |      | t   | t
+ S4-STACK-2-SMOKE | SSRF           | 810 | 360          |  360 |  810 | t   | t
+ S4-STACK-3-SMOKE | BRUTE_FORCE    | 2140               | 2140 | 2140 | t   | t
+ S4-STACK-3-SMOKE | PATH_TRAVERSAL | 1957 | 1917 | 1893 | 1893 | 1957 | t   | t
+ S4-STACK-3-SMOKE | SQLI           | NULL               |      |      | t   | t
+ S4-STACK-3-SMOKE | SSRF           | 1772 | 913         |  913 | 1772 | t   | t
+(8 rows)
+
+      label      | status | verdicts 
+-----------------+--------+----------
+ S3-GATE-dc66322 | CLOSED |      160
+(1 row)
+
+ROLLBACK
+--- RUNBOOK (3-c 보강)
+db op_id=ecd61cb6-8223-4aad-8510-533d138a3b4a
+ecd61cb6-8223-4aad-8510-533d138a3b4a	S4-measure #1 2026-10-21T09:09:11.402Z	finished	2026-10-21T09:09:11Z	4 links	dmceil:0 dmceil:0 dmceil:0 dmceil:0
+--- 3·4·5 RUNBOOK (3-d) — prev=S4-STACK-2-SMOKE 2026-10-20T20:06:30~20:10:53, this=S4-STACK-3-SMOKE 2026-10-21T09:08:53~09:13:01
+app_ip=172.20.0.3
+(a) sid 1000001          prev=20   this=20   same
+(a) sid 1000002          prev=20   this=20   same
+(a) sid 1000003          prev=20   this=20   same
+(a) sid 1000004          prev=20   this=20   same
+(a) sid 1000020          prev=3    this=3    same
+(a) sid 1000030          prev=13   this=13   same
+(a) sid 1000031          prev=1    this=1    same
+(a) sid 1000032          prev=2    this=2    same
+(a) sid 1000060          prev=2    this=2    same
+(b) attack flow          prev=7    this=7    same
+(b) attack http          prev=20   this=20   same
+(c) imds flow            prev=2    this=2    same
+(c) imds http            prev=2    this=2    same
+iface:app0 (기록만)         prev=186  this=170  기록만
+iface:atk0 (기록만)         prev=14   this=9    기록만
+iface:imds0 (기록만)        prev=20   this=15   기록만
+--- 7. attack.json.log run 구간 줄 구조·경로별 body_length (Step 0 (0-7a) 방식, 구간 = measurement_run started_at~ended_at)
+  [2-SMOKE 20:06:58.085Z~20:10:51.387Z]
+  구간 줄 수=20, 서로 다른 구조=2
+  [13줄] time:int metadata.version:str metadata.log_name:str class_uid:int class_name:str activity_id:int rid:str src_endpoint.ip:str http_request.http_method:str http_request.url.path:str http_request.user_agent:str http_request.args:str http_response.code:int http_response.latency_ms:int http_response.body_length:int validation.outcome:str validation.evidence[]:list validation.validator_version:str validation.technique_id:str correlation.op_id:str correlation.ability_id:str correlation.source:str
+  [7줄] time:int metadata.version:str metadata.log_name:str class_uid:int class_name:str activity_id:int rid:str src_endpoint.ip:str http_request.http_method:str http_request.url.path:str http_request.user_agent:str http_request.args:str http_response.code:int http_response.latency_ms:int http_response.body_length:int validation.outcome:str validation.evidence[]:list validation.evidence[].kind:str validation.validator_version:str validation.technique_id:str correlation.op_id:str correlation.ability_id:str correlation.source:str
+  body_length /api/auth/login FAILED: [60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60]
+  body_length /api/auth/login SUCCEEDED: [266]
+  body_length /api/files/download SUCCEEDED: [888, 13, 247]
+  body_length /api/preview FAILED: [577]
+  body_length /api/preview SUCCEEDED: [40, 40]
+  body_length /api/products/search SUCCEEDED: [141]
+  [3-SMOKE 09:09:11.058Z~09:13:00.319Z]
+  구간 줄 수=20, 서로 다른 구조=2
+  [13줄] time:int metadata.version:str metadata.log_name:str class_uid:int class_name:str activity_id:int rid:str src_endpoint.ip:str http_request.http_method:str http_request.url.path:str http_request.user_agent:str http_request.args:str http_response.code:int http_response.latency_ms:int http_response.body_length:int validation.outcome:str validation.evidence[]:list validation.validator_version:str validation.technique_id:str correlation.op_id:str correlation.ability_id:str correlation.source:str
+  [7줄] time:int metadata.version:str metadata.log_name:str class_uid:int class_name:str activity_id:int rid:str src_endpoint.ip:str http_request.http_method:str http_request.url.path:str http_request.user_agent:str http_request.args:str http_response.code:int http_response.latency_ms:int http_response.body_length:int validation.outcome:str validation.evidence[]:list validation.evidence[].kind:str validation.validator_version:str validation.technique_id:str correlation.op_id:str correlation.ability_id:str correlation.source:str
+  body_length /api/auth/login FAILED: [60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60]
+  body_length /api/auth/login SUCCEEDED: [266]
+  body_length /api/files/download SUCCEEDED: [888, 13, 247]
+  body_length /api/preview FAILED: [577]
+  body_length /api/preview SUCCEEDED: [40, 40]
+  body_length /api/products/search SUCCEEDED: [141]
+  비교: 줄 수·구조 종류·구조별 줄 수·경로별 body_length 전부 같음 (diff 0)
+  → 2-SMOKE 쪽 prev 값이 2026-10-21_s2-suricata-8.log (6-3) 의 'this' 값(sid 9종 20/20/20/20/3/13/1/2/2, flow 7·http 20, imds 2·2, iface 186/14/20)과 같음 — 재현 확인
+
+### (5-J) 사전 고정 기준 1~7 판정표 (S4-STACK-3-SMOKE ↔ S4-STACK-2-SMOKE, Claude 집계 — 최종 판정은 DRI)
+  | # | 기준 | 2-SMOKE | 3-SMOKE | 결과 |
+  | 1 | R10 VALID 7/1 | VALID 7/1 | VALID 7/1 (expected 7/1) | 같음 |
+  | 2 | verdict·GT 8/8 (6컬럼) | — | 8행 전부 same, GT ATTACK SUCCEEDED 7·CONTROL FAILED 1 | 같음 |
+  | 3 | Suricata sid 별 alert | 9종 20/20/20/20/3/13/1/2/2 | 9종 20/20/20/20/3/13/1/2/2 | 같음 |
+  | 4 | 공격 경로 flow·http | 7·20 | 7·20 | 같음 |
+  | 5 | IMDS flow·http | 2·2 | 2·2 | 같음 |
+  | 6 | mttd ≥0·≤ run+30s | max 1149 ≤ 263302 | max 2140 ≤ 259261 (run 229261) | 성립 |
+  | 7 | attack.json.log 구조·body_length | 20줄·구조 2종(13/7)·login 60×12/266, download 888/13/247, preview 577/40/40, search 141 | 같음 (diff 0) | 같음 |
+  시나리오별 mttd_ms (verdict id 순, 값 그대로):
+    3-SMOKE: BRUTE_FORCE 2140 / PATH_TRAVERSAL 1957 | 1917 | 1893 / SQLI NULL / SSRF 1772 | 913
+    2-SMOKE: BRUTE_FORCE 1149 / PATH_TRAVERSAL 183 | 88 | 47 / SQLI NULL / SSRF 810 | 360
+  기록만(판정 아님): in_iface 합계 app0 186→170, atk0 14→9, imds0 20→15
+  기준 밖 관찰(판정 안 함, 사실만): gate-report json 'thresholds' 키 순서 2-SMOKE [minConclusiveSamples, maxOverestimate, minMatchRate] ↔ 3-SMOKE [maxOverestimate, minConclusiveSamples, minMatchRate].
+    값·나머지 내용(generatedAt 제외)·md(3행 이후)는 같음. GateReportWriter.java:65 'root.put("thresholds", Map.of(' . 3.5.13 시기 report 10개에서도 순서 4종 관찰
+    (예: 2026-10-20T13-25-38-862Z [minConclusiveSamples, minMatchRate, maxOverestimate], 18-24-46-337Z [maxOverestimate, minConclusiveSamples, minMatchRate])
+  Caldera: op ecd61cb6-8223-4aad-8510-533d138a3b4a 'S4-measure #1 2026-10-21T09:09:11.402Z' finished, 4 links dmceil:0 ×4, correlation 8 op_id 8/8 resolved distinct 1
+  run: run_id eaa088d8-e621-4d3a-9f8d-5b999956c174, git_commit 8aa6e6f9…, git_dirty=t, rules_digest wazuh 47715556fd0f / suricata 007b188d4e80 / adversary cba127e95e91 / abilities 4 (2-SMOKE 와 같음)
+  S3-GATE-dc66322 CLOSED verdicts 160 (불변)
+  하네스 생성: detections/measurements/gate-report-2026-10-21T09-13-00-331Z.{md,json}
+  비밀값 자가 점검: docker/.env PASS·KEY·SECRET·TOKEN·SALT 키 11개 × 커밋 후보 27개 파일, 값 일치 0건 (값 미출력)
+
+### (5-K) 커밋 후보 (커밋은 멈춤 단계 — 하지 않음)
+  빌드·배포: build.gradle, docker/services/target-web/Dockerfile, src/main/resources/application.yaml
+  프로덕션 12: controller/AuthController·ProductController, correlation/CalderaOperationsHttpClient·ValidationSchemaMigrator, logging/AttackLogger,
+               measure/AlertIndexReader·AttackerVerdictResolver·CalderaOperationsHttpClient·GateReportWriter·GtLogReader·MeasureJson·RulesDigest
+  테스트 9: controller/ControllerBodyLengthTest·WebLayerWiringTest, correlation/ValidationDbFixture·ValidationMigrateEntryTest·ValidationPersistenceTest·PostgresTestImage(신규),
+            logging/AttackLoggerHttpActivityTest, measure/MeasurementRunPersistenceTest·RulesDigestTest
+  증거: detections/measurements/evidence/2026-10-21_s3-boot-4.1.log, detections/measurements/gate-report-2026-10-21T09-13-00-331Z.{json,md}
+  제외: CLAUDE.local.md (.git/info/exclude), build/ (.gitignore), ~/capstone-backups/ (저장소 밖)
+  git status --short:
+     M build.gradle
+     M docker/services/target-web/Dockerfile
+     M src/main/java/com/capstone/vuln/controller/AuthController.java
+     M src/main/java/com/capstone/vuln/controller/ProductController.java
+     M src/main/java/com/capstone/vuln/correlation/CalderaOperationsHttpClient.java
+     M src/main/java/com/capstone/vuln/correlation/ValidationSchemaMigrator.java
+     M src/main/java/com/capstone/vuln/logging/AttackLogger.java
+     M src/main/java/com/capstone/vuln/measure/AlertIndexReader.java
+     M src/main/java/com/capstone/vuln/measure/AttackerVerdictResolver.java
+     M src/main/java/com/capstone/vuln/measure/CalderaOperationsHttpClient.java
+     M src/main/java/com/capstone/vuln/measure/GateReportWriter.java
+     M src/main/java/com/capstone/vuln/measure/GtLogReader.java
+     M src/main/java/com/capstone/vuln/measure/MeasureJson.java
+     M src/main/java/com/capstone/vuln/measure/RulesDigest.java
+     M src/main/resources/application.yaml
+     M src/test/java/com/capstone/vuln/controller/ControllerBodyLengthTest.java
+     M src/test/java/com/capstone/vuln/controller/WebLayerWiringTest.java
+     M src/test/java/com/capstone/vuln/correlation/ValidationDbFixture.java
+     M src/test/java/com/capstone/vuln/correlation/ValidationMigrateEntryTest.java
+     M src/test/java/com/capstone/vuln/correlation/ValidationPersistenceTest.java
+     M src/test/java/com/capstone/vuln/logging/AttackLoggerHttpActivityTest.java
+     M src/test/java/com/capstone/vuln/measure/MeasurementRunPersistenceTest.java
+     M src/test/java/com/capstone/vuln/measure/RulesDigestTest.java
+    ?? detections/measurements/evidence/2026-10-21_s3-boot-4.1.log
+    ?? detections/measurements/gate-report-2026-10-21T09-13-00-331Z.json
+    ?? detections/measurements/gate-report-2026-10-21T09-13-00-331Z.md
+    ?? src/test/java/com/capstone/vuln/correlation/PostgresTestImage.java

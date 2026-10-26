@@ -1,0 +1,188 @@
+# 슬라이스 0R — mock-imds 복구 + SSRF 경로 확인
+# 규칙: DB는 validation_rw SELECT만, 로그는 집계만(응답 본문·sentinel 미출력), 비밀값 미출력
+
+## (0-1) 스모크 run SSRF 판정 2026-10-20T20:19:24+09:00 HEAD=1b1b5fb
+$ SELECT r.label, a.scenario_unit, a.verdict, a.initial_verdict FROM validation.v_metric_attempt a JOIN validation.measurement_run r USING (run_id) WHERE r.label = 'S4-1b-SMOKE' ORDER BY a.scenario_unit;
+    label    | scenario_unit  |      verdict       |  initial_verdict   
+-------------+----------------+--------------------+--------------------
+ S4-1b-SMOKE | BRUTE_FORCE    | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED
+ S4-1b-SMOKE | PATH_TRAVERSAL | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED
+ S4-1b-SMOKE | PATH_TRAVERSAL | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED
+ S4-1b-SMOKE | PATH_TRAVERSAL | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED
+ S4-1b-SMOKE | SQLI           | SUCCEEDED_MISSED   | SUCCEEDED_MISSED
+ S4-1b-SMOKE | SSRF           | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED
+ S4-1b-SMOKE | SSRF           | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED
+(7 rows)
+
+      label      |          started_at           |           ended_at            |                git_commit                | expected_attempts | expected_controls 
+-----------------+-------------------------------+-------------------------------+------------------------------------------+-------------------+-------------------
+ S3-GATE-dc66322 | 2026-10-16 17:04:01.091971+00 | 2026-10-16 18:07:23.246309+00 | 17a0b04                                  |               140 |                20
+ S4-1b-SMOKE     | 2026-10-18 10:03:17.081+00    | 2026-10-18 10:06:51.136+00    | 21885c250077ee8f6551b391859542942a210f51 |                 7 |                 1
+(2 rows)
+
+## (0-2) SSRF 정답지(verdict_result) 2026-10-20T20:19:25+09:00
+$ verdict_result WHERE scenario='SSRF' (S4-1b-SMOKE 행별, 두 run 분포)
+    label    | id  | attempt_role | scenario |      verdict       |  initial_verdict   | gt_outcome | attacker_verdict | uncertain_reason |          decided_at           
+-------------+-----+--------------+----------+--------------------+--------------------+------------+------------------+------------------+-------------------------------
+ S4-1b-SMOKE | 162 | ATTACK       | SSRF     | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED  | SUCCEEDED        |                  | 2026-10-18 10:06:50.886106+00
+ S4-1b-SMOKE | 163 | ATTACK       | SSRF     | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED  | SUCCEEDED        |                  | 2026-10-18 10:06:50.886106+00
+ S4-1b-SMOKE | 164 | CONTROL      | SSRF     | FAILED_UNSEEN      | FAILED_UNSEEN      | FAILED     | SUCCEEDED        |                  | 2026-10-18 10:06:50.886106+00
+(3 rows)
+
+      label      | attempt_role | gt_outcome |      verdict       | count 
+-----------------+--------------+------------+--------------------+-------
+ S3-GATE-dc66322 | ATTACK       | SUCCEEDED  | SUCCEEDED_DETECTED |    40
+ S3-GATE-dc66322 | CONTROL      | FAILED     | FAILED_UNSEEN      |    20
+ S4-1b-SMOKE     | ATTACK       | SUCCEEDED  | SUCCEEDED_DETECTED |     2
+ S4-1b-SMOKE     | CONTROL      | FAILED     | FAILED_UNSEEN      |     1
+(4 rows)
+
+(참고) verdict_result·correlation 에 evidence 컬럼 없음 → evidence 종류는 GT 원천 attack.json.log 에서 집계(0-2b)
+## (0-2b) attack.json.log — 169.254.169.254 대상 요청 날짜별 outcome·evidence kind 집계 2026-10-20T20:19:25+09:00
+$ docker exec target-web grep "169.254.169.254" /var/log/target/attack.json.log | (python 집계: validation.outcome, validation.evidence[].kind 만)
+  2026-10-11 outcome=SUCCEEDED evidence.kind=METADATA_REACHED n=11
+  2026-10-13 outcome=SUCCEEDED evidence.kind=METADATA_REACHED n=1
+  2026-10-16 outcome=SUCCEEDED evidence.kind=METADATA_REACHED n=59
+  2026-10-18 outcome=SUCCEEDED evidence.kind=METADATA_REACHED n=2
+  last IMDS event (UTC): 2026-10-18T10:04:26.778000+00:00
+$ docker exec target-web ls -l /var/log/target/attack.json.log
+-rw-r--r-- 1 root root 566248 2026-10-18T15:37:07+0000 /var/log/target/attack.json.log
+## (0-2c) Suricata eve.json — 169.254.169.254 이벤트 2026-10-20T20:19:25+09:00
+$ docker exec suricata grep -a "169.254.169.254" /var/log/suricata/eve.json | (python 집계: 날짜·event_type)
+  2026-10-13 fileinfo n=1
+  2026-10-13 flow n=1
+  2026-10-13 http n=1
+  2026-10-16 fileinfo n=59
+  2026-10-16 flow n=59
+  2026-10-16 http n=59
+  2026-10-18 fileinfo n=2
+  2026-10-18 flow n=3
+  2026-10-18 http n=2
+  -- 2026-10-18 상세 --
+   2026-10-18T10:04:26.667835+0000 http 169.254.169.2 -> 169.254.169.254 80 http_status= 200 flow_state= None reason= None pkts= None / None tcp_flags= None
+   2026-10-18T10:04:26.669596+0000 fileinfo 169.254.169.254 -> 169.254.169.2 49850 http_status= 200 flow_state= None reason= None pkts= None / None tcp_flags= None
+   2026-10-18T10:04:26.785663+0000 http 169.254.169.2 -> 169.254.169.254 80 http_status= 200 flow_state= None reason= None pkts= None / None tcp_flags= None
+   2026-10-18T10:04:26.785940+0000 fileinfo 169.254.169.254 -> 169.254.169.2 49864 http_status= 200 flow_state= None reason= None pkts= None / None tcp_flags= None
+   2026-10-18T10:05:29.191364+0000 flow 169.254.169.2 -> 169.254.169.254 80 http_status= None flow_state= closed reason= timeout pkts= 6 / 6 tcp_flags= 1b
+   2026-10-18T10:05:33.176727+0000 flow 169.254.169.2 -> 169.254.169.254 80 http_status= None flow_state= closed reason= timeout pkts= 6 / 6 tcp_flags= 1b
+   2026-10-18T15:13:00.771223+0000 flow 169.254.169.1 -> 169.254.169.254 80 http_status= None flow_state= new reason= timeout pkts= 1 / 0 tcp_flags= 02
+## (0-3) imds_net 2026-10-20T20:19:25+09:00
+$ docker network ls | grep -i imds
+ec05b6dbdab5   security-lab_imds_net       bridge    local
+$ docker network inspect security-lab_imds_net --format IPAM·containers
+IPAM=[{"Subnet":"169.254.169.0/24","IPRange":"","Gateway":"169.254.169.1"}] containers=target-web(169.254.169.2/24) 
+$ docker ps -a | grep -i imds
+(없음)
+$ docker images | grep -iE "imds|python.*3.12"
+(없음)
+## (0-4) python:3.12-slim 레지스트리 (pull 안 함) 2026-10-20T20:19:25+09:00
+$ docker manifest inspect python:3.12-slim | grep -m3 -iE "digest|denied|not found"
+         "digest": "sha256:2b4f19dae3a777dfc3b76730bda1e82e1f66ab2a2686fa93ca78edbfb4f04ffe",
+         "digest": "sha256:46067146ce8ec9b8c20aeb37d41b1d590b0d40d043bd65657df5b319fefaeb64",
+         "digest": "sha256:1fbc723e948c276be1dba27e4d0f6bfa0c01ff2aac3ff5cdb86c24fb50436c03",
+$ docker manifest inspect -v python:3.12-slim (amd64 descriptor)
+  amd64 manifest: sha256:2b4f19dae3a777dfc3b76730bda1e82e1f66ab2a2686fa93ca78edbfb4f04ffe
+## (0-J) 판정 (현성 DRI 2026-10-20)
+- 소실 구간: 2026-10-18 10:05:33Z(마지막 정상 응답) ~ 15:13:00Z(첫 무응답, 게이트웨이발 SYN 무응답)
+- 기존 측정 영향: 없음(S3-GATE 10-16, S4-1b-SMOKE 10:03~10:06Z 모두 구간 이전, SSRF GT SUCCEEDED·METADATA_REACHED)
+- 스모크 CONTROL의 attacker_verdict=SUCCEEDED/GT=FAILED는 S3 SSRF 게이트 FAIL 원인(대조 과대평가)과 동일 현상
+- 소실 원인: 확인 불가(git 흔적 없음, Docker는 컨테이너·이미지 삭제 이력 미보관)
+
+## (2-1) docker pull python:3.12-slim 2026-10-20T20:21:36+09:00 HEAD=1b1b5fb
+$ docker pull python:3.12-slim
+3.12-slim: Pulling from library/python
+bbc5a1223747: Pulling fs layer
+75b6a36c64a1: Pulling fs layer
+ecc510c1e359: Pulling fs layer
+6912e23eb445: Pulling fs layer
+bbc5a1223747: Download complete
+75b6a36c64a1: Download complete
+97c6e8c8dabe: Download complete
+6912e23eb445: Download complete
+611ca50ea732: Download complete
+ecc510c1e359: Download complete
+ecc510c1e359: Pull complete
+75b6a36c64a1: Pull complete
+bbc5a1223747: Pull complete
+6912e23eb445: Pull complete
+Digest: sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+Status: Downloaded newer image for python:3.12-slim
+docker.io/library/python:3.12-slim
+## (2-2) image inspect 2026-10-20T20:21:48+09:00
+$ docker image inspect --format '{{.RepoTags}} {{index .RepoDigests 0}} {{.Created}}' python:3.12-slim
+[python:3.12-slim] python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 2026-10-06T02:04:40.915617827Z
+$ docker image inspect --format 'Id={{.Id}} RepoDigests={{json .RepoDigests}}' python:3.12-slim
+Id=sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 RepoDigests=["python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"]
+$ docker images --tree (python:3.12-slim)
+python:3.12-slim                      a6e34c598f24        179MB         45.4MB        
+├─ linux/amd64                        2b4f19dae3a7        177MB         43.3MB        
+├─ linux/arm/v5                       1fbc723e948c           0B             0B        
+## (2-3) compose up -d --no-deps mock-imds 2026-10-20T20:21:59+09:00
+$ docker ps --format (전) — 다른 서비스 StartedAt 기준값
+  backend started=2026-10-20T08:21:29.809956225Z
+  caldera started=2026-10-20T08:21:29.898927746Z
+  postgres started=2026-10-20T08:21:29.822883475Z
+  react-dashboard started=2026-10-20T08:21:29.814149846Z
+  security-lab-wazuh.agent-1 started=2026-10-20T08:21:29.822832411Z
+  security-lab-wazuh.indexer-1 started=2026-10-20T08:21:29.847930305Z
+  security-lab-wazuh.manager-1 started=2026-10-20T08:21:29.829080327Z
+  suricata started=2026-10-20T08:21:34.423348763Z
+  target-web started=2026-10-20T08:21:29.808661429Z
+$ docker compose -p security-lab -f docker/docker-compose.yml up -d --no-deps mock-imds
+ Container mock-imds  Creating
+ Container mock-imds  Created
+ Container mock-imds  Starting
+ Container mock-imds  Started
+## (2-4) 사후 확인 2026-10-20T20:22:19+09:00
+$ docker ps --filter name=mock-imds --format '{{.Names}} {{.Status}} {{.Image}}'
+mock-imds Up 19 seconds python:3.12-slim
+$ docker inspect mock-imds --format networks
+security-lab_imds_net=169.254.169.254 
+$ docker inspect mock-imds --format image
+Image=sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+$ docker exec mock-imds python -V
+Python 3.12.15
+$ 다른 서비스 StartedAt (후) — (2-3) 전 값과 비교
+  backend started=2026-10-20T08:21:29.809956225Z
+  caldera started=2026-10-20T08:21:29.898927746Z
+  postgres started=2026-10-20T08:21:29.822883475Z
+  react-dashboard started=2026-10-20T08:21:29.814149846Z
+  security-lab-wazuh.agent-1 started=2026-10-20T08:21:29.822832411Z
+  security-lab-wazuh.indexer-1 started=2026-10-20T08:21:29.847930305Z
+  security-lab-wazuh.manager-1 started=2026-10-20T08:21:29.829080327Z
+  suricata started=2026-10-20T08:21:34.423348763Z
+  target-web started=2026-10-20T08:21:29.808661429Z
+$ docker network inspect security-lab_imds_net containers
+target-web(169.254.169.2/24) mock-imds(169.254.169.254/24) 
+## (3-0) Step 3 시작 2026-10-20T20:22:46+09:00 T0_epoch_ms=1792495366945
+## (3-1) 공격 요청 2026-10-20T20:22:46+09:00
+$ curl -s -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:8080/api/preview?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/mock-iam-role"
+200
+## (3-2) 대조 요청 2026-10-20T20:22:48+09:00
+$ curl -s -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:8080/api/preview?url=http://example.com/"
+200
+## (3-3) target-web attack.json.log — 방금 두 요청의 validation 2026-10-20T20:22:48+09:00
+$ docker exec target-web sh -c 'tail -n 20 /var/log/target/attack.json.log' | grep -o '"validation":{[^}]*}' | tail -n 2
+"validation":{"outcome":"SUCCEEDED","evidence":[{"kind":"METADATA_REACHED"}
+"validation":{"outcome":"FAILED","evidence":[],"validator_version":"v1","technique_id":"T1190"}
+$ (보조) T0 이후 이벤트: time·rid·url host·http status·validation.outcome·evidence.kind 만
+  time= 1792495368280 rid= 4c0f2f1e-c422-49bd-8a5c-91d959d26440 target_host= None status= 200 outcome= SUCCEEDED evidence.kind= ['METADATA_REACHED']
+  time= 1792495368881 rid= 38c175b7-1358-49ec-91a0-28b6cc89d487 target_host= None status= 200 outcome= FAILED evidence.kind= []
+(주) target_host=None 은 집계 스크립트가 url 필드 경로를 잘못 읽은 표시 오류. 판정에 쓴 outcome·evidence·rid 는 원본 그대로이며, T0 이후 두 요청이 순서대로 1건씩이라 대응 관계 확정.
+## (3-4) Suricata eve.json — T0 이후 dest_ip 169.254.169.254 2026-10-20T20:23:07+09:00
+$ docker exec suricata tail -n 5000 /var/log/suricata/eve.json | (python: timestamp >= T0 이고 dest_ip=169.254.169.254 인 이벤트 건수·종류)
+  count: 1 {'http': 1}
+   2026-10-20T11:22:48.421097+0000 http 169.254.169.2 200
+## (3-5) Wazuh alerts.json — rule.id 100240 최근 5분 2026-10-20T20:23:08+09:00
+$ docker exec security-lab-wazuh.manager-1 tail -n 3000 /var/ossec/logs/alerts/alerts.json | (python: rule.id=100240 이고 timestamp >= now-5min 건수)
+  window(UTC): 2026-10-20T11:18:08+00:00 ~ 2026-10-20T11:23:08+00:00
+  rule 100240 count: 1
+   2026-10-20T11:22:50.401+0000 100240 12 SSRF: internal/metadata target in url preview request (JSON, request-signal)
+## (3-J) Step 3 기준 대조 2026-10-20T20:23:21+09:00
+- 공격 요청: GT SUCCEEDED + evidence METADATA_REACHED → 충족 (rid 4c0f2f1e-c422-49bd-8a5c-91d959d26440, HTTP 200)
+- 대조 요청: GT FAILED → 충족 (rid 38c175b7-1358-49ec-91a0-28b6cc89d487, HTTP 200, evidence [])
+- Suricata: T0 이후 dest_ip 169.254.169.254 이벤트 1건(http 200, 2026-10-20T11:22:48Z) → 충족(기준 1건 이상)
+- Wazuh: rule 100240 최근 5분 1건(2026-10-20T11:22:50Z, level 12) → 충족(기준 1건 이상)
+- mock-imds: 169.254.169.254 복구, Python 3.12.15, 이미지 python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 (index digest, 슬라이스 1a 고정값)
+- 다른 서비스: (2-3) 전·(2-4) 후 StartedAt 동일(재생성·재시작 없음)
+

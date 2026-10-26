@@ -1,0 +1,57 @@
+HELP.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+frontend/node_modules/
+
+# Local environment and generated security material
+.env
+.env.local
+.env.*.local
+docker/.env
+docker/.env.local
+docker/.env.*.local
+# 모든 하위 디렉터리의 실제 .env 무시, 템플릿(.env.example)은 추적
+**/.env
+!**/.env.example
+docker/config/wazuh_indexer_ssl_certs/
+# S4-6 validation-api 자체서명 TLS (현성이 openssl 로 생성, 개인키 비커밋)
+docker/config/validation-api/tls/
+
+docker/services/**/.gradle/
+docker/services/**/build/
+sandcat

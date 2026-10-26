@@ -1,0 +1,7 @@
+id: adv-av-pt-001
+name: '[V3] Validation — Path Traversal (T1083/detect T1190)'
+description: 'Path Traversal 단일 검증. Tier1(text)+Tier2(binary) + 공격자 verdict(pt.verdict). 탐지 대상 Wazuh 100220.'
+atomic_ordering:
+- c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b
+- d5f9a3c2-0e6b-4a8f-b4d7-9b3e2f0a1d5c
+objective: 495a9828-cab1-44dd-a0ca-66e58177d8cc

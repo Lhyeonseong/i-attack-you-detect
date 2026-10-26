@@ -1,0 +1,570 @@
+## (0) 2026-10-21T22:49:24Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+dirty_files=1
+ops_total=69
+finished=69
+sandcat process: none
+BEGIN
+ installed_rank | version | success 
+----------------+---------+---------
+              1 | 1       | t
+              2 | 2       | t
+              3 | 3       | t
+              4 | 4       | t
+              5 | 5       | t
+              6 | 6       | t
+              7 | 7       | t
+              8 | 8       | t
+              9 | 9       | t
+(9 rows)
+
+ same_label 
+------------
+          0
+(1 row)
+
+        label        |                run_id                | status |          started_at           
+---------------------+--------------------------------------+--------+-------------------------------
+ S4-5-BENIGN-WEB-R2  | 3818e21a-bfa2-4c8d-9977-f89d8df35fc2 | CLOSED | 2026-10-21 17:21:39.809413+00
+ S4-STACK-6-BASELINE | b1c26be1-add2-4d45-8207-0998b0f743b1 | CLOSED | 2026-10-21 10:03:13.914+00
+(2 rows)
+
+ snapshot_rows 
+---------------
+           196
+(1 row)
+
+ROLLBACK
+-rw-rw-r-- 1 hyeonseong hyeonseong 1152514 Oct 22 07:49 /home/hyeonseong/capstone-backups/2026-10-22_validation_pre-v10.sql
+7c4c453db87c5d7fe790a2509b8a586c4ba3632b93cc3efa8f9ba6d5fe7674e0  /home/hyeonseong/capstone-backups/2026-10-22_validation_pre-v10.sql
+## (0) done 2026-10-21T22:49:29Z
+## (1) V10 apply 2026-10-21T22:54:16Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+pre_baseline(r10_md5|runs|snapshot_rows)=2772b3150654049f6c57743a5b9fb484|16|196
+ValidationMigrateIT > migrate() STANDARD_OUT
+    MIGRATE>> before=[1, 2, 3, 4, 5, 6, 7, 8, 9] after=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    MIGRATE>>   rank=1 v=1 validation schema by=validation_rw on=2026-10-16 23:31:49.334494 success=true
+    MIGRATE>>   rank=2 v=2 measurement run by=validation_rw on=2026-10-18 18:31:27.483012 success=true
+    MIGRATE>>   rank=3 v=3 metric foundation by=validation_rw on=2026-10-20 00:13:32.325208 success=true
+    MIGRATE>>   rank=4 v=4 metric views by=validation_rw on=2026-10-20 00:13:32.457942 success=true
+    MIGRATE>>   rank=5 v=5 metric snapshot by=validation_rw on=2026-10-21 22:48:11.879923 success=true
+    MIGRATE>>   rank=6 v=6 nids telemetry by=validation_rw on=2026-10-21 23:58:24.803698 success=true
+    MIGRATE>>   rank=7 v=7 benign m14 by=validation_rw on=2026-10-22 01:41:00.401988 success=true
+    MIGRATE>>   rank=8 v=8 m14b status rule by=validation_rw on=2026-10-22 03:06:28.564431 success=true
+    MIGRATE>>   rank=9 v=9 benign login endpoint by=validation_rw on=2026-10-22 05:32:24.868388 success=true
+    MIGRATE>>   rank=10 v=10 snapshot compare by=validation_rw on=2026-10-22 07:54:29.482332 success=true
+BUILD SUCCESSFUL in 12s
+BEGIN
+ installed_rank | version |      description      | success 
+----------------+---------+-----------------------+---------
+              1 | 1       | validation schema     | t
+              2 | 2       | measurement run       | t
+              3 | 3       | metric foundation     | t
+              4 | 4       | metric views          | t
+              5 | 5       | metric snapshot       | t
+              6 | 6       | nids telemetry        | t
+              7 | 7       | benign m14            | t
+              8 | 8       | m14b status rule      | t
+              9 | 9       | benign login endpoint | t
+             10 | 10      | snapshot compare      | t
+(10 rows)
+
+      proname      
+-------------------
+ compare_snapshots
+ newcombe_diff_ci
+(2 rows)
+
+ROLLBACK
+post_baseline(r10_md5|runs|snapshot_rows)=2772b3150654049f6c57743a5b9fb484|16|196
+COMPARE OK — 기존 run·스냅샷 불변 (pre=post)
+## (1) done 2026-10-21T22:54:30Z
+## (2) rule deploy 2026-10-21T22:59:17Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+manager=security-lab-wazuh.manager-1
+pre_sha repo=d641ec1d916486d35c6283cc6381375bb9134286dd6a36f7f88459863b087c40 container=47715556fd0fd7c9c8449d8308c454074884a07a996996ce9fe0dd07d1e239cb match=no
+STOP: 컨테이너 룰 파일이 저장소와 다름 — bind-mount 확인
+## (2) rule deploy 2026-10-21T23:02:14Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+manager=security-lab-wazuh.manager-1
+pre_sha repo=d641ec1d916486d35c6283cc6381375bb9134286dd6a36f7f88459863b087c40 container=47715556fd0fd7c9c8449d8308c454074884a07a996996ce9fe0dd07d1e239cb stale_expected=47715556fd0fd7c9c8449d8308c454074884a07a996996ce9fe0dd07d1e239cb container_100211=0
+pre: stale inode(옛 룰, 100211 없음) — 재시작으로 해소 예정. Before 는 옛 룰로 돌았다는 증거(④ 로그 포함)
+restarting security-lab-wazuh.manager-1 (docker restart, no recreate)...
+STOP: analysisd 가 180s 안에 running 되지 않음
+wazuh-clusterd not running...
+wazuh-modulesd is running...
+wazuh-monitord is running...
+wazuh-logcollector is running...
+wazuh-remoted is running...
+wazuh-syscheckd is running...
+wazuh-analysisd is running...
+wazuh-maild not running...
+wazuh-execd is running...
+wazuh-db is running...
+wazuh-authd is running...
+wazuh-agentlessd not running...
+wazuh-integratord not running...
+wazuh-csyslogd not running...
+wazuh-apid is running...
+## (2b) post-check (재시작 없음) 2026-10-21T23:09:38Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+manager=security-lab-wazuh.manager-1
+STOP: analysisd 가 600s 안에 running 되지 않음
+wazuh-clusterd not running...
+wazuh-modulesd is running...
+wazuh-monitord is running...
+wazuh-logcollector is running...
+wazuh-remoted is running...
+wazuh-syscheckd is running...
+wazuh-analysisd is running...
+wazuh-maild not running...
+wazuh-execd is running...
+wazuh-db is running...
+wazuh-authd is running...
+wazuh-agentlessd not running...
+wazuh-integratord not running...
+wazuh-csyslogd not running...
+wazuh-apid is running...
+## (2b) post-check (재시작 없음) 2026-10-21T23:25:19Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+manager=security-lab-wazuh.manager-1
+wazuh-control status:
+wazuh-clusterd not running...
+wazuh-modulesd is running...
+wazuh-monitord is running...
+wazuh-logcollector is running...
+wazuh-remoted is running...
+wazuh-syscheckd is running...
+wazuh-analysisd is running...
+wazuh-maild not running...
+wazuh-execd is running...
+wazuh-db is running...
+wazuh-authd is running...
+wazuh-agentlessd not running...
+wazuh-integratord not running...
+wazuh-csyslogd not running...
+wazuh-apid is running...
+post_sha container=d641ec1d916486d35c6283cc6381375bb9134286dd6a36f7f88459863b087c40 repo=d641ec1d916486d35c6283cc6381375bb9134286dd6a36f7f88459863b087c40 match=yes
+ossec.log 재시작 마커 줄=5114 이후 검사
+ossec.log 룰 로드 오류 0 (이번 재시작 이후)
+agent_control -l:
+
+Wazuh agent_control. List of available agents:
+   ID: 000, Name: wazuh.manager (server), IP: 127.0.0.1, Active/Local
+   ID: 004, Name: wazuh.agent, IP: any, Active
+
+List of agentless devices:
+agent 004 Active OK
+rule file 100211 count=1
+logtest keyword=' triggered_rule=100211
+## (0-c) Suricata 인터페이스
+app0 172.20.0.3/16
+atk0 172.18.0.2/16
+imds0 169.254.169.2/24
+sec0 172.19.0.5/16
+eth_count=0
+suricata netns=NM_OK
+["-i","app0","-i","atk0","-i","imds0","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.5.stats.enabled=no","--set","outputs.1.eve-log.types.32.stats.enabled=no"]
+## (0-d) Suricata eve 출력
+eve-log.types.0 alert enabled=yes(미지정)
+eve-log.types.3 http enabled=yes(미지정)
+eve-log.types.33 flow enabled=yes(미지정)
+## (2b) done OK 2026-10-21T23:25:22Z
+## (3) smoke S5-SQLI-SMOKE 2026-10-21T23:36:08Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+precheck running_or_paused_ops=0 red_alive_agents=1 same_label=0
+## (0-c) 재확인
+app0 172.20.0.3/16
+atk0 172.18.0.2/16
+imds0 169.254.169.2/24
+sec0 172.19.0.5/16
+eth_count=0
+suricata netns=NM_OK
+## (3) run start 2026-10-21T23:36:11Z
+CampaignRunnerIT STANDARD_OUT
+    2026-10-22T08:36:30.138+09:00  INFO 651250 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Starting CampaignRunnerIT using Java 17.0.20.1 with PID 651250 (started by hyeonseong in /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2)
+    2026-10-22T08:36:30.152+09:00 DEBUG 651250 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Running with Spring Boot v4.1.1, Spring v7.0.9
+    2026-10-22T08:36:30.157+09:00  INFO 651250 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : No active profile set, falling back to 1 default profile: "default"
+    2026-10-22T08:36:32.655+09:00  INFO 651250 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Started CampaignRunnerIT in 3.263 seconds (process running for 9.078)
+CampaignRunnerIT > measure() STANDARD_OUT
+    MEASURE>> starting campaign run label=S5-SQLI-SMOKE n=1 truncate=false
+    PER-RUN op=67c3424e-ae03-4eef-bc8d-2c0ad10772ea rows=8
+      [SSRF/SINGLE] rid=b37b89a6-3033-4212-9a13-6dac948e6510 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    RUN run_id=4f51d307-289d-496d-b879-6ff9b5072739 R10=VALID
+    MEASURE>> done overall=INCONCLUSIVE totalSamples=7
+BUILD SUCCESSFUL in 3m 42s
+판정1 r10_status|attack|control = VALID|7|1
+판정2 SQLI verdict|rule_ids = SUCCEEDED_DETECTED|100211
+판정3 시나리오별 verdict(scenario|role|verdict):
+BRUTE_FORCE|ATTACK|SUCCEEDED_DETECTED
+PATH_TRAVERSAL|ATTACK|SUCCEEDED_DETECTED
+PATH_TRAVERSAL|ATTACK|SUCCEEDED_DETECTED
+PATH_TRAVERSAL|ATTACK|SUCCEEDED_DETECTED
+SQLI|ATTACK|SUCCEEDED_DETECTED
+SSRF|ATTACK|SUCCEEDED_DETECTED
+SSRF|ATTACK|SUCCEEDED_DETECTED
+SSRF|CONTROL|FAILED_UNSEEN
+## (3) 정상 검색 1건(keyword=laptop)
+http_status=200
+normal search rid=d8c44e0e-ecde-4a81-9cc8-3b354ea16307
+판정4 normal-search 100210/100211 alert_count(rid=d8c44e0e-ecde-4a81-9cc8-3b354ea16307)=0
+## (3) SMOKE PASS 2026-10-21T23:40:40Z
+STOP: git 작업 트리가 깨끗하지 않다 — 먼저 커밋/정리
+## (4) After ATTACK S5-SQLI-AFTER 2026-10-21T23:50:24Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+precheck running_or_paused_ops=0 red_alive_agents=1 same_label=0
+## (0-c) 재확인
+app0 172.20.0.3/16
+atk0 172.18.0.2/16
+imds0 169.254.169.2/24
+sec0 172.19.0.5/16
+eth_count=0
+suricata netns=NM_OK
+## (4) run start 2026-10-21T23:50:25Z
+CampaignRunnerIT STANDARD_OUT
+    2026-10-22T08:50:31.190+09:00  INFO 658458 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Starting CampaignRunnerIT using Java 17.0.20.1 with PID 658458 (started by hyeonseong in /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2)
+    2026-10-22T08:50:31.193+09:00 DEBUG 658458 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Running with Spring Boot v4.1.1, Spring v7.0.9
+    2026-10-22T08:50:31.194+09:00  INFO 658458 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : No active profile set, falling back to 1 default profile: "default"
+    2026-10-22T08:50:32.262+09:00  INFO 658458 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Started CampaignRunnerIT in 1.452 seconds (process running for 2.593)
+CampaignRunnerIT > measure() STANDARD_OUT
+    MEASURE>> starting campaign run label=S5-SQLI-AFTER n=20 truncate=false
+    PER-RUN op=771b540e-3c4a-4485-8153-efbe6359bfab rows=8
+      [SSRF/SINGLE] rid=915027a9-ebf5-48ec-94d7-8103eea00eca gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=def9f02f-18cb-4663-8e22-f8220f7dbc3f rows=8
+      [SSRF/SINGLE] rid=4e82a9c4-1099-4353-bf5d-84fd664f32e1 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=10667ffb-f603-4c8d-8150-e14a27dd8d6d rows=8
+      [SSRF/SINGLE] rid=33142638-e0f7-4d88-84bc-c58248f2d343 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=9e6c94f5-5a02-407c-ace4-df9d354bd011 rows=8
+      [SSRF/SINGLE] rid=2d602cfd-293d-4e05-85a1-d5a4424d2ef7 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=457c7520-ea81-4b6f-9f66-b58af4d21066 rows=8
+      [SSRF/SINGLE] rid=0f7aba63-c7f9-49b0-9e6a-380b8a616a66 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=5f9dff3d-8408-4d84-aa52-8a1a3661e6f3 rows=8
+      [SSRF/SINGLE] rid=af51f240-c584-447a-9f42-83cf4f070792 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=9da2f341-8d7e-442f-8074-46e2d2737c9f rows=8
+      [SSRF/SINGLE] rid=6f82b17c-7afa-414e-ad38-db44ed76ea8e gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=c7d3cfb0-9fd5-4dc3-8f00-22a7a87447d9 rows=8
+      [SSRF/SINGLE] rid=d64b2f91-120d-4fe0-9937-6c7810c3f199 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=a40f3d9b-b1a1-4ed0-9aa9-10df5bb1cc91 rows=8
+      [SSRF/SINGLE] rid=737125b6-9bbb-4efc-96a5-0b4a3b2ae996 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=bc1dc8de-7d85-4980-a320-9de985cdef91 rows=8
+      [SSRF/SINGLE] rid=a6ebd60b-4497-4064-a9f0-e15c1fe454e1 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=76162bdf-db1a-4f9b-8037-3d50281e10cb rows=8
+      [SSRF/SINGLE] rid=85a231bc-3f9d-4c75-b5a6-1a080be4b05c gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=69b54bb3-f5c8-4493-9d09-38746da8d5ab rows=8
+      [SSRF/SINGLE] rid=e2b39bb5-b74d-4495-b014-3776107437bf gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=4bc6b9f0-e0af-47b3-9de1-ee943970ac53 rows=8
+      [SSRF/SINGLE] rid=b27ba38f-0fcf-4ae6-9a66-819843b750d8 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=9ea8266b-a47c-4797-9182-e432472335d2 rows=8
+      [SSRF/SINGLE] rid=f0779dd9-7694-4ad9-993f-4d7df8d596f8 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=289eeaa8-5539-4905-8bc0-54541533bc20 rows=8
+      [SSRF/SINGLE] rid=c06558fc-c51b-4a9f-8d1f-499ca25a12a2 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=ef573473-66b0-4a72-b6c9-fc9522d16689 rows=8
+      [SSRF/SINGLE] rid=ade4d1f6-a07e-4913-a11f-3b23b0fb2bc8 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=6ff679f9-f84d-49ab-9cff-597c9811464f rows=8
+      [SSRF/SINGLE] rid=49b014f3-d301-4138-b585-cdcf62f699a6 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=f84e6ce9-b03b-434b-9f34-7d0ed3aafb8f rows=8
+      [SSRF/SINGLE] rid=946ce3ea-8ef7-4f17-9f25-80e49d0eeed0 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=e72b14a3-1d50-4863-9c08-361c45ce4e71 rows=8
+      [SSRF/SINGLE] rid=9f8496d0-0301-4c20-81fc-aa42463ea3ab gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    PER-RUN op=ce78aeda-30d8-424a-82f9-d0aea1a9c365 rows=8
+      [SSRF/SINGLE] rid=fbc196a9-ab75-430b-9ece-7c43d4259098 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+    GATE overall=PASS totalSamples=140 totalUncertain=0 report=detections/measurements/gate-report-2026-10-22T00-57-41-015Z.md
+    RUN run_id=805f3b8e-627d-4939-a16c-f7d4720afdc0 R10=VALID
+    MEASURE>> done overall=PASS totalSamples=140
+BUILD SUCCESSFUL in 1h 7m 16s
+사후1 r10_status|attack|control = VALID|140|20
+사후2 verdict 분포:
+ATTACK|BRUTE_FORCE|SUCCEEDED_DETECTED|20
+ATTACK|PATH_TRAVERSAL|SUCCEEDED_DETECTED|60
+ATTACK|SQLI|SUCCEEDED_DETECTED|20
+ATTACK|SSRF|SUCCEEDED_DETECTED|40
+CONTROL|SSRF|FAILED_UNSEEN|20
+사후3 M09 공격자 판정(scenario|x|n|p|overestimate|uncertain|criteria_met|status):
+BRUTE_FORCE|20|20|1.0000|0|0|t|OK
+PATH_TRAVERSAL|60|60|1.0000|0|0|t|OK
+SQLI|20|20|1.0000|0|0|t|OK
+SSRF|40|40|1.0000|0|0|t|OK
+사후4 rules_digest After vs baseline(S4-STACK-6-BASELINE):
+caldera_abilities|f|{"7aa89a87-3|{"7aa89a87-3
+caldera_adversary|f|cba127e95e91|cba127e95e91
+suricata_rules|f|007b188d4e80|007b188d4e80
+wazuh_rules|t|d641ec1d9164|47715556fd0f
+사후4 guardrail3(wazuh만 다름 && 나머지 같음)=t
+## (4) After ATTACK done OK 2026-10-22T00:57:43Z
+moved detections/measurements/gate-report-2026-10-22T00-57-41-015Z.json -> /tmp/s5-evidence/
+moved detections/measurements/gate-report-2026-10-22T00-57-41-015Z.md -> /tmp/s5-evidence/
+## (5) After BENIGN WEB S5-SQLI-AFTER-BENIGN-WEB 2026-10-22T01:17:38Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+precheck running_or_paused_ops=0 red_alive_agents=1 sandcat_procs=0
+STOP: red alive agent 있음 — (4) sandcat 를 끌 것(BENIGN 창 오염 방지)
+## (5) After BENIGN WEB S5-SQLI-AFTER-BENIGN-WEB 2026-10-22T01:19:05Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+precheck running_or_paused_ops=0 red_alive_agents=1 sandcat_procs=0
+STOP: red alive agent 있음 — (4) sandcat 를 끌 것(BENIGN 창 오염 방지)
+## (5) After BENIGN WEB S5-SQLI-AFTER-BENIGN-WEB 2026-10-22T01:21:44Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+precheck running_or_paused_ops=0 red_alive_agents=0 sandcat_procs=0
+pre: S5-SQLI-AFTER r10|attack|control = VALID|140|20
+pre: same_label(S5-SQLI-AFTER-BENIGN-WEB)=0
+## (0-c) 재확인
+app0 172.20.0.3/16
+atk0 172.18.0.2/16
+imds0 169.254.169.2/24
+sec0 172.19.0.5/16
+eth_count=0
+suricata netns=NM_OK
+## (5) run start 2026-10-22T01:21:46Z
+BenignRunIT > measure() STANDARD_OUT
+    BENIGN>> corpus=benign-corpus-v1 file_sha256=b73caa5fb6d0bb6e9818b01716480e5fd6009fdedf4da9ea3044854f4e7ca76c git=2abc8793d15c76d81bc6e0b33ba549d211fd5ba0 dirty=false
+    BENIGN>> preflight indexer OK (app rule group + 86601)
+    BENIGN>> run open label=S5-SQLI-AFTER-BENIGN-WEB run_id=2ad849e0-5320-4a91-9b2b-01938ee22618 corpus=benign-corpus-v1 items=960
+    BENIGN>> sent first=2026-10-22T01:22:06.805Z last=2026-10-22T01:27:14.133Z status={/api/files/download 404=320, /api/preview 200=26, /api/preview 301=64, /api/preview 302=15, /api/preview 307=1, /api/preview 400=1, /api/preview 401=6, /api/preview 403=49, /api/preview 404=140, /api/preview 429=11, /api/preview 502=3, /api/preview 503=4, /api/products/search 200=320}
+    BENIGN>> app log matched=960/960 unmatched_untagged_lines=0 benign_request saved=960
+    BENIGN>> alerts app=640 nids=0 results=1920 fp=0 unlinked=640
+    BENIGN>> run_id=2ad849e0-5320-4a91-9b2b-01938ee22618 R10={r10_status=VALID, r10_reason=null, expected_attempts=960, benign_loaded=960, benign_matched=960}
+BUILD SUCCESSFUL in 6m 28s
+사후1 r10|expected|loaded|matched = VALID|960|960|960
+사후2 M14a(metric_id|endpoint|split_unit|x|n|p|status):
+M14a_APP_RULE|/api/files/download|PATH_TRAVERSAL|0|320|0.0000|OK
+M14a_APP_RULE|/api/preview|SSRF|0|320|0.0000|OK
+M14a_APP_RULE|/api/products/search|SQLI|0|320|0.0000|OK
+M14a_BACKEND_CORR|/api/files/download|PATH_TRAVERSAL||320||NO_RULE
+M14a_BACKEND_CORR|/api/preview|SSRF||320||NO_RULE
+M14a_BACKEND_CORR|/api/products/search|SQLI||320||NO_RULE
+M14a_NIDS|/api/files/download|PATH_TRAVERSAL|0|320|0.0000|OK
+M14a_NIDS|/api/preview|SSRF|0|320|0.0000|OK
+M14a_NIDS|/api/products/search|SQLI|0|320|0.0000|OK
+사후3 M14b(metric_id|paired_label|paired_run_id|status) — 지금은 ATTACK 미스냅샷이라 NO_PAIR 정상:
+M14b_APP_RULE|-|-|NO_PAIR
+M14b_BACKEND_CORR|-|-|NO_RULE
+M14b_NIDS|-|-|NO_PAIR
+note: (6) 스냅샷 순서 = S5-SQLI-AFTER(ATTACK) 먼저 → S5-SQLI-AFTER-BENIGN-WEB(BENIGN). 그래야 BENIGN 스냅샷의 M14b paired_run_id 가 S5-SQLI-AFTER 로 고정됨
+## (5) After BENIGN WEB done OK 2026-10-22T01:28:26Z
+## (6) snapshot 2026-10-22T01:34:21Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+AFTER_RUN=805f3b8e-627d-4939-a16c-f7d4720afdc0  BENIGN_RUN=2ad849e0-5320-4a91-9b2b-01938ee22618
+PRE r10_md5|runs=aa57e19fa877e32cb8bfc07ace2c81d7|19  total_snapshot_rows=196  after_run_rows=0  benign_run_rows=0
+## (6-1) snapshot ATTACK S5-SQLI-AFTER
+attack inserted=111
+attack 후 total=307 (기대 307)  after_run_rows=111 (기대 111)  r10_md5|runs=aa57e19fa877e32cb8bfc07ace2c81d7|19
+## (6-2) snapshot BENIGN S5-SQLI-AFTER-BENIGN-WEB
+benign inserted=12 (기대 12 = M14a 9 + M14b 3)
+benign 후 total=319 (기대 319)  benign_run_rows=12  r10_md5|runs=aa57e19fa877e32cb8bfc07ace2c81d7|19
+benign 스냅샷 M14b paired_run_id=805f3b8e-627d-4939-a16c-f7d4720afdc0 (기대 805f3b8e-627d-4939-a16c-f7d4720afdc0)
+M14a_APP_RULE|SCENARIO|0|320|OK|ADR-S4-01 v2.0|ADR-S4-01 v1.8
+M14a_APP_RULE|SCENARIO|0|320|OK|ADR-S4-01 v2.0|ADR-S4-01 v1.8
+M14a_APP_RULE|SCENARIO|0|320|OK|ADR-S4-01 v2.0|ADR-S4-01 v1.8
+M14a_BACKEND_CORR|SCENARIO||320|NO_RULE|ADR-S4-01 v2.0|ADR-S4-01 v1.8
+M14a_BACKEND_CORR|SCENARIO||320|NO_RULE|ADR-S4-01 v2.0|ADR-S4-01 v1.8
+M14a_BACKEND_CORR|SCENARIO||320|NO_RULE|ADR-S4-01 v2.0|ADR-S4-01 v1.8
+M14a_NIDS|SCENARIO|0|320|OK|ADR-S4-01 v2.0|ADR-S4-01 v1.8
+M14a_NIDS|SCENARIO|0|320|OK|ADR-S4-01 v2.0|ADR-S4-01 v1.8
+M14a_NIDS|SCENARIO|0|320|OK|ADR-S4-01 v2.0|ADR-S4-01 v1.8
+M14b_APP_RULE|ALL|0|380|OK|ADR-S4-01 v2.0|ADR-S4-01 v1.8
+M14b_BACKEND_CORR|ALL|||NO_RULE|ADR-S4-01 v2.0|ADR-S4-01 v1.8
+M14b_NIDS|ALL|0|163|OK|ADR-S4-01 v2.0|ADR-S4-01 v1.8
+## (6) snapshot done OK 2026-10-22T01:34:47Z
+## (7) compare 2026-10-22T01:42:41Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+runs: BeforeATTACK=b1c26be1-add2-4d45-8207-0998b0f743b1 BeforeBENIGN=3818e21a-bfa2-4c8d-9977-f89d8df35fc2 AfterATTACK=805f3b8e-627d-4939-a16c-f7d4720afdc0 AfterBENIGN=2ad849e0-5320-4a91-9b2b-01938ee22618
+## (7-1a) 스냅샷 def_version·행수
+          label           | definition_version | count 
+--------------------------+--------------------+-------
+ S4-5-BENIGN-WEB-R2       | ADR-S4-01 v1.9     |    12
+ S4-STACK-6-BASELINE      | ADR-S4-01 v1.4     |    89
+ S5-SQLI-AFTER            | ADR-S4-01 v1.7     |   111
+ S5-SQLI-AFTER-BENIGN-WEB | ADR-S4-01 v2.0     |    12
+(4 rows)
+
+## (7-1b) engine_version
+        label        | engine_version | count 
+---------------------+----------------+-------
+ S4-STACK-6-BASELINE | s3-v1          |   160
+ S5-SQLI-AFTER       | s4-v1          |   160
+(2 rows)
+
+## (7-1c) After SQLI ATTACK 링크 rule_id 분포(control|rule_id|건수)
+ control  | rule_id | count 
+----------+---------+-------
+ APP_RULE | 100211  |    20
+(1 row)
+
+## (7-1d) newcombe(0,20,20,20)=-1.000000|-1.000000|-0.772135 (기대 -1.000000|-1.000000|-0.772135)
+def ATTACK before=ADR-S4-01 v1.4 after=ADR-S4-01 v1.7 | BENIGN before=ADR-S4-01 v1.9 after=ADR-S4-01 v2.0
+ATTACK before/after def 불일치(ADR-S4-01 v1.4 vs ADR-S4-01 v1.7) → R7 필요: take_metric_snapshot('b1c26be1-add2-4d45-8207-0998b0f743b1') (Before ATTACK 을 현재 def 로)
+BENIGN before/after def 불일치(ADR-S4-01 v1.9 vs ADR-S4-01 v2.0) → R7 필요: take_metric_snapshot('3818e21a-bfa2-4c8d-9977-f89d8df35fc2') (Before BENIGN 을 현재 def 로)
+## (7) [STOP] R7 재스냅샷 필요 — 아래 쓰기는 승인 후 s5-7b 에서. 지금은 쓰지 않음.
+  계획: 불일치한 Before run 을 현재 definition_version 으로 take_metric_snapshot 추가(기존 v1.9 등 행 불변, 새 def 행 추가).
+  같은 run+같은 def 중복이면 함수가 거부(정상). 실행 전 값 검토.
+## (7b) R7 재스냅샷 + 비교 2026-10-22T01:49:33Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+target def: ATTACK=ADR-S4-01 v1.7 (Before ATTACK 를 이걸로 재스냅샷) / BENIGN=ADR-S4-01 v2.0 (Before BENIGN 를 이걸로)
+PRE total=319 md5|runs=aa57e19fa877e32cb8bfc07ace2c81d7|19 BeforeATTACK_rows=89 BeforeBENIGN_rows=12
+## (7b-W) R7 재스냅샷 2회 (쓰기)
+Before ATTACK(b1c26be1-add2-4d45-8207-0998b0f743b1) 재스냅샷 inserted=111
+Before BENIGN(3818e21a-bfa2-4c8d-9977-f89d8df35fc2) 재스냅샷 inserted=12
+POST total=442 (기대 442) md5|runs=aa57e19fa877e32cb8bfc07ace2c81d7|19
+BeforeATTACK new(ADR-S4-01 v1.7)=111 old=89(기대 89) | BeforeBENIGN new(ADR-S4-01 v2.0)=12 old=12(기대 12)
+## (7b) ATTACK compare (같은 def ADR-S4-01 v1.7, (x1,n1)=After (x2,n2)=Before)
+     metric_id     | scope_kind |   scope_key    | x1  | n1  | x2  | n2  |   diff    |    lo     |    hi     
+-------------------+------------+----------------+-----+-----+-----+-----+-----------+-----------+-----------
+ M01               | ALL        | ALL            | 140 | 140 | 140 | 140 |  0.000000 | -0.026706 |  0.026706
+ M01               | SCENARIO   | BRUTE_FORCE    |  20 |  20 |  20 |  20 |  0.000000 | -0.161125 |  0.161125
+ M01               | SCENARIO   | PATH_TRAVERSAL |  60 |  60 |  60 |  60 |  0.000000 | -0.060172 |  0.060172
+ M01               | SCENARIO   | SQLI           |  20 |  20 |  20 |  20 |  0.000000 | -0.161125 |  0.161125
+ M01               | SCENARIO   | SSRF           |  40 |  40 |  40 |  40 |  0.000000 | -0.087622 |  0.087622
+ M01               | TECHNIQUE  | T1110          |  20 |  20 |  20 |  20 |  0.000000 | -0.161125 |  0.161125
+ M01               | TECHNIQUE  | T1190          | 120 | 120 | 120 | 120 |  0.000000 | -0.031019 |  0.031019
+ M02               | ALL        | ALL            | 140 | 140 | 120 | 140 |  0.142857 |  0.087545 |  0.210370
+ M02               | SCENARIO   | BRUTE_FORCE    |  20 |  20 |  20 |  20 |  0.000000 | -0.161125 |  0.161125
+ M02               | SCENARIO   | PATH_TRAVERSAL |  60 |  60 |  60 |  60 |  0.000000 | -0.060172 |  0.060172
+ M02               | SCENARIO   | SQLI           |  20 |  20 |   0 |  20 |  1.000000 |  0.772135 |  1.000000
+ M02               | SCENARIO   | SSRF           |  40 |  40 |  40 |  40 |  0.000000 | -0.087622 |  0.087622
+ M02               | TECHNIQUE  | T1110          |  20 |  20 |  20 |  20 |  0.000000 | -0.161125 |  0.161125
+ M02               | TECHNIQUE  | T1190          | 120 | 120 | 100 | 120 |  0.166667 |  0.102556 |  0.243453
+ M02_INITIAL       | ALL        | ALL            | 140 | 140 | 120 | 140 |  0.142857 |  0.087545 |  0.210370
+ M02_INITIAL       | SCENARIO   | BRUTE_FORCE    |  20 |  20 |  20 |  20 |  0.000000 | -0.161125 |  0.161125
+ M02_INITIAL       | SCENARIO   | PATH_TRAVERSAL |  60 |  60 |  60 |  60 |  0.000000 | -0.060172 |  0.060172
+ M02_INITIAL       | SCENARIO   | SQLI           |  20 |  20 |   0 |  20 |  1.000000 |  0.772135 |  1.000000
+ M02_INITIAL       | SCENARIO   | SSRF           |  40 |  40 |  40 |  40 |  0.000000 | -0.087622 |  0.087622
+ M02_INITIAL       | TECHNIQUE  | T1110          |  20 |  20 |  20 |  20 |  0.000000 | -0.161125 |  0.161125
+ M02_INITIAL       | TECHNIQUE  | T1190          | 120 | 120 | 100 | 120 |  0.166667 |  0.102556 |  0.243453
+ M03               | ALL        | ALL            |   0 | 140 |  20 | 140 | -0.142857 | -0.210370 | -0.087545
+ M03               | SCENARIO   | BRUTE_FORCE    |   0 |  20 |   0 |  20 |  0.000000 | -0.161125 |  0.161125
+ M03               | SCENARIO   | PATH_TRAVERSAL |   0 |  60 |   0 |  60 |  0.000000 | -0.060172 |  0.060172
+ M03               | SCENARIO   | SQLI           |   0 |  20 |  20 |  20 | -1.000000 | -1.000000 | -0.772135
+ M03               | SCENARIO   | SSRF           |   0 |  40 |   0 |  40 |  0.000000 | -0.087622 |  0.087622
+ M03               | TECHNIQUE  | T1110          |   0 |  20 |   0 |  20 |  0.000000 | -0.161125 |  0.161125
+ M03               | TECHNIQUE  | T1190          |   0 | 120 |  20 | 120 | -0.166667 | -0.243453 | -0.102556
+ M03_INITIAL       | ALL        | ALL            |   0 | 140 |  20 | 140 | -0.142857 | -0.210370 | -0.087545
+ M03_INITIAL       | SCENARIO   | BRUTE_FORCE    |   0 |  20 |   0 |  20 |  0.000000 | -0.161125 |  0.161125
+ M03_INITIAL       | SCENARIO   | PATH_TRAVERSAL |   0 |  60 |   0 |  60 |  0.000000 | -0.060172 |  0.060172
+ M03_INITIAL       | SCENARIO   | SQLI           |   0 |  20 |  20 |  20 | -1.000000 | -1.000000 | -0.772135
+ M03_INITIAL       | SCENARIO   | SSRF           |   0 |  40 |   0 |  40 |  0.000000 | -0.087622 |  0.087622
+ M03_INITIAL       | TECHNIQUE  | T1110          |   0 |  20 |   0 |  20 |  0.000000 | -0.161125 |  0.161125
+ M03_INITIAL       | TECHNIQUE  | T1190          |   0 | 120 |  20 | 120 | -0.166667 | -0.243453 | -0.102556
+ M04               | ALL        | ALL            |     | 140 |     | 120 |           |           |          
+ M04               | SCENARIO   | BRUTE_FORCE    |     |  20 |     |  20 |           |           |          
+ M04               | SCENARIO   | PATH_TRAVERSAL |     |  60 |     |  60 |           |           |          
+ M04               | SCENARIO   | SQLI           |     |  20 |     |   0 |           |           |          
+ M04               | SCENARIO   | SSRF           |     |  40 |     |  40 |           |           |          
+ M04               | TECHNIQUE  | T1110          |     |  20 |     |  20 |           |           |          
+ M04               | TECHNIQUE  | T1190          |     | 120 |     | 100 |           |           |          
+ M05_H2_NONE       | ALL        | ALL            |   0 | 140 |   0 | 120 |  0.000000 | -0.031019 |  0.026706
+ M05_H2_RID_HEADER | ALL        | ALL            | 140 | 140 | 120 | 120 |  0.000000 | -0.026706 |  0.031019
+ M05_HEADER        | ALL        | ALL            |   0 | 140 |   0 | 120 |  0.000000 | -0.031019 |  0.026706
+ M05_HEADER        | SCENARIO   | BRUTE_FORCE    |   0 |  20 |   0 |  20 |  0.000000 | -0.161125 |  0.161125
+ M05_HEADER        | SCENARIO   | PATH_TRAVERSAL |   0 |  60 |   0 |  60 |  0.000000 | -0.060172 |  0.060172
+ M05_HEADER        | SCENARIO   | SQLI           |   0 |  20 |   0 |   0 |           |           |          
+ M05_HEADER        | SCENARIO   | SSRF           |   0 |  40 |   0 |  40 |  0.000000 | -0.087622 |  0.087622
+ M05_NONE          | ALL        | ALL            |   0 | 140 |   0 | 120 |  0.000000 | -0.031019 |  0.026706
+ M05_NONE          | SCENARIO   | BRUTE_FORCE    |   0 |  20 |   0 |  20 |  0.000000 | -0.161125 |  0.161125
+ M05_NONE          | SCENARIO   | PATH_TRAVERSAL |   0 |  60 |   0 |  60 |  0.000000 | -0.060172 |  0.060172
+ M05_NONE          | SCENARIO   | SQLI           |   0 |  20 |   0 |   0 |           |           |          
+ M05_NONE          | SCENARIO   | SSRF           |   0 |  40 |   0 |  40 |  0.000000 | -0.087622 |  0.087622
+ M05_RID           | ALL        | ALL            | 140 | 140 | 120 | 120 |  0.000000 | -0.026706 |  0.031019
+ M05_RID           | SCENARIO   | BRUTE_FORCE    |  20 |  20 |  20 |  20 |  0.000000 | -0.161125 |  0.161125
+ M05_RID           | SCENARIO   | PATH_TRAVERSAL |  60 |  60 |  60 |  60 |  0.000000 | -0.060172 |  0.060172
+ M05_RID           | SCENARIO   | SQLI           |  20 |  20 |   0 |   0 |           |           |          
+ M05_RID           | SCENARIO   | SSRF           |  40 |  40 |  40 |  40 |  0.000000 | -0.087622 |  0.087622
+ M05_UA_FALLBACK   | ALL        | ALL            |   0 | 140 |   0 | 120 |  0.000000 | -0.031019 |  0.026706
+ M05_UA_FALLBACK   | SCENARIO   | BRUTE_FORCE    |   0 |  20 |   0 |  20 |  0.000000 | -0.161125 |  0.161125
+ M05_UA_FALLBACK   | SCENARIO   | PATH_TRAVERSAL |   0 |  60 |   0 |  60 |  0.000000 | -0.060172 |  0.060172
+ M05_UA_FALLBACK   | SCENARIO   | SQLI           |   0 |  20 |   0 |   0 |           |           |          
+ M05_UA_FALLBACK   | SCENARIO   | SSRF           |   0 |  40 |   0 |  40 |  0.000000 | -0.087622 |  0.087622
+ M06a              | SCENARIO   | ALL            |   4 |   4 |   3 |   4 |  0.250000 | -0.280827 |  0.699358
+ M06a              | TECHNIQUE  | ALL            |   2 |   2 |   2 |   2 |  0.000000 | -0.657620 |  0.657620
+ M06b              | SCENARIO   | ALL            |   4 |   4 |   3 |   4 |  0.250000 | -0.280827 |  0.699358
+ M06b              | TECHNIQUE  | ALL            |   2 |   2 |   1 |   2 |  0.500000 | -0.272573 |  0.905469
+ M07a_APP_LOG      | ALL        | ALL            | 140 | 140 |     | 140 |           |           |          
+ M07a_APP_LOG      | SCENARIO   | BRUTE_FORCE    |  20 |  20 |     |  20 |           |           |          
+ M07a_APP_LOG      | SCENARIO   | PATH_TRAVERSAL |  60 |  60 |     |  60 |           |           |          
+ M07a_APP_LOG      | SCENARIO   | SQLI           |  20 |  20 |     |  20 |           |           |          
+ M07a_APP_LOG      | SCENARIO   | SSRF           |  40 |  40 |     |  40 |           |           |          
+ M07a_NIDS         | ALL        | ALL            | 140 | 140 |     | 140 |           |           |          
+ M07a_NIDS         | SCENARIO   | BRUTE_FORCE    |  20 |  20 |     |  20 |           |           |          
+ M07a_NIDS         | SCENARIO   | PATH_TRAVERSAL |  60 |  60 |     |  60 |           |           |          
+ M07a_NIDS         | SCENARIO   | SQLI           |  20 |  20 |     |  20 |           |           |          
+ M07a_NIDS         | SCENARIO   | SSRF           |  40 |  40 |     |  40 |           |           |          
+ M07b              | SCENARIO   | BRUTE_FORCE    |   0 |   0 |   0 |   0 |           |           |          
+ M07b              | SCENARIO   | PATH_TRAVERSAL |   0 |   0 |   0 |   0 |           |           |          
+ M07b              | SCENARIO   | SQLI           |   0 |   0 |   0 |   0 |           |           |          
+ M07b              | SCENARIO   | SSRF           |   0 |   0 |   0 |   0 |           |           |          
+ M08               | ALL        | ALL            |   0 | 140 |   0 | 140 |  0.000000 | -0.026706 |  0.026706
+ M08               | SCENARIO   | BRUTE_FORCE    |   0 |  20 |   0 |  20 |  0.000000 | -0.161125 |  0.161125
+ M08               | SCENARIO   | PATH_TRAVERSAL |   0 |  60 |   0 |  60 |  0.000000 | -0.060172 |  0.060172
+ M08               | SCENARIO   | SQLI           |   0 |  20 |   0 |  20 |  0.000000 | -0.161125 |  0.161125
+ M08               | SCENARIO   | SSRF           |   0 |  40 |   0 |  40 |  0.000000 | -0.087622 |  0.087622
+ M08               | TECHNIQUE  | T1110          |   0 |  20 |   0 |  20 |  0.000000 | -0.161125 |  0.161125
+ M08               | TECHNIQUE  | T1190          |   0 | 120 |   0 | 120 |  0.000000 | -0.031019 |  0.031019
+ M09               | SCENARIO   | BRUTE_FORCE    |  20 |  20 |  20 |  20 |  0.000000 | -0.161125 |  0.161125
+ M09               | SCENARIO   | PATH_TRAVERSAL |  60 |  60 |  60 |  60 |  0.000000 | -0.060172 |  0.060172
+ M09               | SCENARIO   | SQLI           |  20 |  20 |  20 |  20 |  0.000000 | -0.161125 |  0.161125
+ M09               | SCENARIO   | SSRF           |  40 |  40 |  40 |  40 |  0.000000 | -0.087622 |  0.087622
+ M10               | ALL        | ALL            |   0 | 140 |   0 | 120 |  0.000000 | -0.031019 |  0.026706
+ M10               | SCENARIO   | BRUTE_FORCE    |   0 |  20 |   0 |  20 |  0.000000 | -0.161125 |  0.161125
+ M10               | SCENARIO   | PATH_TRAVERSAL |   0 |  60 |   0 |  60 |  0.000000 | -0.060172 |  0.060172
+ M10               | SCENARIO   | SQLI           |   0 |  20 |   0 |   0 |           |           |          
+ M10               | SCENARIO   | SSRF           |   0 |  40 |   0 |  40 |  0.000000 | -0.087622 |  0.087622
+ M12               | ALL        | ALL            |     |     |     |     |           |           |          
+ M13_APP_RULE      | SCENARIO   | BRUTE_FORCE    |     |  20 |     |  20 |           |           |          
+ M13_APP_RULE      | SCENARIO   | PATH_TRAVERSAL |  60 |  60 |  60 |  60 |  0.000000 | -0.060172 |  0.060172
+ M13_APP_RULE      | SCENARIO   | SQLI           |  20 |  20 |   0 |  20 |  1.000000 |  0.772135 |  1.000000
+ M13_APP_RULE      | SCENARIO   | SSRF           |  40 |  40 |  40 |  40 |  0.000000 | -0.087622 |  0.087622
+ M13_BACKEND_CORR  | SCENARIO   | BRUTE_FORCE    |  20 |  20 |  20 |  20 |  0.000000 | -0.161125 |  0.161125
+ M13_BACKEND_CORR  | SCENARIO   | PATH_TRAVERSAL |     |  60 |     |  60 |           |           |          
+ M13_BACKEND_CORR  | SCENARIO   | SQLI           |     |  20 |     |  20 |           |           |          
+ M13_BACKEND_CORR  | SCENARIO   | SSRF           |     |  40 |     |  40 |           |           |          
+ M13_NIDS          | SCENARIO   | BRUTE_FORCE    |  20 |  20 |     |  20 |           |           |          
+ M13_NIDS          | SCENARIO   | PATH_TRAVERSAL |  60 |  60 |     |  60 |           |           |          
+ M13_NIDS          | SCENARIO   | SQLI           |   0 |  20 |     |  20 |           |           |          
+ M13_NIDS          | SCENARIO   | SSRF           |  40 |  40 |     |  40 |           |           |          
+(111 rows)
+
+## (7b) BENIGN compare (같은 def ADR-S4-01 v2.0)
+     metric_id     | scope_kind |   scope_key    | x1 | n1  | x2 | n2  |   diff   |    lo     |    hi    
+-------------------+------------+----------------+----+-----+----+-----+----------+-----------+----------
+ M14a_APP_RULE     | SCENARIO   | PATH_TRAVERSAL |  0 | 320 |  0 | 320 | 0.000000 | -0.011862 | 0.011862
+ M14a_APP_RULE     | SCENARIO   | SQLI           |  0 | 320 |  0 | 320 | 0.000000 | -0.011862 | 0.011862
+ M14a_APP_RULE     | SCENARIO   | SSRF           |  0 | 320 |  0 | 320 | 0.000000 | -0.011862 | 0.011862
+ M14a_BACKEND_CORR | SCENARIO   | PATH_TRAVERSAL |    | 320 |    | 320 |          |           |         
+ M14a_BACKEND_CORR | SCENARIO   | SQLI           |    | 320 |    | 320 |          |           |         
+ M14a_BACKEND_CORR | SCENARIO   | SSRF           |    | 320 |    | 320 |          |           |         
+ M14a_NIDS         | SCENARIO   | PATH_TRAVERSAL |  0 | 320 |  0 | 320 | 0.000000 | -0.011862 | 0.011862
+ M14a_NIDS         | SCENARIO   | SQLI           |  0 | 320 |  0 | 320 | 0.000000 | -0.011862 | 0.011862
+ M14a_NIDS         | SCENARIO   | SSRF           |  0 | 320 |  0 | 320 | 0.000000 | -0.011862 | 0.011862
+ M14b_APP_RULE     | ALL        | ALL            |  0 | 380 |  0 | 360 | 0.000000 | -0.010558 | 0.010008
+ M14b_BACKEND_CORR | ALL        | ALL            |    |     |    |     |          |           |         
+ M14b_NIDS         | ALL        | ALL            |  0 | 163 |    |     |          |           |         
+(12 rows)
+
+## (7b) 최종 판정표
+주지표 M03 SQLI (x1|n1|x2|n2|diff|lo|hi)=0|20|20|20|-1.000000|-1.000000|-0.772135
+  → 주지표 PASS (hi=-0.772135 < 0)
+가드레일1 M14a_APP_RULE 엔드포인트별(lo>0 이면 FAIL):
+  SQLI = 0|320|0|320|0.000000|-0.011862|0.011862
+  PATH_TRAVERSAL = 0|320|0|320|0.000000|-0.011862|0.011862
+  SSRF = 0|320|0|320|0.000000|-0.011862|0.011862
+  → 가드레일1 PASS(어느 엔드포인트도 lo>0 아님)
+가드레일2 (PT·BF·SSRF M02·M03 diff, M09):
+  M02 PATH_TRAVERSAL = 60|60|60|60|0.000000|-0.060172|0.060172
+  M03 PATH_TRAVERSAL = 0|60|0|60|0.000000|-0.060172|0.060172
+  M02 BRUTE_FORCE = 20|20|20|20|0.000000|-0.161125|0.161125
+  M03 BRUTE_FORCE = 0|20|0|20|0.000000|-0.161125|0.161125
+  M02 SSRF = 40|40|40|40|0.000000|-0.087622|0.087622
+  M03 SSRF = 0|40|0|40|0.000000|-0.087622|0.087622
+  M09 Before vs After(scenario|x|n|overestimate|criteria_met):
+        label        |   scope_key    | numerator | denominator | overestimate_count | criteria_met 
+---------------------+----------------+-----------+-------------+--------------------+--------------
+ S4-STACK-6-BASELINE | BRUTE_FORCE    |        20 |          20 |                  0 | t
+ S5-SQLI-AFTER       | BRUTE_FORCE    |        20 |          20 |                  0 | t
+ S4-STACK-6-BASELINE | PATH_TRAVERSAL |        60 |          60 |                  0 | t
+ S5-SQLI-AFTER       | PATH_TRAVERSAL |        60 |          60 |                  0 | t
+ S4-STACK-6-BASELINE | SQLI           |        20 |          20 |                  0 | t
+ S5-SQLI-AFTER       | SQLI           |        20 |          20 |                  0 | t
+ S4-STACK-6-BASELINE | SSRF           |        40 |          40 |                  0 | t
+ S5-SQLI-AFTER       | SSRF           |        40 |          40 |                  0 | t
+(8 rows)
+
+가드레일3 rules_digest=t(가(4) 확인). 측정 후 발견: engine_version Before s3-v1 vs After s4-v1 (rules_digest 미포함). SQLI 영향 없음 근거=7-1c(전부 APP_RULE 100211)+Gap #7(Before 앱·NIDS 0). ④·RUNBOOK 메모.
+## (7b) done 2026-10-22T01:50:02Z

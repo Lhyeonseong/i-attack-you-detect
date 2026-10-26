@@ -1,0 +1,48 @@
+# Source of truth. Wazuh rule 100210 is the hand-converted deployment of this.
+title: SQL Injection Pattern in Product Search Request
+id: 6f2c1a8e-3b4d-4e5f-9a7b-1c2d3e4f5a60
+status: experimental
+description: |
+    Detects SQL injection patterns in the args of /api/products/search requests,
+    based on the OCSF HTTP Activity JSON log (attack.json.log).
+    Uses request fields only (http_request.*); app-side validation.* / correlation.* are not referenced.
+author: capstone
+date: 2026-10-10
+tags:
+    - attack.t1190
+logsource:
+    product: target-web
+    service: attack_http_activity
+detection:
+    selection:
+        http_request.url.path: /api/products/search
+        http_request.args|re: '(?i)(union\s+select|pg_sleep|''\s*or\s*1=1|''[^'']*--|information_schema)'
+    condition: selection
+falsepositives:
+    - Rare; narrowed regex only matches '--' after a single quote
+level: high
+---
+# Source of truth for Wazuh rule 100211 (S5 Gap #7 — request-signal 확장). 100210 과 형제 룰, 조건은 아래와 글자 단위 동일.
+title: SQL Injection Syntax Signal in Product Search Request (broadened)
+id: 7a3d2b9f-4c5e-4f60-8b1c-2d3e4f5a6b71
+status: experimental
+description: |
+    Detects SQL injection syntax signals in the args of /api/products/search requests (OCSF HTTP Activity JSON).
+    Broadens 100210 to catch injection behaviour the narrow regex misses (e.g. a lone single quote probe).
+    Request fields only (http_request.*); response code / app-side validation.* are not referenced — the app
+    returns HTTP 200 on SQL error (error only in body), so there is no response error signal available to monitoring.
+author: capstone
+date: 2026-10-22
+tags:
+    - attack.t1190
+logsource:
+    product: target-web
+    service: attack_http_activity
+detection:
+    selection:
+        http_request.url.path: /api/products/search
+        http_request.args|re: '(?i)(''|"|;|\bunion\s+select\b|\binformation_schema\b|\b(?:sleep|pg_sleep|benchmark)\s*\(|\bwaitfor\s+delay\b)'
+    condition: selection
+falsepositives:
+    - Normal search terms containing a quote or SQL-like token (e.g. "O'Reilly", "it's"). Not avoided by the rule — measured by the M14a FPR guardrail (ADR-S5-01).
+level: high

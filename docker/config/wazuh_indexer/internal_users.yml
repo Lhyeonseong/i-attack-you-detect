@@ -1,0 +1,56 @@
+---
+# This is the internal user database
+# The hash value is a bcrypt hash and can be generated with plugin/tools/hash.sh
+
+_meta:
+  type: "internalusers"
+  config_version: 2
+
+# Define your internal users here
+
+## Demo users
+
+admin:
+  hash: "$2y$12$FQUdnLWsmdF0caHGxY0V1uWREM31Xc2pUHgiZalHbpvW76ZQS8ncm"
+  reserved: true
+  backend_roles:
+  - "admin"
+  description: "Demo admin user"
+
+kibanaserver:
+  hash: "$2y$12$PGOf2yc8Qk9u6IuYoNicp.m9ryXd1oiQuzjy1Ye/rpWTLZvEu/xUa"
+  reserved: true
+  description: "Demo kibanaserver user"
+
+kibanaro:
+  hash: "$2y$12$wYW.ZeS8FVBaS13ynP2cKOioCV0eD6IvVgIW9HlxkYvD66GyvejFW"
+  reserved: false
+  backend_roles:
+  - "kibanauser"
+  - "readall"
+  attributes:
+    attribute1: "value1"
+    attribute2: "value2"
+    attribute3: "value3"
+  description: "Demo kibanaro user"
+
+logstash:
+  hash: "$2y$12$i9CoIoJ0AuD0ThzbWuP8/u8HGA9wRtVcrrtiykRXhPKQlFmREtV0e"
+  reserved: false
+  backend_roles:
+  - "logstash"
+  description: "Demo logstash user"
+
+readall:
+  hash: "$2y$12$eJ/Yz2JYsFOouZ60mRFI1OqKi8RMEHUtKtzCmd25TGaWJXCpOnHi."
+  reserved: false
+  backend_roles:
+  - "readall"
+  description: "Demo readall user"
+
+snapshotrestore:
+  hash: "$2y$12$2BI/hoTtZfxdogx4FDbFDe5Q/TuMh1001nxnhoHVhQxpuC1c6gjfC"
+  reserved: false
+  backend_roles:
+  - "snapshotrestore"
+  description: "Demo snapshotrestore user"

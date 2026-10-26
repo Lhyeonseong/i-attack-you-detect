@@ -1,0 +1,557 @@
+# 조사 MTTD-1 — S4-STACK-5-SMOKE PT mttd 11,801,265ms 이상값 원인 (읽기 전용)
+# 규칙: 읽기 전용(코드·설정·DB·컨테이너 변경 없음), DB 는 validation_rw SELECT(BEGIN READ ONLY), 비밀값 미출력. 직전 커밋 730ea49
+
+## Step 0 — 재부팅 후 상태 기록 2026-10-21T07:23:49Z HEAD=730ea49 porcelain=1
+### (0-1) docker ps + StartedAt
+caldera	Up 8 minutes
+mock-imds	Up 8 minutes
+postgres	Up 8 minutes (healthy)
+security-lab-wazuh.agent-1	Up 8 minutes
+security-lab-wazuh.indexer-1	Up 8 minutes
+security-lab-wazuh.manager-1	Up 8 minutes
+suricata	Up 8 minutes
+target-web	Up 8 minutes
+--- inspect StartedAt / RestartCount
+/caldera started=2026-10-21T07:15:37.093831197Z restarts=0 status=running
+/mock-imds started=2026-10-21T07:15:37.062028664Z restarts=0 status=running
+/postgres started=2026-10-21T07:15:37.064938795Z restarts=0 status=running
+/security-lab-wazuh.agent-1 started=2026-10-21T07:15:37.06021795Z restarts=0 status=running
+/security-lab-wazuh.indexer-1 started=2026-10-21T07:15:37.062511986Z restarts=0 status=running
+/security-lab-wazuh.manager-1 started=2026-10-21T07:15:37.06306438Z restarts=0 status=running
+/suricata started=2026-10-21T07:15:40.621757796Z restarts=0 status=running
+/target-web started=2026-10-21T07:15:37.059064471Z restarts=0 status=running
+--- 호스트 부팅 시각
+2026-10-21 16:15:25
+         system boot  2026-10-21 16:15
+  (porcelain 원문: ?? detections/measurements/evidence/2026-10-21_mttd-1-outlier.log — tee 가 먼저 만든 이 증거 로그 자신)
+### (0-c) 인터페이스↔서브넷 (RUNBOOK (0-c) 명령 그대로)
+app0 172.20.0.3/16
+atk0 172.18.0.3/16
+imds0 169.254.169.2/24
+sec0 172.19.0.5/16
+eth_count=0
+security-lab_app_net 172.20.0.0/16
+security-lab_attack_net 172.18.0.0/16
+security-lab_imds_net 169.254.169.0/24
+security-lab_security_net 172.19.0.0/16
+["-i","app0","-i","atk0","-i","imds0","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.5.stats.enabled=no","--set","outputs.1.eve-log.types.32.stats.enabled=no"]
+NM_OK
+### (0-d) Suricata 실행 중 출력 설정 (RUNBOOK (0-d) 명령 그대로)
+outputs.5 stats enabled=no
+eve-log.types.0 alert enabled=yes(미지정)
+eve-log.types.3 http enabled=yes(미지정)
+eve-log.types.7 files enabled=yes(미지정)
+eve-log.types.32 stats enabled=no
+eve-log.types.33 flow enabled=yes(미지정)
+### (0-b) Caldera running/paused operation (RUNBOOK (0-b) 명령 그대로, 키는 stdin)
+total=45
+finished=45
+  Step 0 판정: (0-c) 4개 이름 모두 짝 서브넷 안·eth_count=0·-i app0/atk0/imds0·NM_OK / (0-d) stats no 2줄·alert/http/files/flow 4줄 / (0-b) running·paused 줄 없음 → 기대와 같음, Step 1 진행
+
+## Step 1 — 전체 분포 2026-10-21T07:24:44Z
+BEGIN
+### (1-1) measurement_run 전체 + R10
+        label        |  kind  | status |          started_at           |           ended_at            | run_ms  | attack | control | exp_a | exp_c |   r10   
+---------------------+--------+--------+-------------------------------+-------------------------------+---------+--------+---------+-------+-------+---------
+ S3-GATE-dc66322     | ATTACK | CLOSED | 2026-10-16 17:04:01.091971+00 | 2026-10-16 18:07:23.246309+00 | 3802154 |    140 |      20 |   140 |    20 | VALID
+ S4-1b-SMOKE         | ATTACK | CLOSED | 2026-10-18 10:03:17.081+00    | 2026-10-18 10:06:51.136+00    |  214055 |      7 |       1 |     7 |     1 | VALID
+ S4-STACK-1a-SMOKE   | ATTACK | CLOSED | 2026-10-20 12:59:31.694+00    | 2026-10-20 13:03:18.413+00    |  226719 |      7 |       1 |     7 |     1 | VALID
+ S4-STACK-4-SMOKE    | ATTACK | CLOSED | 2026-10-20 13:22:15.477+00    | 2026-10-20 13:25:38.855+00    |  203378 |     10 |       1 |     7 |     1 | INVALID
+ S4-STACK-4-SMOKE-R2 | ATTACK | CLOSED | 2026-10-20 13:37:41.536+00    | 2026-10-20 13:41:13.412+00    |  211876 |      7 |       1 |     7 |     1 | VALID
+ S4-STACK-1b-SMOKE   | ATTACK | CLOSED | 2026-10-20 14:22:45.878+00    | 2026-10-20 14:26:44.862+00    |  238984 |      7 |       1 |     7 |     1 | VALID
+ S4-STACK-1c-SMOKE   | ATTACK | CLOSED | 2026-10-20 17:41:27.867+00    | 2026-10-20 17:44:51.918+00    |  204051 |      7 |       1 |     7 |     1 | VALID
+ S4-STACK-IFN-SMOKE  | ATTACK | CLOSED | 2026-10-20 18:21:31.301+00    | 2026-10-20 18:24:46.33+00     |  195029 |      7 |       1 |     7 |     1 | VALID
+ S4-STACK-5-SMOKE    | ATTACK | CLOSED | 2026-10-20 19:18:16.785+00    | 2026-10-20 19:21:56.781+00    |  219996 |      7 |       1 |     7 |     1 | VALID
+ S4-STACK-2-SMOKE    | ATTACK | CLOSED | 2026-10-20 20:06:58.085+00    | 2026-10-20 20:10:51.387+00    |  233302 |      7 |       1 |     7 |     1 | VALID
+(10 rows)
+
+### (1-2) run별·시나리오별 mttd_ms (ATTACK 행만, verdict_result 원값, decided 순)
+        label        |    scenario    | n | detected | mttd_nonnull | min  | max  |           mttd_ms_list            
+---------------------+----------------+---+----------+--------------+------+------+-----------------------------------
+ S4-1b-SMOKE         | BRUTE_FORCE    | 1 |        1 |            1 |  772 |  772 | 772
+ S4-1b-SMOKE         | PATH_TRAVERSAL | 3 |        3 |            3 | 1478 | 1569 | 1569 | 1507 | 1478
+ S4-1b-SMOKE         | SQLI           | 1 |        0 |            0 |      |      | NULL
+ S4-1b-SMOKE         | SSRF           | 2 |        2 |            2 |   84 |  552 | 552 | 84
+ S4-STACK-1a-SMOKE   | BRUTE_FORCE    | 1 |        1 |            1 | 2615 | 2615 | 2615
+ S4-STACK-1a-SMOKE   | PATH_TRAVERSAL | 3 |        3 |            3 | 1589 | 1769 | 1769 | 1605 | 1589
+ S4-STACK-1a-SMOKE   | SQLI           | 1 |        0 |            0 |      |      | NULL
+ S4-STACK-1a-SMOKE   | SSRF           | 2 |        2 |            2 |  193 |  713 | 713 | 193
+ S4-STACK-4-SMOKE    | BRUTE_FORCE    | 1 |        1 |            1 |  507 |  507 | 507
+ S4-STACK-4-SMOKE    | PATH_TRAVERSAL | 6 |        6 |            6 |  433 |  513 | 470 | 433 | 451 | 502 | 513 | 500
+ S4-STACK-4-SMOKE    | SQLI           | 1 |        0 |            0 |      |      | NULL
+ S4-STACK-4-SMOKE    | SSRF           | 2 |        2 |            2 |  199 |  405 | 405 | 199
+ S4-STACK-4-SMOKE-R2 | BRUTE_FORCE    | 1 |        1 |            1 |  820 |  820 | 820
+ S4-STACK-4-SMOKE-R2 | PATH_TRAVERSAL | 3 |        3 |            3 | 1384 | 1440 | 1440 | 1406 | 1384
+ S4-STACK-4-SMOKE-R2 | SQLI           | 1 |        0 |            0 |      |      | NULL
+ S4-STACK-4-SMOKE-R2 | SSRF           | 2 |        2 |            2 | 1306 | 1387 | 1387 | 1306
+ S4-STACK-1b-SMOKE   | BRUTE_FORCE    | 1 |        1 |            1 | 1096 | 1096 | 1096
+ S4-STACK-1b-SMOKE   | PATH_TRAVERSAL | 3 |        3 |            3 | 1785 | 1831 | 1831 | 1796 | 1785
+ S4-STACK-1b-SMOKE   | SQLI           | 1 |        0 |            0 |      |      | NULL
+ S4-STACK-1b-SMOKE   | SSRF           | 2 |        2 |            2 |  528 |  859 | 859 | 528
+ S4-STACK-1c-SMOKE   | BRUTE_FORCE    | 1 |        1 |            1 |  993 |  993 | 993
+ S4-STACK-1c-SMOKE   | PATH_TRAVERSAL | 3 |        3 |            3 |  911 |  993 | 993 | 925 | 911
+ S4-STACK-1c-SMOKE   | SQLI           | 1 |        0 |            0 |      |      | NULL
+ S4-STACK-1c-SMOKE   | SSRF           | 2 |        2 |            2 | 1496 | 1978 | 1978 | 1496
+ S4-STACK-IFN-SMOKE  | BRUTE_FORCE    | 1 |        1 |            1 | 2100 | 2100 | 2100
+ S4-STACK-IFN-SMOKE  | PATH_TRAVERSAL | 3 |        3 |            3 |  891 | 1001 | 1001 | 909 | 891
+ S4-STACK-IFN-SMOKE  | SQLI           | 1 |        0 |            0 |      |      | NULL
+ S4-STACK-IFN-SMOKE  | SSRF           | 2 |        2 |            2 | 1334 | 1792 | 1792 | 1334
+ S4-STACK-5-SMOKE    | BRUTE_FORCE    | 1 |        1 |            1 | 2438 | 2438 | 2438
+ S4-STACK-5-SMOKE    | PATH_TRAVERSAL | 3 |        3 |            3 | 1180 | 1265 | 1265 | 1204 | 1180
+ S4-STACK-5-SMOKE    | SQLI           | 1 |        0 |            0 |      |      | NULL
+ S4-STACK-5-SMOKE    | SSRF           | 2 |        2 |            2 | 1710 | 2050 | 2050 | 1710
+ S4-STACK-2-SMOKE    | BRUTE_FORCE    | 1 |        1 |            1 | 1149 | 1149 | 1149
+ S4-STACK-2-SMOKE    | PATH_TRAVERSAL | 3 |        3 |            3 |   47 |  183 | 183 | 88 | 47
+ S4-STACK-2-SMOKE    | SQLI           | 1 |        0 |            0 |      |      | NULL
+ S4-STACK-2-SMOKE    | SSRF           | 2 |        2 |            2 |  360 |  810 | 810 | 360
+(36 rows)
+
+### (1-2b) S3-GATE-dc66322 시나리오별 요약 (160행이라 목록 대신 분위수)
+    scenario    | n  | detected | mttd_nonnull | min | p50  |        p95         | max  
+----------------+----+----------+--------------+-----+------+--------------------+------
+ BRUTE_FORCE    | 20 |       20 |           20 | 427 | 1083 | 1931.3500000000001 | 2071
+ PATH_TRAVERSAL | 60 |       60 |           60 |  41 | 1070 | 1875.1499999999999 | 1961
+ SQLI           | 20 |        0 |            0 |     |      |                    |     
+ SSRF           | 40 |       40 |           40 | 112 |  708 | 1913.9999999999998 | 2055
+(4 rows)
+
+ROLLBACK
+BEGIN
+### (1-3) 이상 조건 (전체 run, ATTACK+CONTROL): mttd_ms > run 길이 / mttd_ms < 0 / DETECTED 인데 mttd_ms NULL / NOT_DETECTED 인데 mttd_ms 있음
+ label | id | scenario | attempt_role | detection_status | mttd_ms | run_ms | kind 
+-------+----+----------+--------------+------------------+---------+--------+------
+(0 rows)
+
+### (1-3b) 같은 조건 건수 집계(0행이어도 run 마다 한 줄)
+        label        | verdicts | gt_run | negative | detected_null | max_mttd 
+---------------------+----------+--------+----------+---------------+----------
+ S3-GATE-dc66322     |      160 |      0 |        0 |             0 |     2071
+ S4-1b-SMOKE         |        8 |      0 |        0 |             0 |     1569
+ S4-STACK-1a-SMOKE   |        8 |      0 |        0 |             0 |     2615
+ S4-STACK-4-SMOKE    |       11 |      0 |        0 |             0 |      513
+ S4-STACK-4-SMOKE-R2 |        8 |      0 |        0 |             0 |     1440
+ S4-STACK-1b-SMOKE   |        8 |      0 |        0 |             0 |     1831
+ S4-STACK-1c-SMOKE   |        8 |      0 |        0 |             0 |     1978
+ S4-STACK-IFN-SMOKE  |        8 |      0 |        0 |             0 |     2100
+ S4-STACK-5-SMOKE    |        8 |      0 |        0 |             0 |     2438
+ S4-STACK-2-SMOKE    |        8 |      0 |        0 |             0 |     1149
+(10 rows)
+
+### (1-3c) correlation.mttd_ms_raw 기준 (verdict_member 로 묶인 correlation, 같은 조건)
+        label        | corr | raw_nonnull | min | max  | negative | gt_run | attack_time_outside_run 
+---------------------+------+-------------+-----+------+----------+--------+-------------------------
+ S3-GATE-dc66322     |  160 |         120 |  41 | 2055 |        0 |      0 |                       8
+ S4-1b-SMOKE         |    8 |           6 |  84 | 1569 |        0 |      0 |                       0
+ S4-STACK-1a-SMOKE   |    8 |           6 | 193 | 1769 |        0 |      0 |                       0
+ S4-STACK-4-SMOKE    |   11 |           9 | 199 |  513 |        0 |      0 |                       0
+ S4-STACK-4-SMOKE-R2 |    8 |           6 | 796 | 1440 |        0 |      0 |                       0
+ S4-STACK-1b-SMOKE   |    8 |           6 | 528 | 1831 |        0 |      0 |                       0
+ S4-STACK-1c-SMOKE   |    8 |           6 | 911 | 1978 |        0 |      0 |                       0
+ S4-STACK-IFN-SMOKE  |    8 |           6 | 891 | 2075 |        0 |      0 |                       0
+ S4-STACK-5-SMOKE    |    8 |           6 | 160 | 2050 |        0 |      0 |                       0
+ S4-STACK-2-SMOKE    |    8 |           6 |  47 | 1126 |        0 |      0 |                       0
+(10 rows)
+
+ROLLBACK
+### (1-4) 저장소 산출물에서 11801265 / 11,801,265 / 47183 / 47,183 검색 (grep -rnE, build·.git 제외)
+(일치 없음)
+### (1-5) Step 1 사실 정리
+  - DB verdict_result 전체 216행(10 run)에서 mttd_ms 최댓값 = 2615(S4-STACK-1a-SMOKE BF). 11,801,265 인 행 없음, run 길이 초과·음수·DETECTED-NULL 0건 (1-3·1-3b)
+  - S4-STACK-5-SMOKE PT mttd_ms = 1265 | 1204 | 1180 (verdict id 순, 1-2). S4-STACK-2-SMOKE PT = 183 | 88 | 47
+  - 원값이 적힌 곳: 2026-10-21_s5-remove-s1-services.log:412-414 (mttdMs=1265/…/1180), 2026-10-21_s2-suricata-8.log:538 'PT 5=1180·1204·1265 / 2=47·88·183'
+  - 저장소에 11,801,265·47,183 문자열 없음 (1-4). gate-report-*.md/json 에는 mttd 항목 자체가 없음
+  - 산술 대조(사실): "1180"+"1265" 이어 붙이면 11801265, "47"+"183" 이어 붙이면 47183 — 두 값 모두 해당 run PT 의 (최솟값, 최댓값) 을 구분자 없이 연결한 것과 자릿수까지 일치
+  - 별도 관찰: S3-GATE-dc66322 correlation 160개 중 attack_time 이 run started_at~ended_at 밖인 것 8개 (1-3c) → Step 2-4 에서 확인
+
+## Step 2 — S4-STACK-5-SMOKE PT 행 해부 2026-10-21T07:26:02Z
+BEGIN
+### (2-1a) verdict_result 전체 컬럼 (PT, 확장 표시)
+Expanded display is on.
+-[ RECORD 1 ]---------+------------------------------------------
+id                    | 224
+unit_key              | unit:84a08f74-3532-4bd6-af6e-61f8b22c7336
+unit_type             | SINGLE
+scenario              | PATH_TRAVERSAL
+technique_id          | T1190
+verdict               | SUCCEEDED_DETECTED
+initial_verdict       | SUCCEEDED_DETECTED
+uncertain_reason      | 
+detection_status      | DETECTED
+gt_outcome            | SUCCEEDED
+attacker_verdict      | SUCCEEDED
+attacker_match        | t
+overestimate          | f
+best_confidence       | 1
+mttd_ms               | 1265
+late_detection        | f
+compromise_detected   | 
+compromise_alert_time | 
+spray_account_count   | 0
+engine_version        | s3-v1
+run_id                | 1ba74855-4ea7-4cca-aa62-46907284fc5b
+decided_at            | 2026-10-20 19:21:56.510347+00
+attempt_role          | ATTACK
+-[ RECORD 2 ]---------+------------------------------------------
+id                    | 225
+unit_key              | unit:6504f373-7ae8-4e9e-9524-590b0cfe7397
+unit_type             | SINGLE
+scenario              | PATH_TRAVERSAL
+technique_id          | T1190
+verdict               | SUCCEEDED_DETECTED
+initial_verdict       | SUCCEEDED_DETECTED
+uncertain_reason      | 
+detection_status      | DETECTED
+gt_outcome            | SUCCEEDED
+attacker_verdict      | SUCCEEDED
+attacker_match        | t
+overestimate          | f
+best_confidence       | 1
+mttd_ms               | 1204
+late_detection        | f
+compromise_detected   | 
+compromise_alert_time | 
+spray_account_count   | 0
+engine_version        | s3-v1
+run_id                | 1ba74855-4ea7-4cca-aa62-46907284fc5b
+decided_at            | 2026-10-20 19:21:56.510347+00
+attempt_role          | ATTACK
+-[ RECORD 3 ]---------+------------------------------------------
+id                    | 226
+unit_key              | unit:501ff6b8-d041-444e-87e4-c8bfc26ad914
+unit_type             | SINGLE
+scenario              | PATH_TRAVERSAL
+technique_id          | T1190
+verdict               | SUCCEEDED_DETECTED
+initial_verdict       | SUCCEEDED_DETECTED
+uncertain_reason      | 
+detection_status      | DETECTED
+gt_outcome            | SUCCEEDED
+attacker_verdict      | SUCCEEDED
+attacker_match        | t
+overestimate          | f
+best_confidence       | 1
+mttd_ms               | 1180
+late_detection        | f
+compromise_detected   | 
+compromise_alert_time | 
+spray_account_count   | 0
+engine_version        | s3-v1
+run_id                | 1ba74855-4ea7-4cca-aa62-46907284fc5b
+decided_at            | 2026-10-20 19:21:56.510347+00
+attempt_role          | ATTACK
+
+### (2-1b) verdict_member → correlation 전체 컬럼
+-[ RECORD 1 ]--------+-------------------------------------
+verdict_id           | 224
+id                   | 248
+correlation_key      | 84a08f74-3532-4bd6-af6e-61f8b22c7336
+op_id                | 59379a60-d53c-4b1d-a854-39ce6f4ac5db
+op_id_resolved       | t
+paw                  | zetofr
+ability_id           | c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b
+rid                  | 84a08f74-3532-4bd6-af6e-61f8b22c7336
+scenario             | PATH_TRAVERSAL
+technique_id         | T1190
+src_ip               | 172.20.0.1
+username             | 
+segment_id           | 
+attack_time          | 2026-10-20 19:20:37.407+00
+last_attack_time     | 2026-10-20 19:20:37.407+00
+observed_until       | 2026-10-20 19:21:07.407+00
+gt_outcome           | SUCCEEDED
+attacker_verdict     | SUCCEEDED
+best_confidence      | 1
+correlation_source   | RID
+detection_status_raw | DETECTED
+mttd_ms_raw          | 1265
+ingestion_lag_ms     | 
+bf_failure_count     | 0
+bf_sequence          | f
+spray                | f
+spray_account_count  | 0
+created_at           | 2026-10-20 19:21:56.510347+00
+-[ RECORD 2 ]--------+-------------------------------------
+verdict_id           | 225
+id                   | 249
+correlation_key      | 6504f373-7ae8-4e9e-9524-590b0cfe7397
+op_id                | 59379a60-d53c-4b1d-a854-39ce6f4ac5db
+op_id_resolved       | t
+paw                  | zetofr
+ability_id           | c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b
+rid                  | 6504f373-7ae8-4e9e-9524-590b0cfe7397
+scenario             | PATH_TRAVERSAL
+technique_id         | T1190
+src_ip               | 172.20.0.1
+username             | 
+segment_id           | 
+attack_time          | 2026-10-20 19:20:37.47+00
+last_attack_time     | 2026-10-20 19:20:37.47+00
+observed_until       | 2026-10-20 19:21:07.47+00
+gt_outcome           | SUCCEEDED
+attacker_verdict     | SUCCEEDED
+best_confidence      | 1
+correlation_source   | RID
+detection_status_raw | DETECTED
+mttd_ms_raw          | 1204
+ingestion_lag_ms     | 
+bf_failure_count     | 0
+bf_sequence          | f
+spray                | f
+spray_account_count  | 0
+created_at           | 2026-10-20 19:21:56.510347+00
+-[ RECORD 3 ]--------+-------------------------------------
+verdict_id           | 226
+id                   | 250
+correlation_key      | 501ff6b8-d041-444e-87e4-c8bfc26ad914
+op_id                | 59379a60-d53c-4b1d-a854-39ce6f4ac5db
+op_id_resolved       | t
+paw                  | zetofr
+ability_id           | c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b
+rid                  | 501ff6b8-d041-444e-87e4-c8bfc26ad914
+scenario             | PATH_TRAVERSAL
+technique_id         | T1190
+src_ip               | 172.20.0.1
+username             | 
+segment_id           | 
+attack_time          | 2026-10-20 19:20:37.496+00
+last_attack_time     | 2026-10-20 19:20:37.496+00
+observed_until       | 2026-10-20 19:21:07.496+00
+gt_outcome           | SUCCEEDED
+attacker_verdict     | SUCCEEDED
+best_confidence      | 1
+correlation_source   | RID
+detection_status_raw | DETECTED
+mttd_ms_raw          | 1180
+ingestion_lag_ms     | 
+bf_failure_count     | 0
+bf_sequence          | f
+spray                | f
+spray_account_count  | 0
+created_at           | 2026-10-20 19:21:56.510347+00
+
+Expanded display is off.
+### (2-1c) detection_link (링크된 alert)
+ verdict_id | corr_id |                 rid                  | rule_id | technique |         alert_time         | match_path | confidence | late |   src_ip   | alert_ref 
+------------+---------+--------------------------------------+---------+-----------+----------------------------+------------+------------+------+------------+-----------
+        224 |     248 | 84a08f74-3532-4bd6-af6e-61f8b22c7336 | 100220  | T1190     | 2026-10-20 19:20:38.672+00 | RID        |          1 | f    | 172.20.0.1 | 
+        225 |     249 | 6504f373-7ae8-4e9e-9524-590b0cfe7397 | 100220  | T1190     | 2026-10-20 19:20:38.674+00 | RID        |          1 | f    | 172.20.0.1 | 
+        226 |     250 | 501ff6b8-d041-444e-87e4-c8bfc26ad914 | 100220  | T1190     | 2026-10-20 19:20:38.676+00 | RID        |          1 | f    | 172.20.0.1 | 
+(3 rows)
+
+### (2-2) attack_time·alert_time 의 run 구간 내 여부 + 재계산 mttd
+ id  |                 rid                  |         started_at         |        attack_time         |        first_alert         |          ended_at          | attack_in_run | alert_in_run | recomputed_ms | mttd_ms_raw | mttd_ms 
+-----+--------------------------------------+----------------------------+----------------------------+----------------------------+----------------------------+---------------+--------------+---------------+-------------+---------
+ 224 | 84a08f74-3532-4bd6-af6e-61f8b22c7336 | 2026-10-20 19:18:16.785+00 | 2026-10-20 19:20:37.407+00 | 2026-10-20 19:20:38.672+00 | 2026-10-20 19:21:56.781+00 | t             | t            |          1265 |        1265 |    1265
+ 225 | 6504f373-7ae8-4e9e-9524-590b0cfe7397 | 2026-10-20 19:18:16.785+00 | 2026-10-20 19:20:37.47+00  | 2026-10-20 19:20:38.674+00 | 2026-10-20 19:21:56.781+00 | t             | t            |          1204 |        1204 |    1204
+ 226 | 501ff6b8-d041-444e-87e4-c8bfc26ad914 | 2026-10-20 19:18:16.785+00 | 2026-10-20 19:20:37.496+00 | 2026-10-20 19:20:38.676+00 | 2026-10-20 19:21:56.781+00 | t             | t            |          1180 |        1180 |    1180
+(3 rows)
+
+ROLLBACK
+### (2-3a) 앱 로그 target-web:/var/log/target/attack.json.log — 3개 rid 또는 2026-10-20T19:19:37Z~19:21:39Z 의 PT 관련 줄 (필드 발췌, 응답 본문 없음)
+  L1029 time=1792524037407(2026-10-20T19:20:37.407Z) rid=84a08f74-3532-4bd6-af6e-61f8b22c7336 GET /api/files/download?filename=../../../../etc/passwd code=200 outcome=SUCCEEDED ua=Caldera/zetofr/T1190/c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b corr.op_id=zetofr corr.ability=c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b corr.source=HEADER
+  L1030 time=1792524037470(2026-10-20T19:20:37.470Z) rid=6504f373-7ae8-4e9e-9524-590b0cfe7397 GET /api/files/download?filename=../../../../etc/hostname code=200 outcome=SUCCEEDED ua=Caldera/zetofr/T1190/c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b corr.op_id=zetofr corr.ability=c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b corr.source=HEADER
+  L1031 time=1792524037496(2026-10-20T19:20:37.496Z) rid=501ff6b8-d041-444e-87e4-c8bfc26ad914 GET /api/files/download?filename=../../../../etc/hosts code=200 outcome=SUCCEEDED ua=Caldera/zetofr/T1190/c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b corr.op_id=zetofr corr.ability=c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b corr.source=HEADER
+  (총 파싱 1076줄, 일치 3줄)
+### (2-3b) Wazuh security-lab-wazuh.manager-1:/var/ossec/logs/alerts/2026/Oct/ossec-alerts-20.json — 3개 rid 또는 같은 구간 PT 관련 alert (필드 발췌)
+  L1616 timestamp=2026-10-20T19:20:38.614+0000(2026-10-20T19:20:38.614Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [CALDERA] Agent detected via User-Agent
+  L1617 timestamp=2026-10-20T19:20:38.614+0000(2026-10-20T19:20:38.614Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [CALDERA] Operation header detected - X-Caldera-Op-Id
+  L1618 timestamp=2026-10-20T19:20:38.616+0000(2026-10-20T19:20:38.616Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [CALDERA] Technique header detected - X-Caldera-Technique
+  L1619 timestamp=2026-10-20T19:20:38.618+0000(2026-10-20T19:20:38.618Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [CALDERA] Ability header detected - X-Caldera-Ability
+  L1620 timestamp=2026-10-20T19:20:38.620+0000(2026-10-20T19:20:38.620Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [PATH_TRAVERSAL] Directory traversal pattern in URI - T1083
+  L1621 timestamp=2026-10-20T19:20:38.631+0000(2026-10-20T19:20:38.631Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [CALDERA] Agent detected via User-Agent
+  L1622 timestamp=2026-10-20T19:20:38.633+0000(2026-10-20T19:20:38.633Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [CALDERA] Operation header detected - X-Caldera-Op-Id
+  L1623 timestamp=2026-10-20T19:20:38.635+0000(2026-10-20T19:20:38.635Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [CALDERA] Technique header detected - X-Caldera-Technique
+  L1624 timestamp=2026-10-20T19:20:38.637+0000(2026-10-20T19:20:38.637Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [CALDERA] Ability header detected - X-Caldera-Ability
+  L1625 timestamp=2026-10-20T19:20:38.639+0000(2026-10-20T19:20:38.639Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [PATH_TRAVERSAL] Directory traversal pattern in URI - T1083
+  L1626 timestamp=2026-10-20T19:20:38.645+0000(2026-10-20T19:20:38.645Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [CALDERA] Agent detected via User-Agent
+  L1627 timestamp=2026-10-20T19:20:38.647+0000(2026-10-20T19:20:38.647Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [CALDERA] Operation header detected - X-Caldera-Op-Id
+  L1628 timestamp=2026-10-20T19:20:38.649+0000(2026-10-20T19:20:38.649Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [CALDERA] Technique header detected - X-Caldera-Technique
+  L1629 timestamp=2026-10-20T19:20:38.651+0000(2026-10-20T19:20:38.651Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [CALDERA] Ability header detected - X-Caldera-Ability
+  L1630 timestamp=2026-10-20T19:20:38.654+0000(2026-10-20T19:20:38.654Z) rule.id=86601 level=3 mitre=None groups=['ids', 'suricata'] data.rid=None data.time=None path=None op_id=None ability=None desc=Suricata: Alert - [PATH_TRAVERSAL] Directory traversal pattern in URI - T1083
+  L1631 timestamp=2026-10-20T19:20:38.660+0000(2026-10-20T19:20:38.660Z) rule.id=1002 level=2 mitre=None groups=['syslog', 'errors'] data.rid=None data.time=None path=None op_id=None ability=None desc=Unknown problem somewhere in the system.
+  L1632 timestamp=2026-10-20T19:20:38.664+0000(2026-10-20T19:20:38.664Z) rule.id=1002 level=2 mitre=None groups=['syslog', 'errors'] data.rid=None data.time=None path=None op_id=None ability=None desc=Unknown problem somewhere in the system.
+  L1633 timestamp=2026-10-20T19:20:38.668+0000(2026-10-20T19:20:38.668Z) rule.id=1002 level=2 mitre=None groups=['syslog', 'errors'] data.rid=None data.time=None path=None op_id=None ability=None desc=Unknown problem somewhere in the system.
+  L1634 timestamp=2026-10-20T19:20:38.672+0000(2026-10-20T19:20:38.672Z) rule.id=100220 level=12 mitre=['T1190'] groups=['vuln-webapp', 'attack-http-activity', 'path_traversal', 'request_signal'] data.rid=84a08f74-3532-4bd6-af6e-61f8b22c7336 data.time=1792524037407.000000 path=/api/files/download op_id=zetofr ability=c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b desc=Path Traversal: traversal pattern in download request (JSON, request-signal)
+  L1635 timestamp=2026-10-20T19:20:38.674+0000(2026-10-20T19:20:38.674Z) rule.id=100220 level=12 mitre=['T1190'] groups=['vuln-webapp', 'attack-http-activity', 'path_traversal', 'request_signal'] data.rid=6504f373-7ae8-4e9e-9524-590b0cfe7397 data.time=1792524037470.000000 path=/api/files/download op_id=zetofr ability=c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b desc=Path Traversal: traversal pattern in download request (JSON, request-signal)
+  L1636 timestamp=2026-10-20T19:20:38.676+0000(2026-10-20T19:20:38.676Z) rule.id=100220 level=12 mitre=['T1190'] groups=['vuln-webapp', 'attack-http-activity', 'path_traversal', 'request_signal'] data.rid=501ff6b8-d041-444e-87e4-c8bfc26ad914 data.time=1792524037496.000000 path=/api/files/download op_id=zetofr ability=c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b desc=Path Traversal: traversal pattern in download request (JSON, request-signal)
+  (총 파싱 1897줄, 일치 21줄)
+  (2-3b 주: 필터가 data 안 '/api/files/download' 문자열도 잡아 Suricata 86601·syslog 1002 줄이 함께 나옴 — 기록만. 측정 하네스 입력인 vuln-webapp 그룹 alert 는 L1634~L1636 3줄)
+### (2-4) Step 2 사실 정리
+  - 5-SMOKE PT verdict 224/225/226 → correlation 248/249/250 (각 1:1, correlation_source=RID, op_id=59379a60-… resolved) → detection_link 각 1건(rule 100220, match_path=RID, conf=1, late=f)
+  - attack_time = 앱 로그 time 과 ms 단위 일치: L1029 1792524037407=19:20:37.407Z, L1030 …470, L1031 …496 (2-1b vs 2-3a)
+  - alert_time = Wazuh timestamp 와 ms 단위 일치: L1634 19:20:38.672, L1635 .674, L1636 .676; alert data.time = 앱 time (2-1c vs 2-3b)
+  - 둘 다 run 19:18:16.785~19:21:56.781 구간 안 (2-2 attack_in_run=t, alert_in_run=t). 재계산 1265/1204/1180 = mttd_ms_raw = mttd_ms
+  - ±1분(19:19:37~19:21:39) 앱 로그 PT 요청은 이 3줄뿐(파싱 1076줄 중 일치 3), vuln-webapp PT alert 도 이 3줄뿐
+
+## Step 1 보강 / Step 2 보강 — 지표 뷰·S3-GATE 구간 밖 attack_time 2026-10-21T07:28:10Z
+BEGIN
+### (1-6) v_metric_mttd (M04, ADR-S4-01) 전체 행
+        label        |                run_id                | definition_version | split_kind |   split_unit   |  n  | p50_ms |       p95_ms       | status  
+---------------------+--------------------------------------+--------------------+------------+----------------+-----+--------+--------------------+---------
+ S3-GATE-dc66322     | bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | SCENARIO   | SSRF           |  40 |    708 | 1974.0000000000005 | OK
+ S3-GATE-dc66322     | bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | SCENARIO   | PATH_TRAVERSAL |  60 |   1070 | 1912.9499999999998 | OK
+ S3-GATE-dc66322     | bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | SCENARIO   | SQLI           |   0 |        |                    | NO_DATA
+ S3-GATE-dc66322     | bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | ALL        | ALL            | 120 |    966 | 1931.1499999999999 | OK
+ S3-GATE-dc66322     | bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | TECHNIQUE  | T1190          | 100 |  942.5 | 1925.8999999999999 | OK
+ S3-GATE-dc66322     | bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | TECHNIQUE  | T1110          |  20 |   1083 | 2019.5499999999993 | OK
+ S3-GATE-dc66322     | bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | SCENARIO   | BRUTE_FORCE    |  20 |   1083 | 2019.5499999999993 | OK
+ S4-1b-SMOKE         | d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | TECHNIQUE  | T1190          |   5 |   1478 |               1569 | OK
+ S4-1b-SMOKE         | d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | ALL        | ALL            |   6 |   1125 |               1569 | OK
+ S4-1b-SMOKE         | d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | SCENARIO   | SQLI           |   0 |        |                    | NO_DATA
+ S4-1b-SMOKE         | d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | SCENARIO   | BRUTE_FORCE    |   1 |    772 |                772 | OK
+ S4-1b-SMOKE         | d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | SCENARIO   | SSRF           |   2 |    318 |                552 | OK
+ S4-1b-SMOKE         | d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | SCENARIO   | PATH_TRAVERSAL |   3 |   1507 |               1569 | OK
+ S4-1b-SMOKE         | d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | TECHNIQUE  | T1110          |   1 |    772 |                772 | OK
+ S4-STACK-1a-SMOKE   | eeb2196c-a937-45bc-9afe-a42ac14a5e34 | ADR-S4-01 v1.4     | ALL        | ALL            |   6 |   1597 |               2615 | OK
+ S4-STACK-1a-SMOKE   | eeb2196c-a937-45bc-9afe-a42ac14a5e34 | ADR-S4-01 v1.4     | SCENARIO   | SQLI           |   0 |        |                    | NO_DATA
+ S4-STACK-1a-SMOKE   | eeb2196c-a937-45bc-9afe-a42ac14a5e34 | ADR-S4-01 v1.4     | SCENARIO   | PATH_TRAVERSAL |   3 |   1605 |               1769 | OK
+ S4-STACK-1a-SMOKE   | eeb2196c-a937-45bc-9afe-a42ac14a5e34 | ADR-S4-01 v1.4     | SCENARIO   | BRUTE_FORCE    |   1 |   2615 |               2615 | OK
+ S4-STACK-1a-SMOKE   | eeb2196c-a937-45bc-9afe-a42ac14a5e34 | ADR-S4-01 v1.4     | TECHNIQUE  | T1110          |   1 |   2615 |               2615 | OK
+ S4-STACK-1a-SMOKE   | eeb2196c-a937-45bc-9afe-a42ac14a5e34 | ADR-S4-01 v1.4     | SCENARIO   | SSRF           |   2 |    453 |                713 | OK
+ S4-STACK-1a-SMOKE   | eeb2196c-a937-45bc-9afe-a42ac14a5e34 | ADR-S4-01 v1.4     | TECHNIQUE  | T1190          |   5 |   1589 |               1769 | OK
+ S4-STACK-4-SMOKE-R2 | 7f72e521-23cb-4014-b9e4-626e5898f86c | ADR-S4-01 v1.4     | ALL        | ALL            |   6 | 1385.5 |               1440 | OK
+ S4-STACK-4-SMOKE-R2 | 7f72e521-23cb-4014-b9e4-626e5898f86c | ADR-S4-01 v1.4     | SCENARIO   | SQLI           |   0 |        |                    | NO_DATA
+ S4-STACK-4-SMOKE-R2 | 7f72e521-23cb-4014-b9e4-626e5898f86c | ADR-S4-01 v1.4     | SCENARIO   | BRUTE_FORCE    |   1 |    820 |                820 | OK
+ S4-STACK-4-SMOKE-R2 | 7f72e521-23cb-4014-b9e4-626e5898f86c | ADR-S4-01 v1.4     | TECHNIQUE  | T1190          |   5 |   1387 |               1440 | OK
+ S4-STACK-4-SMOKE-R2 | 7f72e521-23cb-4014-b9e4-626e5898f86c | ADR-S4-01 v1.4     | SCENARIO   | PATH_TRAVERSAL |   3 |   1406 |               1440 | OK
+ S4-STACK-4-SMOKE-R2 | 7f72e521-23cb-4014-b9e4-626e5898f86c | ADR-S4-01 v1.4     | SCENARIO   | SSRF           |   2 | 1346.5 |               1387 | OK
+ S4-STACK-4-SMOKE-R2 | 7f72e521-23cb-4014-b9e4-626e5898f86c | ADR-S4-01 v1.4     | TECHNIQUE  | T1110          |   1 |    820 |                820 | OK
+ S4-STACK-1b-SMOKE   | 1cdba28a-90ea-45ef-9c3c-1f29ba5d9e15 | ADR-S4-01 v1.4     | TECHNIQUE  | T1190          |   5 |   1785 |               1831 | OK
+ S4-STACK-1b-SMOKE   | 1cdba28a-90ea-45ef-9c3c-1f29ba5d9e15 | ADR-S4-01 v1.4     | SCENARIO   | PATH_TRAVERSAL |   3 |   1796 |               1831 | OK
+ S4-STACK-1b-SMOKE   | 1cdba28a-90ea-45ef-9c3c-1f29ba5d9e15 | ADR-S4-01 v1.4     | ALL        | ALL            |   6 | 1440.5 |               1831 | OK
+ S4-STACK-1b-SMOKE   | 1cdba28a-90ea-45ef-9c3c-1f29ba5d9e15 | ADR-S4-01 v1.4     | SCENARIO   | BRUTE_FORCE    |   1 |   1096 |               1096 | OK
+ S4-STACK-1b-SMOKE   | 1cdba28a-90ea-45ef-9c3c-1f29ba5d9e15 | ADR-S4-01 v1.4     | TECHNIQUE  | T1110          |   1 |   1096 |               1096 | OK
+ S4-STACK-1b-SMOKE   | 1cdba28a-90ea-45ef-9c3c-1f29ba5d9e15 | ADR-S4-01 v1.4     | SCENARIO   | SSRF           |   2 |  693.5 |                859 | OK
+ S4-STACK-1b-SMOKE   | 1cdba28a-90ea-45ef-9c3c-1f29ba5d9e15 | ADR-S4-01 v1.4     | SCENARIO   | SQLI           |   0 |        |                    | NO_DATA
+ S4-STACK-1c-SMOKE   | cf488201-b0d8-4e45-b376-c6bc60607d9f | ADR-S4-01 v1.4     | TECHNIQUE  | T1190          |   5 |    993 |               1978 | OK
+ S4-STACK-1c-SMOKE   | cf488201-b0d8-4e45-b376-c6bc60607d9f | ADR-S4-01 v1.4     | TECHNIQUE  | T1110          |   1 |    993 |                993 | OK
+ S4-STACK-1c-SMOKE   | cf488201-b0d8-4e45-b376-c6bc60607d9f | ADR-S4-01 v1.4     | SCENARIO   | PATH_TRAVERSAL |   3 |    925 |                993 | OK
+ S4-STACK-1c-SMOKE   | cf488201-b0d8-4e45-b376-c6bc60607d9f | ADR-S4-01 v1.4     | SCENARIO   | BRUTE_FORCE    |   1 |    993 |                993 | OK
+ S4-STACK-1c-SMOKE   | cf488201-b0d8-4e45-b376-c6bc60607d9f | ADR-S4-01 v1.4     | ALL        | ALL            |   6 |    993 |               1978 | OK
+ S4-STACK-1c-SMOKE   | cf488201-b0d8-4e45-b376-c6bc60607d9f | ADR-S4-01 v1.4     | SCENARIO   | SQLI           |   0 |        |                    | NO_DATA
+ S4-STACK-1c-SMOKE   | cf488201-b0d8-4e45-b376-c6bc60607d9f | ADR-S4-01 v1.4     | SCENARIO   | SSRF           |   2 |   1737 |               1978 | OK
+ S4-STACK-IFN-SMOKE  | c97930ba-64fe-4777-88c5-1b61c99390c4 | ADR-S4-01 v1.4     | TECHNIQUE  | T1110          |   1 |   2100 |               2100 | OK
+ S4-STACK-IFN-SMOKE  | c97930ba-64fe-4777-88c5-1b61c99390c4 | ADR-S4-01 v1.4     | SCENARIO   | BRUTE_FORCE    |   1 |   2100 |               2100 | OK
+ S4-STACK-IFN-SMOKE  | c97930ba-64fe-4777-88c5-1b61c99390c4 | ADR-S4-01 v1.4     | ALL        | ALL            |   6 | 1167.5 |               2100 | OK
+ S4-STACK-IFN-SMOKE  | c97930ba-64fe-4777-88c5-1b61c99390c4 | ADR-S4-01 v1.4     | SCENARIO   | SSRF           |   2 |   1563 |               1792 | OK
+ S4-STACK-IFN-SMOKE  | c97930ba-64fe-4777-88c5-1b61c99390c4 | ADR-S4-01 v1.4     | SCENARIO   | PATH_TRAVERSAL |   3 |    909 |               1001 | OK
+ S4-STACK-IFN-SMOKE  | c97930ba-64fe-4777-88c5-1b61c99390c4 | ADR-S4-01 v1.4     | SCENARIO   | SQLI           |   0 |        |                    | NO_DATA
+ S4-STACK-IFN-SMOKE  | c97930ba-64fe-4777-88c5-1b61c99390c4 | ADR-S4-01 v1.4     | TECHNIQUE  | T1190          |   5 |   1001 |               1792 | OK
+ S4-STACK-5-SMOKE    | 1ba74855-4ea7-4cca-aa62-46907284fc5b | ADR-S4-01 v1.4     | SCENARIO   | SQLI           |   0 |        |                    | NO_DATA
+ S4-STACK-5-SMOKE    | 1ba74855-4ea7-4cca-aa62-46907284fc5b | ADR-S4-01 v1.4     | ALL        | ALL            |   6 | 1487.5 |               2438 | OK
+ S4-STACK-5-SMOKE    | 1ba74855-4ea7-4cca-aa62-46907284fc5b | ADR-S4-01 v1.4     | TECHNIQUE  | T1190          |   5 |   1265 |               2050 | OK
+ S4-STACK-5-SMOKE    | 1ba74855-4ea7-4cca-aa62-46907284fc5b | ADR-S4-01 v1.4     | SCENARIO   | PATH_TRAVERSAL |   3 |   1204 |               1265 | OK
+ S4-STACK-5-SMOKE    | 1ba74855-4ea7-4cca-aa62-46907284fc5b | ADR-S4-01 v1.4     | SCENARIO   | SSRF           |   2 |   1880 |               2050 | OK
+ S4-STACK-5-SMOKE    | 1ba74855-4ea7-4cca-aa62-46907284fc5b | ADR-S4-01 v1.4     | SCENARIO   | BRUTE_FORCE    |   1 |   2438 |               2438 | OK
+ S4-STACK-5-SMOKE    | 1ba74855-4ea7-4cca-aa62-46907284fc5b | ADR-S4-01 v1.4     | TECHNIQUE  | T1110          |   1 |   2438 |               2438 | OK
+ S4-STACK-2-SMOKE    | 95db8a16-0002-4296-8682-b5bdbbac1312 | ADR-S4-01 v1.4     | TECHNIQUE  | T1190          |   5 |    183 |                810 | OK
+ S4-STACK-2-SMOKE    | 95db8a16-0002-4296-8682-b5bdbbac1312 | ADR-S4-01 v1.4     | SCENARIO   | SQLI           |   0 |        |                    | NO_DATA
+ S4-STACK-2-SMOKE    | 95db8a16-0002-4296-8682-b5bdbbac1312 | ADR-S4-01 v1.4     | SCENARIO   | PATH_TRAVERSAL |   3 |     88 |                183 | OK
+ S4-STACK-2-SMOKE    | 95db8a16-0002-4296-8682-b5bdbbac1312 | ADR-S4-01 v1.4     | SCENARIO   | BRUTE_FORCE    |   1 |   1149 |               1149 | OK
+ S4-STACK-2-SMOKE    | 95db8a16-0002-4296-8682-b5bdbbac1312 | ADR-S4-01 v1.4     | SCENARIO   | SSRF           |   2 |    585 |                810 | OK
+ S4-STACK-2-SMOKE    | 95db8a16-0002-4296-8682-b5bdbbac1312 | ADR-S4-01 v1.4     | TECHNIQUE  | T1110          |   1 |   1149 |               1149 | OK
+ S4-STACK-2-SMOKE    | 95db8a16-0002-4296-8682-b5bdbbac1312 | ADR-S4-01 v1.4     | ALL        | ALL            |   6 |  271.5 |               1149 | OK
+(63 rows)
+
+### (2-5) S3-GATE-dc66322: attack_time 이 run 구간 밖인 correlation
+ id | verdict_id |    scenario    |  unit_type  | attempt_role | detection_status | mttd_ms | correlation_source |          started_at           |        attack_time         |      last_attack_time      |           ended_at            | ms_before_start | ms_after_end |          created_at           |          decided_at           
+----+------------+----------------+-------------+--------------+------------------+---------+--------------------+-------------------------------+----------------------------+----------------------------+-------------------------------+-----------------+--------------+-------------------------------+-------------------------------
+ 25 |          1 | SQLI           | SINGLE      | ATTACK       | NOT_DETECTED     |         | NONE               | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:00:36.559+00 | 2026-10-16 17:00:36.559+00 | 2026-10-16 18:07:23.246309+00 |          204533 |     -4006687 | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:04:01.091971+00
+ 26 |          2 | SSRF           | SINGLE      | ATTACK       | DETECTED         |     616 | RID                | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:01:26.131+00 | 2026-10-16 17:01:26.131+00 | 2026-10-16 18:07:23.246309+00 |          154961 |     -3957115 | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:04:01.091971+00
+ 27 |          3 | SSRF           | SINGLE      | ATTACK       | DETECTED         |     266 | RID                | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:01:26.49+00  | 2026-10-16 17:01:26.49+00  | 2026-10-16 18:07:23.246309+00 |          154602 |     -3956756 | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:04:01.091971+00
+ 28 |          4 | SSRF           | SINGLE      | CONTROL      | NOT_DETECTED     |         | NONE               | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:01:26.55+00  | 2026-10-16 17:01:26.55+00  | 2026-10-16 18:07:23.246309+00 |          154542 |     -3956696 | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:04:01.091971+00
+ 29 |          5 | PATH_TRAVERSAL | SINGLE      | ATTACK       | DETECTED         |    1760 | RID                | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:02:29.064+00 | 2026-10-16 17:02:29.064+00 | 2026-10-16 18:07:23.246309+00 |           92028 |     -3894182 | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:04:01.091971+00
+ 30 |          6 | PATH_TRAVERSAL | SINGLE      | ATTACK       | DETECTED         |    1669 | RID                | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:02:29.156+00 | 2026-10-16 17:02:29.156+00 | 2026-10-16 18:07:23.246309+00 |           91936 |     -3894090 | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:04:01.091971+00
+ 31 |          7 | PATH_TRAVERSAL | SINGLE      | ATTACK       | DETECTED         |    1683 | RID                | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:02:29.182+00 | 2026-10-16 17:02:29.182+00 | 2026-10-16 18:07:23.246309+00 |           91910 |     -3894064 | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:04:01.091971+00
+ 32 |          8 | BRUTE_FORCE    | BF_SEQUENCE | ATTACK       | DETECTED         |    1730 | RID                | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:03:21.192+00 | 2026-10-16 17:03:21.481+00 | 2026-10-16 18:07:23.246309+00 |           39900 |     -3842054 | 2026-10-16 17:04:01.091971+00 | 2026-10-16 17:04:01.091971+00
+(8 rows)
+
+### (2-5b) S3-GATE run 메타 (kind/notes/rules_digest.status)
+      label      |  kind  | status |          started_at           |           ended_at            |                          notes                          | digest_status |         first_decided         |         last_decided          |         min_attack         |         max_attack         
+-----------------+--------+--------+-------------------------------+-------------------------------+---------------------------------------------------------+---------------+-------------------------------+-------------------------------+----------------------------+----------------------------
+ S3-GATE-dc66322 | ATTACK | CLOSED | 2026-10-16 17:04:01.091971+00 | 2026-10-16 18:07:23.246309+00 | backfilled; code 17a0b04, report dc66322; dirty unknown | unverified    | 2026-10-16 17:04:01.091971+00 | 2026-10-16 18:07:23.246309+00 | 2026-10-16 17:00:36.559+00 | 2026-10-16 18:06:47.598+00
+(1 row)
+
+ROLLBACK
+### (3-3a) 2026-10-20 이후 앱 로그 PT(/api/files/download) 줄을 run 구간[started_at, ended_at+30s] 별로 분류 (tagged = correlation.op_id 있음)
+  run 구간 원천: validation.measurement_run (Step 1-1)
+  OUTSIDE_ALL_RUNS       untagged  8
+  S4-STACK-1a-SMOKE      tagged    3
+  S4-STACK-1b-SMOKE      tagged    3
+  S4-STACK-1c-SMOKE      tagged    3
+  S4-STACK-2-SMOKE       tagged    3
+  S4-STACK-4-SMOKE       tagged    6
+  S4-STACK-4-SMOKE-R2    tagged    3
+  S4-STACK-5-SMOKE       tagged    3
+  S4-STACK-IFN-SMOKE     tagged    3
+  -- run 밖(창+30s 밖) PT 줄 원문 발췌 --
+  L1045 2026-10-20T19:42:34.463Z rid=5d23de03-41c7-4d06-abd5-b060cdb2c72a args=filename=../../../../etc/passwd ua=curl/8.5.0 corr.op_id=None
+  L1046 2026-10-20T19:42:54.932Z rid=5e6f4345-047a-4a2b-a186-92d457c8cef9 args=filename=../../../etc/passwd ua=curl/8.5.0 corr.op_id=None
+  L1047 2026-10-20T19:43:15.006Z rid=26a08c0a-4157-4c3f-ac0e-6b381417a5bd args=filename=....//....//etc/passwd ua=curl/8.5.0 corr.op_id=None
+  L1050 2026-10-20T19:44:15.989Z rid=0da99634-3058-4a3b-a64d-5d1c14b11abe args=filename=report.pdf ua=curl/8.5.0 corr.op_id=None
+  L1051 2026-10-20T20:01:44.469Z rid=0d40e2f9-6073-42be-b142-dd01934cd5c6 args=filename=../../../../etc/passwd ua=curl/8.5.0 corr.op_id=None
+  L1052 2026-10-20T20:02:04.844Z rid=e873c626-1fd4-4206-9736-6d08103af9c2 args=filename=../../../etc/passwd ua=curl/8.5.0 corr.op_id=None
+  L1053 2026-10-20T20:02:24.942Z rid=4235a4c7-2972-4ca1-a213-0d67aedef70f args=filename=....//....//etc/passwd ua=curl/8.5.0 corr.op_id=None
+  L1056 2026-10-20T20:03:25.439Z rid=4c5b0cef-c6dc-4788-8308-f12be4ccc058 args=filename=report.pdf ua=curl/8.5.0 corr.op_id=None
+  (3-3a 해석) run 밖 PT 8줄 = 슬라이스 2 Gap 시험 curl 요청(2026-10-21_s2-suricata-8.log Step 1·Step 5 와 같은 시각대: 19:42~19:44 / 20:01~20:03). 전부 untagged(corr.op_id 없음, ua=curl/8.5.0)
+    5-SMOKE PT(19:20:37) 기준 ±3h17m(≈16:03:56Z / ≈22:37:18Z) 근처 PT 이벤트 없음 — 2026-10-20 이후 PT 줄은 위 표 38줄이 전부
+
+## Step 3 — 코드 경로 (읽기만, HEAD 730ea49)
+### (3-1) attack_time 결정
+  MeasurementCampaign.java:68  Instant attackTime = Instant.ofEpochMilli(time.millis());   ← op 시작(하네스 시계), 읽기 창 시작
+  MeasurementCampaign.java:71  Instant opFinish = attackTime.plusMillis(rr.durationMs());
+  GtLogReader.java:74          Instant attackTime = Instant.ofEpochMilli(timeNode.asLong());   ← 이벤트 attack_time = 앱 로그 time(epoch ms)
+  CorrelationEngine.java:121   단건(SQLi·PT·SSRF)은 이벤트 1개 = 그룹 1개 (Group.of(List.of(e), …))
+  CorrelationEngine.java:216   Correlation attack_time = group.first().attackTime() (그룹 내 최솟값, 시각순 정렬)
+  VerdictEngine.java:60-61     Unit.attackTime() = members attack_time min
+### (3-2) alert 선택·mttd 계산
+  MeasurementCollector.java:38-40  windowEnd = opFinish.plus(readWindowTail); gt·alert 둘 다 [attackTime, windowEnd] 로 읽음
+  application.yaml:50              read-window-tail-seconds: ${APP_MEASURE_READ_WINDOW_TAIL_SECONDS:30}
+  IndexerAlertSearchSource.java:83-84  {"range":{"timestamp":{"gte":%d,"lte":%d,"format":"epoch_millis"}}}, {"term":{"rule.groups":"%s"}}  ← 인덱서 조회 = 읽기 창 + vuln-webapp
+  CorrelationEngine.java:179-181   if (alert.alertTime().isBefore(first.attackTime())) return null;   ← 공격 이전 alert 제외(음수 불가)
+  CorrelationEngine.java:182-186   inWindow = alertTime ≤ observedUntil(마지막 이벤트+30s); lateAlertCap != null 일 때만 상한
+  application.yaml:74 + CorrelationConfig.java:21  late-alert-cap-seconds: 0 → lateAlertCap = null (상한 없음). CampaignRunnerIT.java:36-42 덮어쓰기 없음
+  CorrelationEngine.java:188-189   rid 일치 → RID / :192-197 paw+ability → HEADER / :200-205 식별자 없는 alert 만 TIME_ONLY
+  CorrelationEngine.java:236-243   mttd_ms_raw = 관찰기간 내 usable(≥0.7) 첫 alert − attack_time
+  VerdictEngine.java:103,119-120   verdict mttd_ms = fin(전체 링크, late 포함) criterionTime − Unit.attackTime  (SINGLE: :184 detectSingle 기법 일치 첫 usable 링크)
+### (3-3) run 귀속 기준과 run 밖 이벤트 차단
+  GtLogReader.java:75-77     attackTime < windowStart 또는 > windowEnd 인 앱 줄 제외          ← 시간 창(1차 차단)
+  GtLogReader.java:79-82     correlation.op_id(=paw) 없는 줄 제외("Caldera 미태깅(수동) 라인 제외") ← 태깅(2차 차단)
+  MeasurementHarness.java:90-92  op_id 해석 대상만 [attackTime, opFinish] 로 다시 좁힘 — 라벨 전용, 매칭·판정 미사용(:39)
+  rid: 앱 줄 rid ↔ alert data.rid (CorrelationEngine.java:188). Gap 시험 curl 요청은 rid 가 다르고 op_id 가 없어 RID/HEADER 로 엮일 수 없음,
+       TIME_ONLY 는 inWindow 필요 + 인덱서 조회 자체가 읽기 창으로 제한 → run 밖 alert 는 입력에 들어오지 않음
+### (3-4) 구조적 상한(코드에서 유도, 사실)
+  0 ≤ mttd_ms ≤ windowEnd − windowStart = durationMs + 30s  (CE:179 하한, GtLogReader:75 + Indexer range lte 상한, lateAlertCap=null 이어도 읽기 창이 상한)
+  poll-timeout 300s(application.yaml:47) → 측정 경로에서 나올 수 있는 최대 ≈ 300s + poll 3s + 30s ≈ 333,000ms. 11,801,265ms(3h16m41s)는 이 경로로 생성 불가
+  단서: 앱 time 은 target-web 컨테이너 시계, 창 경계는 호스트 JVM 시계 — 같은 호스트 커널 시계(docker)라 동일 원천. Step 2-3 에서 앱 time·alert data.time·alert timestamp 일치 확인
+
+## Step 4 — 결론
+### 확정(증거)
+  C1. S4-STACK-5-SMOKE PT mttd_ms 는 1265·1204·1180ms 이고 11,801,265 인 행은 DB 어디에도 없다 (Step 1-2, 1-3b, 2-1a)
+  C2. 세 값은 원본과 ms 단위로 일치: 앱 attack.json.log L1029~L1031 time → Wazuh ossec-alerts-20.json L1634~L1636 timestamp (rule 100220, data.rid 일치), 재계산 = mttd_ms_raw = mttd_ms (2-2, 2-3)
+  C3. attack_time·alert_time 모두 run 구간 안, late=f, match_path=RID, conf=1 (2-1c, 2-2)
+  C4. 10개 run 전체에서 run 길이 초과·음수·DETECTED-NULL 0건, 최댓값 2615ms (1-3, 1-3b). correlation.mttd_ms_raw 도 같음 (1-3c)
+  C5. S4-STACK-2-SMOKE PT 도 47,183 이 아니라 183·88·47ms (1-2)
+  C6. 11,801,265·47,183 문자열은 저장소에 없음(1-4). gate-report 에는 mttd 항목 없음. 값이 적힌 곳은 s5 로그 :412-414 와 s2 로그 :538 'PT 5=1180·1204·1265 / 2=47·88·183'
+  C7. 측정 코드 경로상 mttd 상한 ≈ durationMs+30s (3-4) — 3시간대 값은 하네스·엔진이 만들 수 없음
+### 추정(증거로 확정 안 됨)
+  E1. 보고된 두 값은 각 run PT 의 (최솟값, 최댓값) 을 구분자 없이 이어 붙인 문자열로 보인다: "1180"+"1265"=11801265, "47"+"183"=47183 — 두 건 모두 자릿수까지 일치(산술 사실).
+      s2 로그 :538 의 '·'(U+00B7) 구분자 또는 '1180~1265' 같은 범위 표기가 옮겨 적는 과정에서 빠진 것으로 추정. 이 숫자를 처음 만든 곳(대화·메모·스프레드시트 등)은 저장소 밖이라 확인 못 함
+### 반증된 가설
+  H1 run 밖 PT 이벤트 혼입(Gap 시험 등): run 밖 PT 8줄은 untagged·창 밖(3-3a) → GtLogReader:75-82 두 겹으로 제외. 실제 5-SMOKE correlation 은 앱 L1029~L1031 3줄뿐(2-3a)
+  H2 오래된/이전 alert 링크: 링크 alert 3건 모두 19:20:38.67x, data.rid 일치, run 구간 안(2-1c, 2-3b). 인덱서 조회가 읽기 창으로 제한(IndexerAlertSearchSource:83)
+  H3 attack_time 이 그룹 min 등으로 앞당겨짐: PT 는 단건 그룹(CE:121), attack_time = 앱 time 과 일치(2-1b vs 2-3a)
+  H4 late-alert-cap=0(상한 없음)으로 인한 늦은 링크: late=f, 그리고 읽기 창이 상한(3-4)
+  H5 재부팅·시계 문제: 5-SMOKE 는 재부팅 전(10-20) run 이며 앱 time·alert timestamp·DB 가 서로 일치
+### 영향 범위
+  - 이상값이 있는 run·시나리오: 없음 (C1, C4). 지표 오염도 실제 Delayed 도 아님 — 값 자체가 측정 파이프라인 밖에서 만들어진 표기 문제(추정 E1)
+  - S3-GATE-dc66322 baseline M04(v_metric_mttd, 1-6): ALL n=120 p50=966 p95=1931.15, PT n=60 p50=1070 p95=1912.95 — 변화 없음, 이 건과 무관
+  - 별도 관찰(영향 없음): S3-GATE correlation 8개 attack_time 이 run started_at 보다 40~205s 앞섬(2-5). 백필 SQL 이 started_at = min(decided_at) 로 정했기 때문
+    (backfill/2026-10-18_s3-gate-baseline_dry-run.sql:21) — 반복 #1 의 공격이 첫 저장 전에 일어난 정의상 결과, 해당 8개 mttd 266~1760ms 정상
+### 수정 방향 제안(적용 안 함)
+  P1 측정 절차(주): 증거 로그·보고서에 mttd 를 적을 때 run·시나리오별 n·min·max(또는 p50·p95)를 '|' 나 ', ' 로 구분해 ms 단위 명시. 이상값은 보고 전에 DB 원값
+     (verdict_result.mttd_ms) 과 대조하는 확인 1줄을 RUNBOOK (3) 에 추가 — 예: run 별 max(mttd_ms) 와 run 길이 비교(Step 1-3b 쿼리)
+  P2 코드(선택, 방어): 지금도 상한은 구조적으로 보장되나 명시 회귀 테스트가 없음. CorrelationEngineTest/MeasurementCollectorTest 에
+     (a) 읽기 창 밖(과거 3h) tagged PT 줄 + 같은 rid alert → correlation 0개, (b) 창 안 공격 + 창 밖 alert → NOT_DETECTED,
+     (c) 하네스 수준 불변식 0 ≤ mttd ≤ durationMs+tail 검사 테스트 추가를 제안. GtLogReaderTest:23·38 은 창 밖·untagged 제외를 이미 다룸
+  P3 R10 보강(선택): run 종료 시 verdict mttd_ms > (ended_at − started_at) 이면 INVALID 로 표시하는 무결성 검사(SampleIntegrity) 추가 검토 — 재현은 P2(c) 픽스처로

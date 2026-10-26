@@ -1,0 +1,29 @@
+- id: 88b9c0d1-2e3f-4456-f013-456789012008
+  name: '[NEGATIVE] Legitimate File Download'
+  description: 경로 조작 없이 파일명만으로 정상 다운로드를 수행합니다. Path Traversal 시그니처 룰이 정상 다운로드에서 오탐하지 않는지 검증합니다.
+  tactic: negative-test
+  technique:
+    attack_id: T0000
+    name: Negative Test - Legitimate Traffic
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T0000"
+          ABILITY_ID="88b9c0d1-2e3f-4456-f013-456789012008"
+          TARGET="http://#{target.url}"
+
+          FILES=("manual.pdf" "report.txt" "image.png")
+
+          for FNAME in "${FILES[@]}"; do
+            echo "[*] Legitimate Download: filename=${FNAME}"
+            curl -s -o /dev/null -w "HTTP=%{http_code}\n" \
+              -H "X-Caldera-Op-Id: ${OP_ID}" \
+              -H "X-Caldera-Technique: ${TECH_ID}" \
+              -H "X-Caldera-Ability: ${ABILITY_ID}" \
+              -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+              "${TARGET}/api/files/download?filename=${FNAME}"
+          done
+
+          echo "[*] Path Traversal 룰 미발동되어야 정상"

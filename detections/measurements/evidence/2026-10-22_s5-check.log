@@ -1,0 +1,73 @@
+## (A) s5-check 2026-10-22T05:32:23Z
+2abc879 feat(validation): V10 compare_snapshots·newcombe_diff_ci + RUNBOOK-S5-sqli
+dirty_files=0
+BEGIN
+ metric_snapshot_total 
+-----------------------
+                   442
+(1 row)
+
+          label           |   run8   | definition_version | rows 
+--------------------------+----------+--------------------+------
+ S4-5-BENIGN-WEB-R2       | 3818e21a | ADR-S4-01 v1.9     |   12
+ S4-5-BENIGN-WEB-R2       | 3818e21a | ADR-S4-01 v2.0     |   12
+ S4-STACK-6-BASELINE      | b1c26be1 | ADR-S4-01 v1.4     |   89
+ S4-STACK-6-BASELINE      | b1c26be1 | ADR-S4-01 v1.7     |  111
+ S5-SQLI-AFTER            | 805f3b8e | ADR-S4-01 v1.7     |  111
+ S5-SQLI-AFTER-BENIGN-WEB | 2ad849e0 | ADR-S4-01 v2.0     |   12
+(6 rows)
+
+ total | before_attack_v17 | before_benign_v20 
+-------+-------------------+-------------------
+   442 |               111 |                12
+(1 row)
+
+            r10_md5_runs             
+-------------------------------------
+ aa57e19fa877e32cb8bfc07ace2c81d7|19
+(1 row)
+
+ROLLBACK
+## 판정(위 수치로): 7b DONE = total 442 ∧ before_attack_v17=111 ∧ before_benign_v20=12 / 7b NOT DONE = total 319
+## /tmp 증거 파일 목록
+total 24
+drwxrwxr-x  2 hyeonseong hyeonseong 4096 Oct 22 10:17 .
+drwxrwxrwt 25 root       root       4096 Oct 22 14:32 ..
+-rw-rw-r--  1 hyeonseong hyeonseong 1015 Oct 22 08:39 gate-report-2026-10-21T23-39-53-815Z.json
+-rw-rw-r--  1 hyeonseong hyeonseong  591 Oct 22 08:39 gate-report-2026-10-21T23-39-53-815Z.md
+-rw-rw-r--  1 hyeonseong hyeonseong  981 Oct 22 09:57 gate-report-2026-10-22T00-57-41-015Z.json
+-rw-rw-r--  1 hyeonseong hyeonseong  557 Oct 22 09:57 gate-report-2026-10-22T00-57-41-015Z.md
+-rw------- 1 hyeonseong hyeonseong  2287 Oct 22 07:26 /tmp/runbook-4s5097567199145545401.sql
+-rw------- 1 hyeonseong hyeonseong    76 Oct 22 03:12 /tmp/runbook-4s5671836612607857349.sql
+-rw------- 1 hyeonseong hyeonseong  2287 Oct 22 05:20 /tmp/runbook-4s5782100136952204081.sql
+-rw-rw-r-- 1 hyeonseong hyeonseong  2321 Oct 22 07:51 /tmp/s5-0-precheck.sh
+-rw-rw-r-- 1 hyeonseong hyeonseong  2438 Oct 22 07:52 /tmp/s5-1-migrate.sh
+-rw-rw-r-- 1 hyeonseong hyeonseong  6002 Oct 22 08:22 /tmp/s5-2b-postcheck.sh
+-rw-rw-r-- 1 hyeonseong hyeonseong  7136 Oct 22 08:23 /tmp/s5-2-deploy.sh
+-rw-rw-r-- 1 hyeonseong hyeonseong  7283 Oct 22 08:33 /tmp/s5-3-smoke.sh
+-rw-rw-r-- 1 hyeonseong hyeonseong  6685 Oct 22 08:43 /tmp/s5-4-attack.sh
+-rw-rw-r-- 1 hyeonseong hyeonseong  6447 Oct 22 08:52 /tmp/s5-5-benign.sh
+-rw-rw-r-- 1 hyeonseong hyeonseong  5636 Oct 22 10:31 /tmp/s5-6-snapshot.sh
+-rw-rw-r-- 1 hyeonseong hyeonseong  8850 Oct 22 10:47 /tmp/s5-7b-compare.sh
+-rw-rw-r-- 1 hyeonseong hyeonseong  5923 Oct 22 10:41 /tmp/s5-7-compare.sh
+-rw-rw-r-- 1 hyeonseong hyeonseong  1690 Oct 22 14:32 /tmp/s5-check.log
+-rw-rw-r-- 1 hyeonseong hyeonseong  2123 Oct 22 14:31 /tmp/s5-check.sh
+-rw-rw-r-- 1 hyeonseong hyeonseong  2018 Oct 22 07:35 /tmp/s5-nc-null-check.sql
+-rw-rw-r-- 1 hyeonseong hyeonseong  1485 Oct 22 06:52 /tmp/s5-sqli-a2.log
+-rw-rw-r-- 1 hyeonseong hyeonseong  2071 Oct 22 06:33 /tmp/s5-sqli-a2.sh
+-rw-rw-r-- 1 hyeonseong hyeonseong 41191 Oct 22 10:50 /tmp/s5-sqli-before-after.log
+-rw-rw-r-- 1 hyeonseong hyeonseong   728 Oct 22 07:43 /tmp/s5-sqli-build.log
+-rw-rw-r-- 1 hyeonseong hyeonseong   517 Oct 22 06:43 /tmp/s5-sqli-build.sh
+-rw-rw-r-- 1 hyeonseong hyeonseong  3924 Oct 22 07:16 /tmp/s5-sqli-logtest.log
+-rw-rw-r-- 1 hyeonseong hyeonseong  5389 Oct 22 08:23 /tmp/s5-sqli-logtest.sh
+-rw-rw-r-- 1 hyeonseong hyeonseong  3204 Oct 22 07:09 /tmp/s5-sqli-logtest-x.log
+
+/tmp/s5-evidence:
+total 24
+drwxrwxr-x  2 hyeonseong hyeonseong 4096 Oct 22 10:17 .
+drwxrwxrwt 25 root       root       4096 Oct 22 14:32 ..
+-rw-rw-r--  1 hyeonseong hyeonseong 1015 Oct 22 08:39 gate-report-2026-10-21T23-39-53-815Z.json
+-rw-rw-r--  1 hyeonseong hyeonseong  591 Oct 22 08:39 gate-report-2026-10-21T23-39-53-815Z.md
+-rw-rw-r--  1 hyeonseong hyeonseong  981 Oct 22 09:57 gate-report-2026-10-22T00-57-41-015Z.json
+-rw-rw-r--  1 hyeonseong hyeonseong  557 Oct 22 09:57 gate-report-2026-10-22T00-57-41-015Z.md
+## (A) done — 결과만 보고하고 멈춘다

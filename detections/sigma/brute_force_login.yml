@@ -1,0 +1,97 @@
+# Source of truth. Wazuh rules 100230~100233 are the hand-converted deployment of this.
+#   bf_login_failed                -> 100230
+#   bf_login_failures_same_ip      -> 100231 (frequency=10 timeframe=120, same src_endpoint.ip)
+#   bf_login_success               -> 100232
+#   bf_success_after_failures      -> 100233 (if_sid 100232 + if_matched_sid 100231, timeframe=120)
+title: Login Failed on Auth Endpoint
+id: 7af4797b-8c7a-4b7c-a219-db76add373c5
+name: bf_login_failed
+status: experimental
+description: |
+    Single failed login (HTTP 401) on /api/auth/login, based on the OCSF HTTP Activity JSON log (attack.json.log).
+    Uses request/response fields only (http_request.*, http_response.*); app-side validation.* / correlation.* are not referenced.
+author: capstone
+date: 2026-10-11
+tags:
+    - attack.t1110
+logsource:
+    product: target-web
+    service: attack_http_activity
+detection:
+    selection:
+        http_request.url.path: /api/auth/login
+        http_response.code: 401
+    condition: selection
+falsepositives:
+    - Users mistyping their password
+level: low
+---
+title: Login Succeeded on Auth Endpoint
+id: 7bc2e2e8-5161-49af-bd9e-9421df6208f9
+name: bf_login_success
+status: experimental
+description: |
+    Single successful login (HTTP 200) on /api/auth/login, based on the OCSF HTTP Activity JSON log (attack.json.log).
+    Uses request/response fields only (http_request.*, http_response.*).
+author: capstone
+date: 2026-10-11
+tags:
+    - attack.t1110
+logsource:
+    product: target-web
+    service: attack_http_activity
+detection:
+    selection:
+        http_request.url.path: /api/auth/login
+        http_response.code: 200
+    condition: selection
+falsepositives:
+    - Every legitimate login; meaningful mainly as the second step of bf_success_after_failures
+level: high
+---
+title: Multiple Login Failures From Same IP
+id: 20477d65-9f47-4a88-9919-62c26cc33161
+name: bf_login_failures_same_ip
+status: experimental
+description: 10 or more failed logins from the same source IP within 2 minutes.
+author: capstone
+date: 2026-10-11
+tags:
+    - attack.t1110
+correlation:
+    type: event_count
+    rules:
+        - bf_login_failed
+    group-by:
+        - src_endpoint.ip
+    timespan: 2m
+    condition:
+        gte: 10
+    generate: true
+falsepositives:
+    - Shared NAT egress IP with many users mistyping passwords
+level: high
+---
+title: Login Success After Repeated Failures From Same IP
+id: 15cc2adc-530c-4446-89e7-28d34bbf77ba
+name: bf_success_after_failures
+status: experimental
+description: |
+    A successful login from the same source IP within 2 minutes after bf_login_failures_same_ip
+    (10 or more failures) - likely credential compromise.
+author: capstone
+date: 2026-10-11
+tags:
+    - attack.t1110
+correlation:
+    type: temporal_ordered
+    rules:
+        - bf_login_failures_same_ip
+        - bf_login_success
+    group-by:
+        - src_endpoint.ip
+    timespan: 2m
+    generate: true
+falsepositives:
+    - Legitimate user succeeding after many typos from a shared NAT IP
+level: critical

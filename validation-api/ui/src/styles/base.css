@@ -1,0 +1,207 @@
+/* 공통 레이아웃·토큰. v8 원본 <helmet><style> 공통부 그대로 이식. */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+body { margin: 0; background: #161515; }
+a { color: inherit; text-decoration: none; }
+
+.app {
+  --bg: #161515;
+  --panel: #ffffff0a;
+  --alt: #ffffff0a;
+  --border: #ffffff1a;
+  --text: #fff;
+  --muted: #ffffffb3;
+  --soft: #ffffff99;
+  --accent: #a0bce8;
+  --accentbg: #a0bce81a;
+  --track: #ffffff1a;
+  --attack: #b899eb;
+  --attackbg: #b899eb1a;
+  --det: #71dd8c;
+  --detbg: #71dd8c1a;
+  --danger: #f0a4a4;
+  --dangerbg: #f0a4a41a;
+  --unk: #ffffff8c;
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, 'Noto Sans KR', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sidebar { flex: 1 1 228px; border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 28px 16px 20px; box-sizing: border-box; }
+.brand { display: flex; align-items: center; gap: 12px; padding: 0 12px; margin-bottom: 54px; }
+.bm { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; color: #1c1c1c; background: #e6f1fd; flex: none; }
+.brand strong { display: block; font-size: 12px; letter-spacing: .04em; }
+.brand small { display: block; margin-top: 4px; color: var(--soft); font-size: 9px; letter-spacing: .12em; }
+.sec { padding: 0 15px; margin: 0 0 12px; color: var(--soft); font-size: 10px; font-weight: 800; letter-spacing: .16em; }
+.nav { display: grid; gap: 5px; margin-bottom: 24px; }
+.nav a { display: flex; align-items: center; gap: 14px; min-height: 43px; padding: 0 15px; border-radius: 8px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.nav a:hover { color: var(--accent); background: var(--alt); }
+.nav a.active { color: var(--text); background: var(--track); }
+.sfoot { margin-top: auto; padding: 16px 10px 2px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; display: flex; align-items: center; gap: 9px; }
+.gdot { height: 7px; width: 7px; background: #46ba81; border-radius: 50%; flex: none; }
+
+.ws { flex: 999 1 640px; min-width: 0; }
+.topbar { min-height: 70px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 0 38px; }
+.tl { display: flex; align-items: center; gap: 14px; font-size: 12px; }
+.tp { color: var(--soft); letter-spacing: .08em; font-weight: 700; }
+.tl strong { font-size: 13px; }
+.topbar-sep { color: var(--soft); }
+.tnote { color: var(--muted); font-size: 11px; background: var(--panel); border: 1px solid var(--border); padding: 8px 11px; border-radius: 999px; }
+
+.main { max-width: 1160px; margin: 0 auto; padding: 32px 38px 70px; display: grid; gap: 24px; }
+
+/* 접근성: 키보드 초점 표시가 가려지지 않도록 뚜렷한 아웃라인(R-j). */
+a:focus-visible,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0);
+  white-space: nowrap; border: 0;
+}
+
+/* R-g 출처 줄 */
+.rg-foot { color: var(--soft); font-size: 11px; line-height: 1.7; border-top: 1px solid var(--border); padding-top: 16px; margin-top: 8px; }
+.rg-foot .rg-item { white-space: nowrap; }
+
+/* 색 유틸(정적 인라인 style 대체 → CSP style-src 'self' 호환) */
+.t-attack { color: var(--attack); }
+.t-det { color: var(--det); }
+.t-danger { color: var(--danger); }
+.t-soft { color: var(--soft); }
+.t-muted { color: var(--muted); }
+.t-unk { color: var(--unk); }
+.t-white { color: #fff; }
+.t-warn { color: #f3c97a; }
+.dot-det { background: #71dd8c; }
+.dot-miss { background: #f0a4a4; }
+.dot-unk { background: #ffffff66; }
+.dot-attack { background: #b899eb; }
+.dot-accent { background: #a0bce8; }
+.ph-tight { margin-bottom: 12px !important; }
+
+/* R-b 비율 블록 */
+.rb { display: grid; gap: 4px; }
+.rb-primary { font-size: 24px; font-weight: 700; line-height: 1.2; }
+.rb-aux { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.rb.rb-na .rb-primary, .rb.rb-blocked .rb-primary, .rb.rb-not-valid .rb-primary { font-size: 15px; font-weight: 600; color: var(--muted); }
+
+/* Desktop dashboard: 불필요한 좌우 여백을 줄이고 화면 폭 활용 */
+@media (min-width: 1100px) {
+  .main {
+    max-width: none;
+    padding-left: 28px;
+    padding-right: 28px;
+  }
+
+  .topbar {
+    padding-left: 28px;
+    padding-right: 28px;
+  }
+}
+
+/* Desktop compact dashboard */
+@media (min-width: 1100px) {
+  .app {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .sidebar {
+    flex: 0 0 184px;
+    width: 184px;
+    padding: 18px 10px 14px;
+  }
+
+  .sidebar .brand {
+    gap: 10px;
+    padding: 0 10px;
+    margin-bottom: 40px;
+  }
+
+  .sidebar .bm {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+  }
+
+  .sidebar .brand strong {
+    font-size: 11px;
+  }
+
+  .sidebar .brand small {
+    margin-top: 3px;
+    font-size: 8px;
+  }
+
+  .sidebar .sec {
+    padding: 0 11px;
+    margin-bottom: 8px;
+    font-size: 9px;
+  }
+
+  .sidebar .nav {
+    gap: 3px;
+    margin-bottom: 18px;
+  }
+
+  .sidebar .nav a {
+    gap: 11px;
+    min-height: 39px;
+    padding: 0 11px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .sidebar .sfoot {
+    padding: 12px 8px 2px;
+    font-size: 10px;
+    gap: 7px;
+  }
+
+  .ws {
+    flex: 1 1 auto;
+    width: calc(100% - 184px);
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .topbar {
+    min-height: 60px;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .main {
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+    padding: 24px 24px 56px;
+    gap: 18px;
+    overflow-x: hidden;
+  }
+}
+
+@media (min-width: 1100px) {
+  .main {
+    padding-top: 18px;
+    padding-bottom: 42px;
+    gap: 14px;
+  }
+}

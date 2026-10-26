@@ -1,0 +1,11 @@
+id: adv-attack-path-001
+name: '[A] Attack Path - Kill Chain 기본 공격'
+description: SQLi 3단계(에러→컬럼탐색→UNION추출) → Brute Force → Path Traversal 2단계. 전형적인 웹 공격 Kill Chain을 재현하여 다중 센서 탐지 커버리지를 측정한다.
+atomic_ordering:
+- e3f1a9c7-2b4d-4e6f-a8c2-5d7e9f1b3a5c
+- f4a2b0d8-3c5e-4f70-b9d3-6e8f0a2c4b6d
+- a5b3c1e9-4d6f-4a8b-c0e4-7f9a1b3d5c7e
+- 7aa89a87-3fd7-4d52-8c9e-1e5b2f4c6a3d
+- c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b
+- d5f9a3c2-0e6b-4a8f-b4d7-9b3e2f0a1d5c
+objective: 495a9828-cab1-44dd-a0ca-66e58177d8cc

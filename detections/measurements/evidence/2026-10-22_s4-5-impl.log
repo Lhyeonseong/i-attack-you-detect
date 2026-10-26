@@ -1,0 +1,162 @@
+# S4-5 impl — additional checks C1~C3 (read only) 2026-10-21T15:47:35Z HEAD=5f8227a
+
+## C1 rid in response: none (code read)
+  controllers return: search=rows list or {error,sql_state}; download=file bytes (Content-Disposition) or 'File not found at: <path>' 404;
+  preview=upstream body or message; login={status,message} 401 / {status,accessToken,tokenType,username,role} 200. no header with request id, no filter/interceptor
+  -> app log matching = request order + path + args (+ sent/responded time window)
+  preview upstream: connectTimeout 3s, request timeout 3s, no redirects (PreviewController.java:39-41,81)
+
+## C2 rid location in Wazuh alert (indexer, 1 hit rule 100220 in S4-STACK-6-BASELINE window)
+   {"data": {"src_endpoint": {"ip": "172.20.0.1"}, "http_request": {"args": "filename=../../../../etc/hosts", "url": {"path": "/api/files/download"}}, "rid": "aabe9351-f0fc-40f5-a911-4eee34f82ee7"}, "rule": {"groups": ["vuln-webapp", "attack-http-activity", "path_traversal", "request_signal"], "id": "100220"}, "location": "/var/log/target/attack.json.log"}
+  code: AlertIndexReader reads data.rid (AlertIndexReader.java read())
+
+## C3 rules_digest now (repo files sha256) vs S4-STACK-6-BASELINE
+  wazuh_rules 47715556fd0fd7c9c8449d8308c454074884a07a996996ce9fe0dd07d1e239cb
+  suricata_rules 007b188d4e80f10582668659f6db9f02b5047af1fa72cbefa295b42601a947a4
+  caldera_adversary cba127e95e913f68b9ee650e9bfbec80d3b517dd445e5063d8211ceab6b8d3f2
+  ability initial-access/sqli_error_probe.yml ec1f1db416eb5aa10c18e7359ac9fb60cafbdf2a3ea7897c615fd2149ca3636f
+  ability initial-access/ssrf_metadata_verdict.yml 4b082c2e7f3e20f910ea1c2801f261071bbb779cb4e691639addd46afa9c6710
+  ability discovery/path_traversal_tier1.yml 8ea20816400aa762ba6a65f848135661c4ab09405f90ee94bc3410b70cca85c7
+  ability credential-access/brute_force_auth.yml 544261e4328051b6d9f5000c3ea75466a8eca0e688e7ce7e1036a05806d7dad0
+BEGIN
+S4-4-SMOKE|{
+    "wazuh_rules": "47715556fd0fd7c9c8449d8308c454074884a07a996996ce9fe0dd07d1e239cb",
+    "suricata_rules": "007b188d4e80f10582668659f6db9f02b5047af1fa72cbefa295b42601a947a4",
+    "caldera_abilities": {
+        "7aa89a87-3fd7-4d52-8c9e-1e5b2f4c6a3d": "544261e4328051b6d9f5000c3ea75466a8eca0e688e7ce7e1036a05806d7dad0",
+        "a7f3c1d9-5e2b-4a6c-9f08-1b2c3d4e5f60": "4b082c2e7f3e20f910ea1c2801f261071bbb779cb4e691639addd46afa9c6710",
+        "c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b": "8ea20816400aa762ba6a65f848135661c4ab09405f90ee94bc3410b70cca85c7",
+        "e3f1a9c7-2b4d-4e6f-a8c2-5d7e9f1b3a5c": "ec1f1db416eb5aa10c18e7359ac9fb60cafbdf2a3ea7897c615fd2149ca3636f"
+    },
+    "caldera_adversary": "cba127e95e913f68b9ee650e9bfbec80d3b517dd445e5063d8211ceab6b8d3f2"
+}
+S4-STACK-6-BASELINE|{
+    "wazuh_rules": "47715556fd0fd7c9c8449d8308c454074884a07a996996ce9fe0dd07d1e239cb",
+    "suricata_rules": "007b188d4e80f10582668659f6db9f02b5047af1fa72cbefa295b42601a947a4",
+    "caldera_abilities": {
+        "7aa89a87-3fd7-4d52-8c9e-1e5b2f4c6a3d": "544261e4328051b6d9f5000c3ea75466a8eca0e688e7ce7e1036a05806d7dad0",
+        "a7f3c1d9-5e2b-4a6c-9f08-1b2c3d4e5f60": "4b082c2e7f3e20f910ea1c2801f261071bbb779cb4e691639addd46afa9c6710",
+        "c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b": "8ea20816400aa762ba6a65f848135661c4ab09405f90ee94bc3410b70cca85c7",
+        "e3f1a9c7-2b4d-4e6f-a8c2-5d7e9f1b3a5c": "ec1f1db416eb5aa10c18e7359ac9fb60cafbdf2a3ea7897c615fd2149ca3636f"
+    },
+    "caldera_adversary": "cba127e95e913f68b9ee650e9bfbec80d3b517dd445e5063d8211ceab6b8d3f2"
+}
+S4-STACK-6-BASELINE|S4-4-SMOKE|t
+ROLLBACK
+
+## B2 corpus fixed 2026-10-21T15:57:50Z (rule files / negative-test YAML not opened during B2)
+b73caa5fb6d0bb6e9818b01716480e5fd6009fdedf4da9ea3044854f4e7ca76c  detections/corpus/benign/benign-corpus-v1.yaml
+04de09ac68c967ca77a79e69e02e145aa03cbaffad09ddad3af8541b0bbb5387  detections/corpus/benign/gen_benign_corpus_v1.py
+# items_sha256 = sha256(UTF-8, 각 항목 'seq<TAB>endpoint<TAB>param<TAB>value<LF>' 를 seq 순으로 이어 붙인 것)
+items 960: /api/products/search 320, /api/files/download 320, /api/preview 320 (unique values, excluded strings 0, preview 40 domains max 12/domain, https 298 http 22)
+
+## B3 rules referencing download/preview — response-code/body conditions (read after hash fixed)
+$ Wazuh vuln_rules.xml: rules whose fields mention /api/files/download or /api/preview, or download/preview-related result_type, and their conditions
+100020 L0 Path Traversal: Sensitive file returned via download endpoint (T1083)
+    <if_sid> 100002
+    <field name="result_type"> FILE_RETURNED
+    <url> /api/files/download
+100021 L0 Path Traversal: File not found via download endpoint - traversal probe (T1083)
+    <if_sid> 100002
+    <field name="result_type"> NOT_FOUND
+    <url> /api/files/download
+100022 L0 Path Traversal: Permission denied or error on file access attempt (T1083)
+    <if_sid> 100002
+    <field name="result_type"> ERROR
+    <url> /api/files/download
+100051 L15 Kill Chain: File access after login - possible post-compromise data theft (T1078+T1083)
+    <if_matched_sid> 100012
+    <field name="result_type"> FILE_RETURNED
+100069 L0 SSRF parent: /api/preview endpoint requested (T1090)
+    <if_sid> 100001
+    <url> /api/preview
+100070 L12 SSRF: Internal/metadata endpoint access attempt via /api/preview (T1090)
+    <if_sid> 100069
+    <url> 169.254.169.254|127.0.0.1|localhost|metadata.google.internal
+100071 L14 SSRF: Server-side request succeeded — internal data exposed (T1090)
+    <if_sid> 100002
+    <field name="result_type"> SSRF_SUCCESS|SSRF_DATA_LEAKED
+100072 L12 SSRF: IP encoding bypass attempt (hex/decimal/IPv6) via /api/preview (T1090)
+    <if_sid> 100069
+    <url> 0x7f|2130706433|%5B%3A%3A1%5D|0177.0|::ffff:
+100073 L10 SSRF: Multiple internal port scan attempts (5/30s) (T1046)
+    <if_matched_sid> 100070
+100084 L14 CMDi: System file read / identity command via injection (T1059.004)
+    <if_sid> 100080
+    <url> etc%2Fpasswd|etc%2Fshadow|whoami
+100200 L0 AttackLogger: OCSF HTTP Activity JSON received
+    <field name="metadata.log_name"> attack_http_activity
+100220 L12 Path Traversal: traversal pattern in download request (JSON, request-signal)
+    <if_sid> 100200
+    <field name="http_request.url.path"> /api/files/download
+    <field name="http_request.args" type="pcre2"> (?i)(\.\./|\.\.%2f|%2e%2e|/etc/passwd|/etc/shadow|\.\.\\)
+100240 L12 SSRF: internal/metadata target in url preview request (JSON, request-signal)
+    <if_sid> 100200
+    <field name="http_request.url.path"> /api/preview
+    <field name="http_request.args" type="pcre2"> (?i)(169\.254\.169\.254|/latest/meta-?data|metadata|127\.|169\.254\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|::1)
+100120 L10 Nginx-PT: Directory traversal pattern (../../) in URI (T1083)
+    <if_sid> 100100
+    <url> ../../
+100121 L10 Nginx-PT: URL-encoded traversal pattern in URI (T1083)
+    <if_sid> 100100
+    <url> %2e%2e|%2E%2E
+100122 L12 Nginx-PT: /etc/passwd access attempt in URI (T1083)
+    <if_sid> 100100
+    <url> etc/passwd|etc%2Fpasswd
+100123 L12 Nginx-PT: /etc/shadow access attempt in URI (T1083)
+    <if_sid> 100100
+    <url> etc/shadow|etc%2Fshadow
+100124 L12 Nginx-PT: SSH key access attempt in URI (T1083)
+    <if_sid> 100100
+    <url> .ssh
+    <url> id_rsa
+100160 L12 Nginx-SSRF: Internal/metadata endpoint in URI (T1090)
+    <if_sid> 100100
+    <url> 169.254.169.254|127.0.0.1|localhost|metadata.google.internal
+100161 L12 Nginx-SSRF: Encoded IP bypass attempt in URI (T1090)
+    <if_sid> 100100
+    <url> 0x7f|2130706433|0177.0
+100162 L10 Nginx-SSRF: URL preview endpoint accessed (T1090)
+    <if_sid> 100100
+    <url> /api/preview
+100173 L14 Nginx-CMDi: System file/identity command in ping request (T1059.004)
+    <if_sid> 100170
+    <url> etc%2Fpasswd|etc%2Fshadow|whoami
+$ Suricata local.rules: PT (1000020-29,40,41) and SSRF (1000060-69,87) buffers used
+http.uri
+sid:1000020 http.uri
+sid:1000021 http.uri
+sid:1000022 http.uri
+sid:1000023 http.uri
+sid:1000024 http.uri
+sid:1000025 http.uri.raw
+sid:1000026 http.uri.raw
+sid:1000027 http.uri.raw
+sid:1000028 http.uri
+sid:1000029 http.uri
+sid:1000040 http.uri
+sid:1000041 http.uri
+sid:1000060 http.uri
+sid:1000061 http.uri
+sid:1000062 http.uri
+sid:1000063 http.uri
+sid:1000064 http.uri
+sid:1000065 http.uri
+sid:1000066 http.uri
+sid:1000067 http.uri
+sid:1000068 http.uri
+sid:1000069 http.uri
+sid:1000087
+
+$ response-side buffers anywhere in PT/SSRF sids:
+0
+-- B3 summary
+Suricata PT·SSRF sids (1000020~29, 1000040·41, 1000060~69, 1000087): request buffers only (http.uri / http.uri.raw), response-side buffers 0
+Wazuh request-signal rules (group attack-http-activity, OCSF attack.json.log): 100220 (download) · 100240 (preview) = http_request.url.path + http_request.args only — no response code/body
+Wazuh legacy group attack-logger (application.log, decoders vuln-attack-request/response): response-dependent rules exist —
+  100020/100021/100022 result_type FILE_RETURNED/NOT_FOUND/ERROR on /api/files/download (level 0 = no alert),
+  100071 L14 result_type SSRF_SUCCESS|SSRF_DATA_LEAKED, 100051 L15 if_matched 100012 + FILE_RETURNED.
+  these alerts carry no data.rid (application.log, design-check C1/step0 100002 sample: data keys data,id,result_type,status,url)
+  → R18 c rid linking never links them; they appear only as unlinked APP_RULE records
+Wazuh nginx group (100120~124, 100160~162): decoded_as vuln-nginx-access — no nginx log source in the current stack (agent localfile: eve.json, application.log, attack.json.log)
+→ empty upload folder (download 404) and preview external-fetch result do not change any rule that can link to a request (rid-linked APP_RULE or NIDS)

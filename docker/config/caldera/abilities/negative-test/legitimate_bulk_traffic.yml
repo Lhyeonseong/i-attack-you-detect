@@ -1,0 +1,183 @@
+- id: 99a0b1c2-3d4e-4567-f890-abcdef000004
+  name: Legitimate Bulk Traffic
+  description: 대량의 정상 트래픽(검색 300건 + 다운로드 120건 + 로그인 80건 = 500건)을 발생시켜 FP rate를 통계적으로 측정합니다. 500건 기준 FP 0건이면 95% 신뢰구간에서 FP rate < 0.6%.
+  tactic: negative-test
+  technique:
+    attack_id: auto-generated
+    name: Negative Test - False Positive Rate Measurement
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T0000"
+          ABILITY_ID="99a0b1c2-3d4e-4567-f890-abcdef000004"
+          TARGET="http://#{target.url}"
+
+          echo "[*] Negative Test: Bulk legitimate traffic (500 requests)"
+          echo "[*] Generating 300 search + 120 download + 80 login = 500 requests"
+          echo "[*] Statistical basis: 500 requests with 0 FP → 95% CI FP rate < 0.6%"
+
+          ##################################################################
+          # [1/3] Search requests — 300건
+          # 300개의 정상 검색어를 6 라운드 × 50개 키워드로 구성
+          ##################################################################
+          KEYWORDS_1=("laptop" "phone" "tablet" "headphones" "charger" "cable" "monitor"
+                      "keyboard" "mouse" "speaker" "camera" "printer" "scanner" "router"
+                      "modem" "switch" "hub" "adapter" "battery" "case" "stand" "mount"
+                      "light" "microphone" "webcam" "desk" "chair" "shelf" "rack" "tray"
+                      "tape" "glue" "pen" "pencil" "paper" "notebook" "folder" "binder"
+                      "stapler" "scissors" "ruler" "eraser" "marker" "highlighter" "clip"
+                      "pin" "rubber" "cord" "wire" "tool")
+
+          KEYWORDS_2=("shirt" "pants" "jacket" "shoes" "socks" "hat" "scarf" "gloves"
+                      "belt" "watch" "ring" "necklace" "bracelet" "earring" "sunglasses"
+                      "backpack" "wallet" "purse" "umbrella" "towel" "blanket" "pillow"
+                      "cup" "plate" "bowl" "fork" "spoon" "knife" "pot" "pan"
+                      "oven" "fridge" "washer" "dryer" "vacuum" "iron" "blender" "toaster"
+                      "kettle" "lamp" "fan" "heater" "clock" "mirror" "curtain" "rug"
+                      "vase" "frame" "basket" "candle")
+
+          KEYWORDS_3=("apple" "banana" "orange" "grape" "mango" "lemon" "lime" "peach"
+                      "cherry" "berry" "melon" "pear" "plum" "fig" "kiwi" "coconut"
+                      "avocado" "tomato" "potato" "onion" "garlic" "pepper" "carrot" "corn"
+                      "rice" "bread" "pasta" "cheese" "butter" "milk" "yogurt" "cream"
+                      "sugar" "salt" "honey" "oil" "vinegar" "sauce" "soup" "salad"
+                      "chicken" "beef" "pork" "fish" "shrimp" "egg" "tofu" "mushroom"
+                      "broccoli" "spinach")
+
+          KEYWORDS_4=("soccer" "tennis" "baseball" "basketball" "golf" "swimming" "running"
+                      "cycling" "boxing" "yoga" "hiking" "camping" "fishing" "surfing" "skiing"
+                      "snowboard" "skating" "climbing" "diving" "sailing" "rowing" "archery"
+                      "fencing" "judo" "karate" "taekwondo" "wrestling" "weightlifting" "dance"
+                      "ballet" "piano" "guitar" "violin" "drums" "flute" "trumpet" "cello"
+                      "painting" "drawing" "pottery" "knitting" "sewing" "cooking" "baking"
+                      "gardening" "reading" "writing" "chess" "puzzle")
+
+          KEYWORDS_5=("algebra" "geometry" "calculus" "physics" "chemistry" "biology" "history"
+                      "geography" "literature" "grammar" "philosophy" "psychology" "economics"
+                      "sociology" "politics" "music" "theater" "cinema" "sculpture" "design"
+                      "engineering" "medicine" "nursing" "pharmacy" "dentistry" "veterinary"
+                      "architecture" "accounting" "marketing" "finance" "management" "logistics"
+                      "analytics" "database" "network" "security" "software" "hardware"
+                      "firmware" "robotics" "automation" "aerospace" "automotive" "maritime"
+                      "textile" "ceramic" "polymer" "metal" "wood" "glass")
+
+          KEYWORDS_6=("spring" "summer" "autumn" "winter" "monday" "tuesday" "wednesday"
+                      "thursday" "friday" "saturday" "sunday" "january" "february" "march"
+                      "april" "may" "june" "july" "august" "september" "october" "november"
+                      "december" "morning" "afternoon" "evening" "midnight" "sunrise" "sunset"
+                      "rainbow" "thunder" "lightning" "breeze" "storm" "cloud" "mountain"
+                      "river" "ocean" "forest" "desert" "island" "valley" "canyon" "plateau"
+                      "meadow" "glacier" "volcano" "waterfall" "lagoon" "peninsula")
+
+          echo "  [1/3] Search requests (300건 = 6 rounds × 50 keywords)"
+          SEARCH_COUNT=0
+          for ROUND_KEYWORDS in KEYWORDS_1 KEYWORDS_2 KEYWORDS_3 KEYWORDS_4 KEYWORDS_5 KEYWORDS_6; do
+            eval 'KW_ARRAY=("${'"$ROUND_KEYWORDS"'[@]}")'
+            for kw in "${KW_ARRAY[@]}"; do
+              curl -s -o /dev/null \
+                -H "X-Caldera-Op-Id: ${OP_ID}" \
+                -H "X-Caldera-Technique: ${TECH_ID}" \
+                -H "X-Caldera-Ability: ${ABILITY_ID}" \
+                -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+                "${TARGET}/api/products/search?keyword=${kw}"
+              SEARCH_COUNT=$((SEARCH_COUNT + 1))
+            done
+          done
+          echo "    Done: ${SEARCH_COUNT} search requests sent."
+
+          ##################################################################
+          # [2/3] Download requests — 120건
+          # 120개의 정상 파일명 (4 라운드 × 30개)
+          ##################################################################
+          FILES_1=("brochure.pdf" "manual.pdf" "spec.pdf" "guide.pdf" "faq.pdf"
+                   "terms.pdf" "privacy.pdf" "warranty.pdf" "catalog.pdf" "invoice.pdf"
+                   "receipt.pdf" "contract.pdf" "proposal.pdf" "report.pdf" "summary.pdf"
+                   "overview.pdf" "datasheet.pdf" "whitepaper.pdf" "readme.txt" "changelog.txt"
+                   "license.txt" "notice.txt" "credits.txt" "authors.txt" "contributors.txt"
+                   "roadmap.md" "release.md" "install.md" "upgrade.md" "quickstart.md")
+
+          FILES_2=("annual-report-2025.pdf" "annual-report-2024.pdf" "annual-report-2023.pdf"
+                   "q1-results.pdf" "q2-results.pdf" "q3-results.pdf" "q4-results.pdf"
+                   "budget-plan.pdf" "expense-report.pdf" "tax-form.pdf"
+                   "employee-handbook.pdf" "safety-manual.pdf" "training-guide.pdf"
+                   "onboarding-checklist.pdf" "benefits-summary.pdf"
+                   "product-catalog-2026.pdf" "price-list-2026.pdf" "shipping-rates.pdf"
+                   "return-policy.pdf" "size-chart.pdf"
+                   "user-manual-v1.pdf" "user-manual-v2.pdf" "user-manual-v3.pdf"
+                   "api-reference.pdf" "developer-guide.pdf"
+                   "compliance-report.pdf" "audit-report.pdf" "incident-report.pdf"
+                   "risk-assessment.pdf" "security-policy.pdf")
+
+          FILES_3=("meeting-minutes-jan.pdf" "meeting-minutes-feb.pdf" "meeting-minutes-mar.pdf"
+                   "meeting-minutes-apr.pdf" "meeting-minutes-may.pdf" "meeting-minutes-jun.pdf"
+                   "meeting-minutes-jul.pdf" "meeting-minutes-aug.pdf" "meeting-minutes-sep.pdf"
+                   "meeting-minutes-oct.pdf" "meeting-minutes-nov.pdf" "meeting-minutes-dec.pdf"
+                   "project-plan-alpha.pdf" "project-plan-beta.pdf" "project-plan-gamma.pdf"
+                   "project-plan-delta.pdf" "project-plan-epsilon.pdf"
+                   "newsletter-jan.pdf" "newsletter-feb.pdf" "newsletter-mar.pdf"
+                   "newsletter-apr.pdf" "newsletter-may.pdf" "newsletter-jun.pdf"
+                   "newsletter-jul.pdf" "newsletter-aug.pdf" "newsletter-sep.pdf"
+                   "newsletter-oct.pdf" "newsletter-nov.pdf" "newsletter-dec.pdf"
+                   "press-release-2026.pdf")
+
+          FILES_4=("logo-primary.png" "logo-secondary.png" "logo-icon.png"
+                   "banner-homepage.jpg" "banner-sale.jpg" "banner-event.jpg"
+                   "photo-team.jpg" "photo-office.jpg" "photo-product.jpg"
+                   "diagram-architecture.png" "diagram-workflow.png" "diagram-network.png"
+                   "chart-revenue.png" "chart-growth.png" "chart-market.png"
+                   "template-invoice.docx" "template-contract.docx" "template-proposal.docx"
+                   "template-report.docx" "template-letter.docx"
+                   "slides-intro.pptx" "slides-quarterly.pptx" "slides-strategy.pptx"
+                   "spreadsheet-budget.xlsx" "spreadsheet-inventory.xlsx"
+                   "backup-config.json" "settings-default.json" "schema-v1.json"
+                   "data-sample.csv" "export-2026.csv")
+
+          echo "  [2/3] Download requests (120건 = 4 rounds × 30 files)"
+          DL_COUNT=0
+          for ROUND_FILES in FILES_1 FILES_2 FILES_3 FILES_4; do
+            eval 'FILE_ARRAY=("${'"$ROUND_FILES"'[@]}")'
+            for f in "${FILE_ARRAY[@]}"; do
+              curl -s -o /dev/null \
+                -H "X-Caldera-Op-Id: ${OP_ID}" \
+                -H "X-Caldera-Technique: ${TECH_ID}" \
+                -H "X-Caldera-Ability: ${ABILITY_ID}" \
+                -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+                "${TARGET}/api/files/download?filename=${f}"
+              DL_COUNT=$((DL_COUNT + 1))
+            done
+          done
+          echo "    Done: ${DL_COUNT} download requests sent."
+
+          ##################################################################
+          # [3/3] Login requests — 80건
+          # 80개의 정상 사용자명 (고유한 이름으로 credential stuffing 패턴 회피)
+          ##################################################################
+          USERS=("alice" "bob" "charlie" "dave" "eve" "frank" "grace" "heidi" "ivan" "judy"
+                 "kevin" "linda" "mike" "nancy" "oscar" "peggy" "quinn" "rachel" "steve" "tina"
+                 "ursula" "victor" "wendy" "xavier" "yolanda" "zach" "aaron" "beth" "carl" "diana"
+                 "ethan" "fiona" "george" "hannah" "isaac" "julia" "kyle" "laura" "mason" "nina"
+                 "oliver" "paula" "quentin" "rosa" "samuel" "teresa" "ulrich" "valerie" "walter" "xena"
+                 "yvonne" "zane" "albert" "brenda" "curtis" "denise" "edgar" "faith" "glenn" "helen"
+                 "irene" "james" "kathy" "leon" "megan" "nolan" "ophelia" "peter" "queenie" "roger"
+                 "susan" "thomas" "uma" "vince" "wanda" "xander" "yuri" "zelda" "adam" "bella")
+
+          echo "  [3/3] Login requests (80건)"
+          LOGIN_COUNT=0
+          for u in "${USERS[@]}"; do
+            curl -s -o /dev/null \
+              -H "X-Caldera-Op-Id: ${OP_ID}" \
+              -H "X-Caldera-Technique: ${TECH_ID}" \
+              -H "X-Caldera-Ability: ${ABILITY_ID}" \
+              -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+              -H "Content-Type: application/json" \
+              -X POST -d "{\"username\":\"${u}\",\"password\":\"CorrectPass123\"}" \
+              "${TARGET}/api/auth/login"
+            LOGIN_COUNT=$((LOGIN_COUNT + 1))
+          done
+          echo "    Done: ${LOGIN_COUNT} login requests sent."
+
+          TOTAL=$((SEARCH_COUNT + DL_COUNT + LOGIN_COUNT))
+          echo "[*] Bulk traffic complete: ${TOTAL} legitimate requests sent"
+          echo "[*] Expected: 500 requests (300 search + 120 download + 80 login)"

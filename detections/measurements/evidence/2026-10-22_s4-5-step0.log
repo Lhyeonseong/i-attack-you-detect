@@ -1,0 +1,200 @@
+# S4-5 Step 0 — read-only fact check (normal corpus, M14) started 2026-10-21T15:36:16Z HEAD=5f8227a
+5f8227a evidence(s4-4): V6 applied and S4-4-SMOKE passed (gate report, apply log)
+f060044 chore(evidence): S4-4 step0 and design-check logs
+d5bcf42 feat(measure): NIDS correlation, telemetry observation, V6 M07a/M13 views
+?? detections/measurements/evidence/2026-10-22_s4-5-step0.log
+
+## 1 harness structure
+$ grep HttpClient/HttpRequest/URI.create/8080/target in src/main/java/com/capstone/vuln/measure
+src/main/java/com/capstone/vuln/measure/CalderaOperationsHttpClient.java:26:public class CalderaOperationsHttpClient implements CalderaOperations {
+src/main/java/com/capstone/vuln/measure/CalderaOperationsHttpClient.java:32:    public CalderaOperationsHttpClient(String baseUrl, String apiKey) {
+src/main/java/com/capstone/vuln/measure/MeasureConfig.java:29:        return new CalderaOperationsHttpClient(apiUrl, apiKey);
+src/main/java/com/capstone/vuln/measure/MeasureConfig.java:56:            @Value("${app.measure.gtlog.service:target-web}") String service,
+src/main/java/com/capstone/vuln/measure/IndexerAlertSearchSource.java:4:import java.net.http.HttpClient;
+src/main/java/com/capstone/vuln/measure/IndexerAlertSearchSource.java:36:    private final HttpClient http;
+src/main/java/com/capstone/vuln/measure/IndexerAlertSearchSource.java:63:        this.http = HttpClient.newBuilder()
+src/main/java/com/capstone/vuln/measure/IndexerAlertSearchSource.java:72:        HttpRequest request = HttpRequest.newBuilder(URI.create(searchUrl))
+$ grep INSERT INTO validation.verdict_result (src/main)
+src/main/java/com/capstone/vuln/correlation/VerdictRepository.java:175:                    INSERT INTO validation.verdict_result (unit_key, unit_type, scenario, technique_id, verdict,
+$ ls CampaignRunnerIT / OperationRunner
+  69 src/test/java/com/capstone/vuln/measure/CampaignRunnerIT.java
+  80 src/main/java/com/capstone/vuln/measure/OperationRunner.java
+ 149 total
+$ CampaignRunnerIT → MeasurementCampaign.run → OperationRunner.runOnce (Caldera POST /api/v2/operations, poll GET /api/v2/operations/{id}) → MeasurementHarness.measure → VerdictRepository.save → upsertVerdict INSERT (VerdictRepository.java:175)
+$ HTTP clients in src/main (all)
+src/main/java/com/capstone/vuln/controller/PreviewController.java
+src/main/java/com/capstone/vuln/measure/CalderaOperationsHttpClient.java
+src/main/java/com/capstone/vuln/measure/IndexerAlertSearchSource.java
+src/main/java/com/capstone/vuln/measure/CalderaOperationFactsSource.java
+src/main/java/com/capstone/vuln/correlation/CalderaOperationsHttpClient.java
+$ ls docker/config/caldera/abilities/negative-test docker/config/caldera/adversaries
+legitimate_bulk_traffic.yml
+legitimate_file_download.yml
+legitimate_login_typo.yml
+legitimate_login.yml
+legitimate_path_with_dots.yml
+legitimate_search_with_sql_keywords.yml
+legitimate_search.yml
+docker/config/caldera/:
+abilities
+adversaries
+agents.yml.template
+entrypoint.sh
+local.yml.template
+README.md
+
+docker/config/caldera/adversaries:
+attack_path.yml
+attack_validation_web.yml
+av_brute_force.yml
+av_path_traversal.yml
+av_sqli.yml
+av_ssrf.yml
+defense_evasion.yml
+kill_chain_linked.yml
+negative_test.yml
+owasp_rce.yml
+owasp_xss_ssrf.yml
+slow_and_low.yml
+subtype_variants.yml
+$ Caldera API (read only): adversary adv-negative-test-004 and its 7 abilities loaded?
+adv-negative-test-004	[D] Negative Test - False Positive 검증 (확장)	7 abilities
+adv-attack-validation-web-001	[V] ATT&CK Validation — Web	4 abilities
+loaded negative abilities: 7
+99a0b1c2-3d4e-4567-f890-abcdef000004	Legitimate Bulk Traffic	negative-test
+99a0b1c2-3d4e-4567-f890-abcdef000003	Legitimate Login with Typo	negative-test
+99a0b1c2-3d4e-4567-f890-abcdef000002	Legitimate Path with Dots	negative-test
+99a0b1c2-3d4e-4567-f890-abcdef000001	Legitimate Search with SQL Keywords	negative-test
+88b9c0d1-2e3f-4456-f013-456789012008	[NEGATIVE] Legitimate File Download	negative-test
+66f7a8b9-0c1d-4234-def1-234567890006	[NEGATIVE] Legitimate Login	negative-test
+77a8b9c0-1d2e-4345-ef02-345678901007	[NEGATIVE] Legitimate Product Search	negative-test
+$ negative abilities use OP_ID="#{operation_id}" (not a Caldera reserved var per S3-3 check) — evidence of execution:
+$ Caldera operations with adversary adv-negative-test-004 (read only)
+ops total=69
+negative ops=0
+$ attack.json.log lines with negative ability ids / T0000 / literal #{operation_id}
+1557
+0
+0
+0
+
+## 5 regression samples
+$ grep -rln "laptop--pro" (excluding build/)
+detections/known-gaps.md
+detections/measurements/evidence/2026-10-22_s4-5-step0.log
+detections/measurements/evidence/2026-10-21_s2-suricata-8.log
+docs/adr/ADR-S4-01-metric-definitions.md
+$ grep -rln "report.pdf"
+docker/config/caldera/abilities/negative-test/legitimate_bulk_traffic.yml
+src/test/java/com/capstone/vuln/file/PathTraversalValidatorTest.java
+detections/known-gaps.md
+detections/measurements/evidence/2026-10-21_mttd-1-outlier.log
+detections/measurements/evidence/2026-10-21_s2-suricata-8.log
+detections/measurements/evidence/2026-10-22_s4-5-step0.log
+docs/adr/ADR-S4-01-metric-definitions.md
+
+## 3 + 6 operational DB (validation_rw, READ ONLY)
+BEGIN
+ current_user  | ro 
+---------------+----
+ validation_rw | on
+(1 row)
+
+ installed_rank | version |    description    | success 
+----------------+---------+-------------------+---------
+              1 | 1       | validation schema | t
+              2 | 2       | measurement run   | t
+              3 | 3       | metric foundation | t
+              4 | 4       | metric views      | t
+              5 | 5       | metric snapshot   | t
+              6 | 6       | nids telemetry    | t
+(6 rows)
+
+            tbl             |            conname             |                                        def                                         
+----------------------------+--------------------------------+------------------------------------------------------------------------------------
+ validation.verdict_result  | ck_verdict_result_attempt_role | CHECK ((attempt_role = ANY (ARRAY['ATTACK'::text, 'CONTROL'::text])))
+ validation.measurement_run | ck_measurement_run_kind        | CHECK ((kind = ANY (ARRAY['ATTACK'::text, 'BENIGN'::text])))
+ validation.metric_scope    | ck_metric_scope_kind           | CHECK ((kind = ANY (ARRAY['TECHNIQUE'::text, 'SCENARIO'::text, 'CONTROL'::text])))
+(3 rows)
+
+ column_name  | column_default | is_nullable 
+--------------+----------------+-------------
+ attempt_role | 'ATTACK'::text | NO
+(1 row)
+
+  kind  | runs 
+--------+------
+ ATTACK |   13
+(1 row)
+
+ attempt_role | count 
+--------------+-------
+ ATTACK       |   360
+ CONTROL      |    51
+(2 rows)
+
+       table_name       
+------------------------
+ v_metric_attacker
+ v_metric_attempt
+ v_metric_correlation
+ v_metric_coverage
+ v_metric_coverage_unit
+ v_metric_h2
+ v_metric_m07a
+ v_metric_m13
+ v_metric_m13_attempt
+ v_metric_mttd
+ v_metric_rates
+ v_metric_run
+ v_metric_split_attempt
+ v_metric_split_count
+ v_nids_run_stat
+ v_run_integrity
+(16 rows)
+
+                   proname                   
+---------------------------------------------
+ metric_snapshot_reject_change
+ metric_snapshot_require_valid_run
+ metric_snapshot_withdrawal_require_snapshot
+ quantile_t8
+ take_metric_snapshot
+ telemetry_observation_check_run
+ verdict_history_append_only
+ verdict_result_reject_closed_run
+ wilson_ci
+ withdraw_metric_snapshot
+(10 rows)
+
+ROLLBACK
+
+## 1 summary (code, HEAD 5f8227a)
+verdict_result INSERT path: CampaignRunnerIT.measure → MeasurementCampaign.run (MeasurementCampaign.java:61) → per op:
+  OperationRunner.runOnce (Caldera POST /api/v2/operations + poll) → MeasurementHarness.measure → VerdictRepository.save
+  → upsertVerdict INSERT (VerdictRepository.java:175). run row: MeasurementRunRecorder.open → kind ATTACK fixed (MeasurementRunRecorder.java:33),
+  expected = AttemptManifest.ATTACK_VALIDATION_WEB (7/1 per op)
+direct HTTP to target-web from harness: 없음. HTTP clients in src/main: Caldera(operations, facts), indexer, PreviewController(SSRF fetch, app itself).
+  attack/normal requests to target-web go only via Caldera abilities executed by sandcat agent.
+adversary used by harness: app.measure.adversary-id default adv-attack-validation-web-001 (application.yaml:44, env APP_MEASURE_ADVERSARY_ID)
+normal-request adversary in Caldera: adv-negative-test-004 (7 abilities, all loaded in running Caldera). executed: 0 ops of 69, 0 app log lines.
+  abilities set OP_ID="#{operation_id}" (not a Caldera reserved var — S3-3 check), T0000/auto-generated technique; no /api/preview ability.
+
+## 2 summary (normal request → validation.outcome, code)
+SQLI  GET /api/products/search?keyword=<kw>, args "keyword=<kw>": NORMAL → FAILED; elapsed ≥ threshold → TIME_BASED_DELAY → EXECUTED;
+      length > baseline×multiplier → LENGTH_ANOMALY → EXECUTED; hash pattern in rows → SUCCEEDED (SqliEvaluator.evaluateNormal:46-71)
+PT    GET /api/files/download?filename=<f>, args "filename=<f>": FILE_RETURNED inside upload dir → FAILED, NOT_FOUND → FAILED, ERROR → FAILED
+      (running upload dir /opt/target/uploads is empty → normal download = 404 NOT_FOUND)
+SSRF  GET /api/preview?url=<u>, args "url=<u>": FETCHED external → FAILED, BLOCKED (non-http/https) → FAILED, ERROR → UNKNOWN
+BF    POST /api/auth/login body {"username","password"}, args "username=<u>": AUTH_SUCCESS → SUCCEEDED (CREDENTIAL_VALID), AUTH_FAIL → FAILED, DB_ERROR → UNKNOWN
+      seed users: admin, user1, user2, user (data.sql)
+every request to the 4 endpoints writes attack.json.log (logHttpActivity) regardless of Caldera headers.
+
+## 4 summary (sensor alert → run linking for normal requests)
+GtLogReader drops app log lines without correlation.op_id (paw) (GtLogReader readWindow) → untagged normal requests produce no AttackEvent/verdict/link.
+Caldera-tagged requests: AttemptManifest.roleOf → ATTACK for any ability not in manifest (no BENIGN role).
+APP_RULE links: CorrelationEngine.match RID/HEADER/UA/TIME_ONLY to AttackEvent groups only.
+NIDS links: NidsCorrelator needs Caldera UA + Caldera link window for (paw, ability) + URL match to an AttackEvent.
+alerts not linked to any attempt: not stored per alert; NIDS window counts only (nids_window_stat analytic - linked, orphan).
+# ended 2026-10-21T15:41:55Z
+?? detections/measurements/evidence/2026-10-22_s4-5-step0.log

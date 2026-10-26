@@ -1,0 +1,40 @@
+# Docker build context에서 제외할 파일들
+# 루트를 build context로 사용하므로 불필요한 파일이 포함되지 않도록 한다
+
+# Git
+.git
+.gitattributes
+.gitignore
+
+# IDE / Editor
+.idea
+.vscode
+*.iml
+*.ipr
+*.iws
+
+# Gradle build output (루트 프로젝트)
+build/
+.gradle/
+
+# frontend node_modules (1학기 react-dashboard 빌드용이었음 — develop-v2에서 서비스 삭제, ADR-S4-03 D7 v1.3)
+frontend/node_modules/
+
+# Docker 환경변수와 인증서 (보안)
+.env
+.env.local
+.env.*.local
+docker/.env
+docker/.env.local
+docker/.env.*.local
+docker/config/wazuh_indexer_ssl_certs/
+
+# Docker 서비스 빌드 산출물
+docker/services/**/.gradle/
+docker/services/**/build/
+docker/services/**/target/
+docker/services/**/node_modules/
+
+# docs / scripts (빌드에 불필요)
+docs/
+scripts/

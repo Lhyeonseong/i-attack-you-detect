@@ -1,0 +1,398 @@
+# 슬라이스 1b — PostgreSQL 16.13 → 16.15 (같은 Debian trixie, digest 고정)
+# 근거: ADR-S4-03 v1.1 D2·D4·D5 (직전 14031db). DB 조회는 validation_rw(백업 pg_dumpall만 POSTGRES_USER). 비밀값 미출력
+
+## (0-1) 현재 postgres 2026-10-20T23:08:42+09:00 HEAD=14031db
+  Image ID=sha256:760ea41aae126965bedd587d35a23de37447bb13a6ac4444bef6ff73b8b72234 -> 1a 고정값 760ea41a… SAME
+  version(): PostgreSQL 16.13 (Debian 16.13-1.pgdg13+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+  PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+  VERSION_CODENAME=trixie
+  ldd (Debian GLIBC 2.41-12+deb13u2) 2.41
+  PG_VERSION=16.13-1.pgdg13+1 PG_MAJOR=16
+  compose: 226:    image: postgres:${POSTGRES_VERSION}@sha256:760ea41aae126965bedd587d35a23de37447bb13a6ac4444bef6ff73b8b72234
+  .env.example: 5:POSTGRES_VERSION=16   .env: 5:POSTGRES_VERSION=16
+## (0-2) 릴리스 노트(16.14·16.15) 업데이트 후 조치 해당 여부 2026-10-20T23:08:42+09:00
+  datname  | datcollate |  datctype  | datlocprovider | datallowconn 
+-----------+------------+------------+----------------+--------------
+ postgres  | en_US.utf8 | en_US.utf8 | c              | t
+ template0 | en_US.utf8 | en_US.utf8 | c              | f
+ template1 | en_US.utf8 | en_US.utf8 | c              | t
+ vulndb    | en_US.utf8 | en_US.utf8 | c              | t
+(4 rows)
+
+ replication_slots 
+-------------------
+                 0
+(1 row)
+
+  확장(DB별, validation_rw 접속):
+    postgres: plpgsql 1.0
+    template1: plpgsql 1.0
+    vulndb: plpgsql 1.0
+  $ git grep -in 'from stdin' -> 0건
+  판정: pgcrypto·btree_gist·ltree 미설치, 복제 슬롯 0, COPY FROM STDIN 0건 → 조치 대상 없음
+## (0-3) 업그레이드 전 기준값 2026-10-20T23:08:43+09:00
+ flyway_rows | last_rank 
+-------------+-----------
+           4 |         4
+(1 row)
+
+ installed_rank | version | success 
+----------------+---------+---------
+              4 | 4       | t
+(1 row)
+
+   proname   |                      args                      
+-------------+------------------------------------------------
+ quantile_t8 | vals double precision[], prob double precision
+ wilson_ci   | x bigint, n bigint
+(2 rows)
+
+ measurement_run | verdict_result | correlation 
+-----------------+----------------+-------------
+               5 |            195 |         219
+(1 row)
+
+  datname  |  bytes  
+-----------+---------
+ postgres  | 7699479
+ template1 | 7765015
+ vulndb    | 9370647
+(3 rows)
+
+  (DB 크기는 앱 활동으로 변할 수 있어 참고값, 비교 기준은 Flyway·함수·행 수)
+## (0-4) 후보 이미지 (manifest 조회만, pull 안 함) 2026-10-20T23:08:43+09:00
+  postgres:16.15-trixie: OK
+  postgres:16.15: OK
+  → 후보 postgres:16.15-trixie 확정(DRI)
+## (0-5) StartedAt 2026-10-20T23:10:06+09:00
+  caldera                        2026-10-20T13:19:32.028170508Z running
+  target-web                     2026-10-20T08:21:29.808661429Z running
+  backend                        2026-10-20T08:21:29.809956225Z running
+  react-dashboard                2026-10-20T08:21:29.814149846Z running
+  security-lab-wazuh.manager-1   2026-10-20T12:52:55.647866853Z running
+  security-lab-wazuh.agent-1     2026-10-20T12:52:56.286752022Z running
+  security-lab-wazuh.indexer-1   2026-10-20T12:52:54.821567761Z running
+  suricata                       2026-10-20T12:52:54.823361335Z running
+  postgres                       2026-10-20T12:52:54.82635656Z running/healthy
+  mock-imds                      2026-10-20T12:52:54.826215371Z running
+## (0-x) 참고
+- validation_rw가 PUBLIC CONNECT로 postgres·template1에도 접속됨 → 최소 권한 개선 후보(이번 슬라이스 범위 밖, D4)
+
+## (1-1) 백업 (저장소 밖, 내용 미출력) 2026-10-20T23:11:07+09:00
+$ docker exec postgres sh -c 'pg_dumpall -U "$POSTGRES_USER"' > ~/capstone-backups/2026-10-20_pg16.13_dumpall.sql
+  exit=0  stderr_lines=0
+  size_bytes=219413
+  sha256=b3bc688d122ba9079a49a4f215c53376a4989ee4bb60a18c1a8f2baccfed5477
+  lines=2799
+  CREATE TABLE count=10
+  dump header: -- Dumped from database version 16.13 (Debian 16.13-1.pgdg13+1) / -- Dumped by pg_dump version 16.13 (Debian 16.13-1.pgdg13+1)
+  위치: /home/hyeonseong/capstone-backups/2026-10-20_pg16.13_dumpall.sql (저장소 밖)
+## (1-2) docker pull postgres:16.15-trixie 2026-10-20T23:11:19+09:00
+16.15-trixie: Pulling from library/postgres
+64b26645b0da: Download complete
+7940de88f6c7: Download complete
+9731e27f2541: Download complete
+6456bfbf35e7: Download complete
+b353db459ed1: Download complete
+770ef8b308ea: Download complete
+715ea0948cb1: Download complete
+83d1a2a3917c: Download complete
+c49864c27f35: Download complete
+99f49de4fe2b: Download complete
+8309db3ae5b6: Download complete
+50c25daa0302: Download complete
+79faf13a8736: Download complete
+486e8305f56f: Download complete
+79faf13a8736: Pull complete
+6456bfbf35e7: Pull complete
+b353db459ed1: Pull complete
+99f49de4fe2b: Pull complete
+715ea0948cb1: Pull complete
+83d1a2a3917c: Pull complete
+486e8305f56f: Pull complete
+e7d675f11ded: Download complete
+e7d675f11ded: Pull complete
+770ef8b308ea: Pull complete
+c49864c27f35: Pull complete
+50c25daa0302: Pull complete
+9731e27f2541: Pull complete
+8309db3ae5b6: Pull complete
+Digest: sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+Status: Downloaded newer image for postgres:16.15-trixie
+docker.io/library/postgres:16.15-trixie
+## (1-3) 새 이미지 2026-10-20T23:11:37+09:00
+  Id=sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d RepoTags=["postgres:16.15-trixie"] RepoDigests=["postgres@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d"] Created=2026-10-06T01:33:18.890712895Z
+  PG_VERSION=16.15-1.pgdg13+2
+  $ docker run --rm --entrypoint sh postgres:16.15-trixie -c 'cat /etc/os-release; ldd --version | head -1'
+    PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+    NAME="Debian GNU/Linux"
+    VERSION_ID="13"
+    VERSION="13 (trixie)"
+    VERSION_CODENAME=trixie
+    DEBIAN_VERSION_FULL=13.7
+    ID=debian
+    HOME_URL="https://www.debian.org/"
+    SUPPORT_URL="https://www.debian.org/support"
+    BUG_REPORT_URL="https://bugs.debian.org/"
+    ldd (Debian GLIBC 2.41-12+deb13u4) 2.41
+  $ docker images --tree (postgres:16.15-trixie)
+    postgres:16.15-trixie                 ca0bd484cb98        642MB          166MB        
+    ├─ linux/amd64                        75adc2a65806        636MB          160MB        
+## (1-4) 현재 ↔ 새 이미지 비교 2026-10-20T23:12:04+09:00
+  현재(16.13, 760ea41a…):
+    VERSION_CODENAME=trixie
+    DEBIAN_VERSION_FULL=13.4
+    ldd (Debian GLIBC 2.41-12+deb13u2) 2.41
+  새(16.15-trixie, ca0bd484…):
+    VERSION_CODENAME=trixie
+    DEBIAN_VERSION_FULL=13.7
+    ldd (Debian GLIBC 2.41-12+deb13u4) 2.41
+  VERSION_CODENAME: trixie = trixie → 같음
+  glibc: 2.41-12+deb13u2 ≠ 2.41-12+deb13u4 (패치 번호 다름) → 지시 기준(패치 번호 포함 동일)에 따라 Step 2 진행하지 않고 중단
+  참고(사실): DB 로캘 provider=c(libc) en_US.utf8 (0-2). datcollversion(현재 DB 기록값):
+    postgres 2.41
+    template0 NULL
+    template1 2.41
+    vulndb 2.41
+## (1-5) glibc 패치 차이(deb13u2→u4) 정렬 영향 확인 — 읽기 전용, docker run --rm(--network none) 2026-10-20T23:15:01+09:00
+  비교 이미지: 현재 postgres@sha256:760ea41a… / 새 postgres@sha256:ca0bd484…
+### ① 새 이미지 libc Debian changelog (deb13u3·u4 항목)
+  확인 불가: 두 이미지 모두 /usr/share/doc/libc6/·libc-bin/ 에 copyright 만 있고 changelog.Debian.gz 없음(이미지에서 제거됨)
+### ② 로캘 데이터
+  locale -a | grep -i en_US: 현재=en_US.utf8, 새=en_US.utf8
+  /usr/lib/locale/locale-archive (3,063,024 B) sha256: 현재=4c3b8c3ae5e03113701a5e760ca2135573679e212e048a578d04c1651cee43c0
+                                                    새  =4c3b8c3ae5e03113701a5e760ca2135573679e212e048a578d04c1651cee43c0 → SAME
+  dpkg: 현재 locales·libc-bin 2.41-12+deb13u2, 새 2.41-12+deb13u4
+### ③a 인덱스가 걸린 text/varchar 컬럼 (validation_rw, pg_index·pg_attribute; postgres·template1 은 0건)
+  vulndb public.users.username varchar(50) users_username_key  (validation_rw SELECT 권한 없음)
+  vulndb validation.correlation.correlation_key text uq_correlation_key
+  vulndb validation.metric_scope.kind text pk_metric_scope
+  vulndb validation.metric_scope.unit text pk_metric_scope
+  vulndb validation.verdict_result.unit_key text uq_verdict_result_unit_key
+### ③b~e 정렬 비교 (입력은 저장소 밖 임시 폴더, 내용 미출력)
+  users.username 은 validation_rw 권한이 없어 관리자 계정을 쓰지 않고, 앱이 기동마다 넣는 git 시드 src/main/resources/data.sql 의 username 만 대체 추출(비밀번호 열 미추출)
+  ③b 입력 파일 행 수:
+    public.users.username_seed                    4
+    test_list                                     32
+    validation.correlation.correlation_key        219
+    validation.metric_scope.kind                  2
+    validation.metric_scope.unit                  6
+    validation.verdict_result.unit_key            195
+    [cur] glibc: ldd (Debian GLIBC 2.41-12+deb13u2) 2.41  sort locale check: UTF-8
+    [new] glibc: ldd (Debian GLIBC 2.41-12+deb13u4) 2.41  sort locale check: UTF-8
+  ③d 정렬 결과 비교 (sha256 앞 16자, diff 줄 수):
+    public.users.username_seed                    cur=1bf301dfe63944d3 new=1bf301dfe63944d3 diff_lines=0 SAME
+    test_list                                     cur=2ec7084ca00ac4f9 new=2ec7084ca00ac4f9 diff_lines=0 SAME
+    validation.correlation.correlation_key        cur=2a9ce3ae88f9c057 new=2a9ce3ae88f9c057 diff_lines=0 SAME
+    validation.metric_scope.kind                  cur=8007f7af4d700d74 new=8007f7af4d700d74 diff_lines=0 SAME
+    validation.metric_scope.unit                  cur=294d0481f58a7399 new=294d0481f58a7399 diff_lines=0 SAME
+    validation.verdict_result.unit_key            cur=1be41b3924fba94b new=1be41b3924fba94b diff_lines=0 SAME
+    (참고) test_list LC_ALL=C 정렬 sha=892fbaf2d0afe974 → en_US 결과와 다름(로캘 규칙 적용됨)
+  ③ 판정: 모든 파일 SAME
+  ③e 임시 폴더 삭제: 삭제됨 (/tmp/claude-1000/-home-hyeonseong-capstone-dev-mitre-attack-capstone-v2/c21cd133-a150-49c8-9f1f-10c242214a7e/scratchpad/1b_sort)
+### (1-5) 판정: ② SAME, ③ 6개 파일 모두 SAME(diff 0) → 같음. ① 은 확인 불가(changelog 없음)
+
+## (1-6) 백업 파일 권한 (DRI 승인: role 비밀번호 해시 포함) 2026-10-20T23:15:01+09:00
+  $ chmod 600 ~/capstone-backups/2026-10-20_pg16.13_dumpall.sql → -rw------- 219413 ~/capstone-backups/2026-10-20_pg16.13_dumpall.sql
+
+## (1-J) DRI 판정 (현성 2026-10-20): deb13u4 허용
+- 근거: locale-archive sha256 동일 + 인덱스 컬럼 실제 값·로캘 민감 시험 목록 정렬 결과 모두 동일.
+- 한계: users.username은 validation_rw 권한 부족으로 git 시드(data.sql)에서 비교, 시드 이후 가입자 미포함.
+
+## (2-1) 설정 수정 — git diff 2026-10-20T23:16:47+09:00
+diff --git a/docker/.env.example b/docker/.env.example
+index e703558..89fa720 100644
+--- a/docker/.env.example
++++ b/docker/.env.example
+@@ -2,7 +2,7 @@ COMPOSE_PROJECT_NAME=security-lab
+ 
+ # Versions
+ WAZUH_VERSION=4.14.8
+-POSTGRES_VERSION=16
++POSTGRES_VERSION=16.15-trixie
+ 
+ # Published ports
+ CALDERA_WEB_PORT=8888
+diff --git a/docker/docker-compose.yml b/docker/docker-compose.yml
+index 9d48a04..8dc6e78 100644
+--- a/docker/docker-compose.yml
++++ b/docker/docker-compose.yml
+@@ -223,7 +223,7 @@ services:
+ 
+   postgres:
+     # digest 고정(ADR-S4-03 D1). POSTGRES_VERSION을 바꿀 때 digest도 함께 바꿀 것(슬라이스 1b)
+-    image: postgres:${POSTGRES_VERSION}@sha256:760ea41aae126965bedd587d35a23de37447bb13a6ac4444bef6ff73b8b72234
++    image: postgres:${POSTGRES_VERSION}@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+     container_name: postgres
+     restart: unless-stopped
+     environment:
+$ git diff --numstat: 1	1	docker/.env.example 1	1	docker/docker-compose.yml 
+  docker/.env (gitignore 대상): POSTGRES_VERSION 한 줄만 sed 로 변경 → POSTGRES_VERSION=16.15-trixie, 전체 줄 수 44 유지(다른 줄 미출력)
+## (2-2) config --images (HEAD+POSTGRES_VERSION=16 ↔ 현재) 2026-10-20T23:16:47+09:00
+  3c3
+  < postgres:16@sha256:760ea41aae126965bedd587d35a23de37447bb13a6ac4444bef6ff73b8b72234
+  ---
+  > postgres:16.15-trixie@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+## (2-3) dry-run 2026-10-20T23:16:47+09:00
+$ docker compose -p security-lab -f docker/docker-compose.yml --dry-run up -d --no-build --pull never --no-deps postgres
+   DRY-RUN MODE -  Container postgres  Recreate
+   DRY-RUN MODE -  Container postgres  Recreated
+   DRY-RUN MODE -  Container d2af0f7f8434_postgres  Starting
+   DRY-RUN MODE -  Container d2af0f7f8434_postgres  Started
+  pull 줄 0, Recreate 대상 postgres 1개
+
+## (3-1) 재생성 2026-10-20T23:18:03+09:00 T_up_utc=2026-10-20T14:18:03Z
+$ docker compose -p security-lab -f docker/docker-compose.yml up -d --no-build --pull never --no-deps postgres
+ Container postgres  Recreate
+ Container postgres  Recreated
+ Container postgres  Starting
+ Container postgres  Started
+(exit=0)
+## (3-2) 대기 (최대 2분, 5초 간격) 2026-10-20T23:18:59+09:00
+  2026-10-20T14:18:15Z postgres=healthy actuator=UP
+  READY 2026-10-20T14:18:15Z
+## (3-3) 사후 확인 2026-10-20T23:18:59+09:00
+### ① version()
+  PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+  -> 16.15 확인
+  Image ID=sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d -> ca0bd484… SAME
+### ② postgres healthy + 다른 9개 StartedAt = Step 0
+  postgres status=running/healthy started=2026-10-20T14:18:03.86327753Z
+  caldera                        2026-10-20T13:19:32.028170508Z -> SAME
+  target-web                     2026-10-20T08:21:29.808661429Z -> SAME
+  backend                        2026-10-20T08:21:29.809956225Z -> SAME
+  react-dashboard                2026-10-20T08:21:29.814149846Z -> SAME
+  security-lab-wazuh.manager-1   2026-10-20T12:52:55.647866853Z -> SAME
+  security-lab-wazuh.agent-1     2026-10-20T12:52:56.286752022Z -> SAME
+  security-lab-wazuh.indexer-1   2026-10-20T12:52:54.821567761Z -> SAME
+  suricata                       2026-10-20T12:52:54.823361335Z -> SAME
+  mock-imds                      2026-10-20T12:52:54.826215371Z -> SAME
+### ③ Step 0-3 기준값
+ flyway_rows | last_rank 
+-------------+-----------
+           4 |         4
+(1 row)
+
+ installed_rank | version | success 
+----------------+---------+---------
+              4 | 4       | t
+(1 row)
+
+   proname   |                      args                      
+-------------+------------------------------------------------
+ quantile_t8 | vals double precision[], prob double precision
+ wilson_ci   | x bigint, n bigint
+(2 rows)
+
+ measurement_run | verdict_result | correlation 
+-----------------+----------------+-------------
+               5 |            195 |         219
+(1 row)
+
+  비교값=4,4true,2,5,195,219 기대=4,4true,2,5,195,219 -> SAME
+### ④ target-web /actuator/health (status 만)
+  status=UP
+### ⑤ 컨테이너 OS·glibc (Step 1 새 이미지: DEBIAN_VERSION_FULL=13.7, glibc 2.41-12+deb13u4)
+  PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+  VERSION_CODENAME=trixie
+  DEBIAN_VERSION_FULL=13.7
+  ldd (Debian GLIBC 2.41-12+deb13u4) 2.41
+  PG_VERSION=16.15-1.pgdg13+2
+### ⑥ datcollversion + 재생성 이후 postgres 로그의 collation 경고
+  datname datcollversion actual: postgres 2.41 2.41
+  datname datcollversion actual: template0 NULL 2.41
+  datname datcollversion actual: template1 2.41 2.41
+  datname datcollversion actual: vulndb 2.41 2.41
+  $ docker logs --since 2026-10-20T14:18:03Z postgres | grep -ciE 'collation|mismatch' -> 0
+  (재생성 이후 로그 줄 수: 9, WARNING/ERROR/FATAL 줄 수: 0)
+
+## (4-0) RUNBOOK 사전 조건 2026-10-20T23:22:14+09:00
+### (0) 사전 점검
+  14031db docs: ADR-S4-03 v1.1 + RUNBOOK smoke precondition (no running Caldera operations)  porcelain=3(미커밋 → git_dirty=true 예상)
+  postgres	Up 4 minutes (healthy)
+  caldera	Up About an hour
+  security-lab-wazuh.manager-1	Up About an hour
+  security-lab-wazuh.indexer-1	Up About an hour
+  target-web	Up 6 hours
+  mcukpa	red	false	2026-10-16T18:23:26Z
+  jznjpj	red	false	2026-10-18T10:10:09Z
+  oeintf	red	false	2026-10-20T13:45:21Z
+  pqkuqm	red	true	2026-10-20T14:21:59Z
+  now=2026-10-20T14:22:14Z
+  label S4-STACK-1b-SMOKE: 0
+### (0-b) Caldera operation 확인
+  total=40
+  finished=40
+## (4-1) 스모크 실행 (RUNBOOK-S4-1b (2), 라벨만 변경) 2026-10-20T23:27:24+09:00
+$ RUN_CALDERA_MEASURE=1 MEASURE_N=1 MEASURE_LABEL='S4-STACK-1b-SMOKE' APP_CALDERA_APIKEY=… INDEXER_USERNAME=… INDEXER_PASSWORD=… POSTGRES_DB=… VALIDATION_DB_PASSWORD=… ./gradlew cleanTest test --tests 'com.capstone.vuln.measure.CampaignRunnerIT' -i | grep -E '<RUNBOOK 필터>'   (값은 docker/.env 에서 env 로만 주입, 미출력)
+  start=2026-10-20T14:22:32Z
+  CampaignRunnerIT STANDARD_OUT
+      2026-10-20T23:22:43.501+09:00  INFO 169665 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Starting CampaignRunnerIT using Java 17.0.20.1 with PID 169665 (started by hyeonseong in /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2)
+      2026-10-20T23:22:43.505+09:00 DEBUG 169665 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Running with Spring Boot v3.5.13, Spring v6.2.17
+      2026-10-20T23:22:43.507+09:00  INFO 169665 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : No active profile set, falling back to 1 default profile: "default"
+      2026-10-20T23:22:44.843+09:00  INFO 169665 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Started CampaignRunnerIT in 2.166 seconds (process running for 3.573)
+  CampaignRunnerIT > measure() STANDARD_OUT
+      MEASURE>> starting campaign run label=S4-STACK-1b-SMOKE n=1 truncate=false
+      PER-RUN op=51d01fdb-6aaf-4b62-9893-3d0f167dd81f rows=8
+        [SQLI/SINGLE] rid=03869107-cf1c-486b-a53d-82c446b64185 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_MISSED conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [SSRF/SINGLE] rid=573788c2-035d-4e54-bdaa-e7b4c3d73db5 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=859
+        [SSRF/SINGLE] rid=0409bd7f-94f6-4bf1-91da-0444115f9560 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=528
+        [SSRF/SINGLE] rid=f3260ef7-f77e-4c10-8955-8be96418fae2 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [PATH_TRAVERSAL/SINGLE] rid=91b51c7d-4e51-47f3-8d6c-d42507d81805 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1831
+        [PATH_TRAVERSAL/SINGLE] rid=546c8f88-2d05-4602-b1c7-2bc74d8925bc gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1796
+        [PATH_TRAVERSAL/SINGLE] rid=b7bae9f9-7043-4741-b81e-fa672e2e57ae gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1785
+        [BRUTE_FORCE/BF_SEQUENCE] rid=17f43f6c-ea18-449d-b8d8-df681b7b7119 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1096
+      GATE overall=INCONCLUSIVE totalSamples=7 totalUncertain=0 report=detections/measurements/gate-report-2026-10-20T14-26-44-867Z.md
+      RUN run_id=1cdba28a-90ea-45ef-9c3c-1f29ba5d9e15 R10=VALID
+      MEASURE>> done overall=INCONCLUSIVE totalSamples=7
+  BUILD SUCCESSFUL in 4m 12s
+  end=2026-10-20T14:26:45Z
+  op_id 교차검증 WARN 줄 수: 0
+## (4-2) DB 확인 (validation_rw SELECT) 2026-10-20T23:27:24+09:00
+        label        |  kind  | status | expected_attempts | expected_controls | actual_attack | actual_control | r10_status | r10_reason 
+---------------------+--------+--------+-------------------+-------------------+---------------+----------------+------------+------------
+ S4-STACK-1b-SMOKE   | ATTACK | CLOSED |                 7 |                 1 |             7 |              1 | VALID      | 
+ S4-STACK-4-SMOKE-R2 | ATTACK | CLOSED |                 7 |                 1 |             7 |              1 | VALID      | 
+(2 rows)
+
+       label       |                git_commit                | git_dirty |         started_at         |          ended_at          
+-------------------+------------------------------------------+-----------+----------------------------+----------------------------
+ S4-STACK-1b-SMOKE | 14031dbd2b265a365e83d20f2c6c76811174b230 | t         | 2026-10-20 14:22:45.878+00 | 2026-10-20 14:26:44.862+00
+(1 row)
+
+        label        | attempt_role | gt_outcome | count 
+---------------------+--------------+------------+-------
+ S4-STACK-1b-SMOKE   | ATTACK       | SUCCEEDED  |     7
+ S4-STACK-1b-SMOKE   | CONTROL      | FAILED     |     1
+ S4-STACK-4-SMOKE-R2 | ATTACK       | SUCCEEDED  |     7
+ S4-STACK-4-SMOKE-R2 | CONTROL      | FAILED     |     1
+(4 rows)
+
+       label       | op_id_resolved | count 
+-------------------+----------------+-------
+ S4-STACK-1b-SMOKE | t              |     8
+(1 row)
+
+    scenario    |  role   | k |  gt_4r2   |   gt_1b   |    verdict_4r2     |     verdict_1b     |  atk_4r2  |  atk_1b   | ovr_4r2 | ovr_1b | cmp  
+----------------+---------+---+-----------+-----------+--------------------+--------------------+-----------+-----------+---------+--------+------
+ BRUTE_FORCE    | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f       | f      | same
+ PATH_TRAVERSAL | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f       | f      | same
+ PATH_TRAVERSAL | ATTACK  | 2 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f       | f      | same
+ PATH_TRAVERSAL | ATTACK  | 3 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f       | f      | same
+ SQLI           | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED | SUCCEEDED | f       | f      | same
+ SSRF           | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f       | f      | same
+ SSRF           | ATTACK  | 2 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f       | f      | same
+ SSRF           | CONTROL | 1 | FAILED    | FAILED    | FAILED_UNSEEN      | FAILED_UNSEEN      | SUCCEEDED | SUCCEEDED | t       | t      | same
+(8 rows)
+
+(비교: S4-STACK-4-SMOKE-R2 ↔ S4-STACK-1b-SMOKE, 시나리오·attempt_role 안 verdict·id 순 k번째 짝. 6개 컬럼 gt_outcome·verdict·initial_verdict·attacker_verdict·overestimate·detection_status)
+## (4-3) 사후: running/paused operation 0개, postgres 로그(재생성 이후) collation/mismatch 0건 2026-10-20T23:27:24+09:00
+## (4-J) D5 판정 2026-10-20T23:27:39+09:00
+- R10: VALID (expected 7/1 = actual 7/1) → 충족
+- GT: ATTACK 7 SUCCEEDED, CONTROL 1 FAILED (S4-STACK-4-SMOKE-R2와 동일) → 충족
+- verdict 비교(vs S4-STACK-4-SMOKE-R2, 6개 컬럼): 8행 모두 same, DIFF 0
+- op_id 교차검증 WARN 0줄, correlation op_id_resolved=t 8/8, rows=8
+- 기록 사항: run git_commit=14031db, git_dirty=true(compose·.env.example 수정·증거 로그 미커밋 상태에서 측정). red agent 는 새 sandcat pqkuqm
+- 하네스 생성 gate-report: 2026-10-20T14-26-44-867Z.{md,json}
+- 백업 ~/capstone-backups/2026-10-20_pg16.13_dumpall.sql(600)은 저장소 밖, 커밋 대상 아님. docker/.env 는 gitignore
+

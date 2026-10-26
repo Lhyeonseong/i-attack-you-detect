@@ -1,0 +1,384 @@
+## (0) 2026-10-21T16:38:40Z
+3665b10 chore(evidence): S4-5 step0 and impl logs
+1
+total=69
+finished=69
+mcukpa	red	false	2026-10-16T18:23:26Z
+jznjpj	red	false	2026-10-18T10:10:09Z
+oeintf	red	false	2026-10-20T13:45:21Z
+pqkuqm	red	false	2026-10-20T14:30:41Z
+zetofr	red	false	2026-10-20T19:32:51Z
+qpiere	red	false	2026-10-20T20:18:02Z
+dmceil	red	false	2026-10-21T09:35:44Z
+qvfnuu	red	false	2026-10-21T09:40:46Z
+eiwwvn	red	false	2026-10-21T13:22:57Z
+miuott	red	false	2026-10-21T15:02:51Z
+fxynbu	red	false	2026-10-21T15:27:26Z
+2026-10-21T16:38:42Z
+sandcat process: none
+BEGIN
+ installed_rank | version | success 
+----------------+---------+---------
+              1 | 1       | t
+              2 | 2       | t
+              3 | 3       | t
+              4 | 4       | t
+              5 | 5       | t
+              6 | 6       | t
+(6 rows)
+
+ same_label 
+------------
+          0
+(1 row)
+
+             r10_md5              | runs 
+----------------------------------+------
+ e8f71dbdc890d6bf0c10d2888b6a7671 |   13
+(1 row)
+
+ snapshot_rows 
+---------------
+           178
+(1 row)
+
+ROLLBACK
+-rw-rw-r-- 1 hyeonseong hyeonseong 621648 Oct 22 01:38 /home/hyeonseong/capstone-backups/2026-10-22_validation_pre-v7.sql
+abd35eeceafd246d59992a86334f2e70bad7f10d4e2877a56cfa86ba24367a11  /home/hyeonseong/capstone-backups/2026-10-22_validation_pre-v7.sql
+## (0-c) 2026-10-21T16:39:54Z
+app0 172.20.0.3/16
+atk0 172.18.0.2/16
+imds0 169.254.169.2/24
+sec0 172.19.0.5/16
+eth_count=0
+security-lab_app_net 172.20.0.0/16
+security-lab_attack_net 172.18.0.0/16
+security-lab_imds_net 169.254.169.0/24
+security-lab_security_net 172.19.0.0/16
+["-i","app0","-i","atk0","-i","imds0","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.5.stats.enabled=no","--set","outputs.1.eve-log.types.32.stats.enabled=no"]
+NM_OK
+## (0-d) 2026-10-21T16:39:54Z
+outputs.5 stats enabled=no
+eve-log.types.0 alert enabled=yes(미지정)
+eve-log.types.3 http enabled=yes(미지정)
+eve-log.types.7 files enabled=yes(미지정)
+eve-log.types.32 stats enabled=no
+eve-log.types.33 flow enabled=yes(미지정)
+## (1) V7 apply 2026-10-21T16:40:51Z
+ValidationMigrateIT > migrate() STANDARD_OUT
+    MIGRATE>> before=[1, 2, 3, 4, 5, 6] after=[1, 2, 3, 4, 5, 6, 7]
+    MIGRATE>>   rank=1 v=1 validation schema by=validation_rw on=2026-10-16 23:31:49.334494 success=true
+    MIGRATE>>   rank=2 v=2 measurement run by=validation_rw on=2026-10-18 18:31:27.483012 success=true
+    MIGRATE>>   rank=3 v=3 metric foundation by=validation_rw on=2026-10-20 00:13:32.325208 success=true
+    MIGRATE>>   rank=4 v=4 metric views by=validation_rw on=2026-10-20 00:13:32.457942 success=true
+    MIGRATE>>   rank=5 v=5 metric snapshot by=validation_rw on=2026-10-21 22:48:11.879923 success=true
+    MIGRATE>>   rank=6 v=6 nids telemetry by=validation_rw on=2026-10-21 23:58:24.803698 success=true
+    MIGRATE>>   rank=7 v=7 benign m14 by=validation_rw on=2026-10-22 01:41:00.401988 success=true
+BUILD SUCCESSFUL in 8s
+## (2) 2026-10-21T16:43:46Z
+BEGIN
+ installed_rank | version |    description    | success 
+----------------+---------+-------------------+---------
+              1 | 1       | validation schema | t
+              2 | 2       | measurement run   | t
+              3 | 3       | metric foundation | t
+              4 | 4       | metric views      | t
+              5 | 5       | metric snapshot   | t
+              6 | 6       | nids telemetry    | t
+              7 | 7       | benign m14        | t
+(7 rows)
+
+       endpoint       |    scenario    |  param   
+----------------------+----------------+----------
+ /api/files/download  | PATH_TRAVERSAL | filename
+ /api/preview         | SSRF           | url
+ /api/products/search | SQLI           | keyword
+(3 rows)
+
+             r10_md5              | runs 
+----------------------------------+------
+ e8f71dbdc890d6bf0c10d2888b6a7671 |   13
+(1 row)
+
+ snapshot_rows | paired 
+---------------+--------
+           178 |      0
+(1 row)
+
+ benign_rows 
+-------------
+           0
+(1 row)
+
+ROLLBACK
+## (3-0) pre-check 2026-10-21T16:47:33Z
+3665b10 chore(evidence): S4-5 step0 and impl logs
+1
+running_or_paused_ops=0 trusted_agents=0 sandcat_procs=0
+## (3) start=2026-10-21T16:47:34Z
+BenignRunIT > measure() STANDARD_OUT
+    BENIGN>> run open label=S4-5-BENIGN-WEB run_id=dffb77a7-0b43-4322-acd7-d943240b11b5 corpus=benign-corpus-v1 items=960 file_sha256=b73caa5fb6d0bb6e9818b01716480e5fd6009fdedf4da9ea3044854f4e7ca76c
+    BENIGN>> sent first=2026-10-21T16:47:40.481Z last=2026-10-21T16:52:56.591Z status={/api/files/download 404=320, /api/preview 200=25, /api/preview 301=65, /api/preview 302=15, /api/preview 307=1, /api/preview 400=1, /api/preview 401=6, /api/preview 403=49, /api/preview 404=141, /api/preview 429=9, /api/preview 502=7, /api/preview 503=1, /api/products/search 200=320}
+    BENIGN>> app log matched=960/960 unmatched_untagged_lines=0
+> Task :test FAILED
+BenignRunIT > measure() FAILED
+        at com.capstone.vuln.measure.BenignRunIT.measure(BenignRunIT.java:93)
+BUILD FAILED in 6m 22s
+## (3) end=2026-10-21T16:53:58Z
+
+## (3-F) failure investigation (read only) 2026-10-21T16:56:25Z
+BenignRunIT failure: IllegalStateException BENIGN alert 검색 응답 파싱 실패 [2026-10-21T16:47:39.481Z, 2026-10-21T16:48:39.480Z] at BenignAlertReader.read:70 <- readApp:39 <- BenignRunIT.measure:93
+  caused by: IllegalStateException 인덱서 alert 질의 I/O 실패 (IndexerAlertSearchSource.search:85)
+  caused by: javax.net.ssl.SSLHandshakeException: (certificate_unknown) No subject alternative names matching IP address 127.0.0.1 found
+  at sun.security.ssl.AbstractTrustManagerWrapper.checkAdditionalTrust -> X509TrustManagerImpl.checkIdentity -> HostnameChecker.matchIP
+BEGIN
+ current_user  | ro 
+---------------+----
+ validation_rw | on
+(1 row)
+
+                run_id                |      label      |  kind  | status |          started_at           | ended_at | expected_attempts | expected_controls |                git_commit                | git_dirty | r10_status | r10_reason | benign_loaded | benign_matched 
+--------------------------------------+-----------------+--------+--------+-------------------------------+----------+-------------------+-------------------+------------------------------------------+-----------+------------+------------+---------------+----------------
+ dffb77a7-0b43-4322-acd7-d943240b11b5 | S4-5-BENIGN-WEB | BENIGN | OPEN   | 2026-10-21 16:47:39.677775+00 |          |               960 |                 0 | 3665b109d09e9b4679bf5b509a92439b16dc3c6f | t         | INCOMPLETE | OPEN       |             0 |              0
+(1 row)
+
+ benign_request | benign_result | benign_unlinked_alert | snapshot_rows 
+----------------+---------------+-----------------------+---------------
+              0 |             0 |                     0 |             0
+(1 row)
+
+ROLLBACK
+
+## (3-F) run dffb77a7 close (from /tmp/s4-5-close.log)
+BEGIN
+UPDATE 1
+## (3-F) retry 2026-10-21T17:18:23Z — 1st attempt: SELECT ambiguous column, psql stopped before COMMIT (rolled back)
+BEGIN
+      label      | status | ended 
+-----------------+--------+-------
+ S4-5-BENIGN-WEB | OPEN   | f
+(1 row)
+
+ROLLBACK
+BEGIN
+UPDATE 1
+      label      | status | ended |                            notes                            | r10_status |      r10_reason      | benign_loaded 
+-----------------+--------+-------+-------------------------------------------------------------+------------+----------------------+---------------
+ S4-5-BENIGN-WEB | CLOSED | t     | aborted: indexer TLS hostname verification, alerts not read | INVALID    | BENIGN_LOAD_MISMATCH |             0
+(1 row)
+
+COMMIT
+
+## (3) R2 run log (from /tmp/s4-5-r2.log)
+## (3-CA) 2026-10-21T17:21:29Z
+total 4
+-rw-r--r-- 1 hyeonseong hyeonseong 1204 Oct 22 02:21 wazuh-indexer-root-ca.pem
+ca_fingerprint=D4:6F:19:39:CF:B1:CA:F7:F4:04:7D:7F:5F:38:59:D1:18:13:6C:33:AC:E8:F0:52:67:D0:D6:C9:6F:B5:FD:F6 ca_certificates=1 private_key_blocks=0
+## (3-0) pre-check 2026-10-21T17:21:29Z
+b5cc8e6 chore(evidence): S4-5 benign web run 1 failure (indexer TLS, run dffb77a7)
+dirty_files=0 running_or_paused_ops=0 trusted_agents=0 sandcat_procs=0
+## (3) start=2026-10-21T17:21:30Z
+BenignRunIT > measure() STANDARD_OUT
+    BENIGN>> corpus=benign-corpus-v1 file_sha256=b73caa5fb6d0bb6e9818b01716480e5fd6009fdedf4da9ea3044854f4e7ca76c git=b5cc8e6a8ee941f5fff802c9c0d64f137cd9bf5e dirty=false
+    BENIGN>> preflight indexer OK (app rule group + 86601)
+    BENIGN>> run open label=S4-5-BENIGN-WEB-R2 run_id=3818e21a-bfa2-4c8d-9977-f89d8df35fc2 corpus=benign-corpus-v1 items=960
+    BENIGN>> sent first=2026-10-21T17:21:39.868Z last=2026-10-21T17:26:26.092Z status={/api/files/download 404=320, /api/preview 200=23, /api/preview 301=65, /api/preview 302=15, /api/preview 307=1, /api/preview 400=1, /api/preview 401=6, /api/preview 403=49, /api/preview 404=137, /api/preview 429=9, /api/preview 502=1, /api/preview 503=13, /api/products/search 200=320}
+    BENIGN>> app log matched=960/960 unmatched_untagged_lines=0 benign_request saved=960
+    BENIGN>> alerts app=640 nids=0 results=1920 fp=0 unlinked=640
+    BENIGN>> run_id=3818e21a-bfa2-4c8d-9977-f89d8df35fc2 R10={r10_status=VALID, r10_reason=null, expected_attempts=960, benign_loaded=960, benign_matched=960}
+BUILD SUCCESSFUL in 5m 57s
+## (3) end=2026-10-21T17:27:28Z
+
+## (4) pre-snapshot M14 check (from /tmp/s4-5-4.log)
+## (4-a) 2026-10-21T17:30:23Z
+BEGIN
+       label        | status | r10_status | r10_reason | expected_attempts | benign_loaded | benign_matched 
+--------------------+--------+------------+------------+-------------------+---------------+----------------
+ S4-5-BENIGN-WEB-R2 | CLOSED | VALID      |            |               960 |           960 |            960
+(1 row)
+
+         first_sent         |       last_responded       |          win_from          |           win_to           
+----------------------------+----------------------------+----------------------------+----------------------------
+ 2026-10-21 17:21:39.868+00 | 2026-10-21 17:26:26.092+00 | 2026-10-21 17:21:38.868+00 | 2026-10-21 17:26:56.092+00
+(1 row)
+
+       endpoint       | status | count 
+----------------------+--------+-------
+ /api/files/download  |    404 |   320
+ /api/preview         |    200 |    23
+ /api/preview         |    301 |    65
+ /api/preview         |    302 |    15
+ /api/preview         |    307 |     1
+ /api/preview         |    400 |     1
+ /api/preview         |    401 |     6
+ /api/preview         |    403 |    49
+ /api/preview         |    404 |   137
+ /api/preview         |    429 |     9
+ /api/preview         |    502 |     1
+ /api/preview         |    503 |    13
+ /api/products/search |    200 |   320
+(13 rows)
+
+ROLLBACK
+window from=2026-10-21T17:21:38.868Z to=2026-10-21T17:26:56.092Z
+## (4-b) unlinked APP_RULE alerts
+BEGIN
+  sensor  | rule_id |  reason  | count 
+----------+---------+----------+-------
+ APP_RULE | 100002  | NO_MATCH |   640
+(1 row)
+
+ROLLBACK
+indexer vuln-webapp alerts in window total=640
+  rule.id=100002 count=640 with_data_rid=0 locations=/var/log/target/application.log:640
+## (4-c) suricata eve in window
+app_ip=172.20.0.3
+  all fileinfo                             851
+  all flow                                 40
+  all http                                 982
+  all tls                                  63
+  app0 172.20.0.3:8080 flow                15
+  app0 172.20.0.3:8080 http                960
+## (4-d) M14
+BEGIN
+     metric_id     |       endpoint       |   split_unit   | x |  n  |   p    |   lo   | wilson_hi | status  
+-------------------+----------------------+----------------+---+-----+--------+--------+-----------+---------
+ M14a_APP_RULE     | /api/files/download  | PATH_TRAVERSAL | 0 | 320 | 0.0000 | 0.0000 |    0.0119 | OK
+ M14a_APP_RULE     | /api/preview         | SSRF           | 0 | 320 | 0.0000 | 0.0000 |    0.0119 | OK
+ M14a_APP_RULE     | /api/products/search | SQLI           | 0 | 320 | 0.0000 | 0.0000 |    0.0119 | OK
+ M14a_BACKEND_CORR | /api/files/download  | PATH_TRAVERSAL |   | 320 |        |        |           | NO_RULE
+ M14a_BACKEND_CORR | /api/preview         | SSRF           |   | 320 |        |        |           | NO_RULE
+ M14a_BACKEND_CORR | /api/products/search | SQLI           |   | 320 |        |        |           | NO_RULE
+ M14a_NIDS         | /api/files/download  | PATH_TRAVERSAL | 0 | 320 | 0.0000 | 0.0000 |    0.0119 | OK
+ M14a_NIDS         | /api/preview         | SSRF           | 0 | 320 | 0.0000 | 0.0000 |    0.0119 | OK
+ M14a_NIDS         | /api/products/search | SQLI           | 0 | 320 | 0.0000 | 0.0000 |    0.0119 | OK
+(9 rows)
+
+     metric_id     |    paired_label     |            paired_run_id             | x |  n  |   p    | wilson_hi |     status     
+-------------------+---------------------+--------------------------------------+---+-----+--------+-----------+----------------
+ M14b_APP_RULE     | S4-STACK-6-BASELINE | b1c26be1-add2-4d45-8207-0998b0f743b1 | 0 | 360 | 0.0000 |    0.0106 | OK
+ M14b_BACKEND_CORR | S4-STACK-6-BASELINE | b1c26be1-add2-4d45-8207-0998b0f743b1 |   |     |        |           | NOT_APPLICABLE
+ M14b_NIDS         | S4-STACK-6-BASELINE | b1c26be1-add2-4d45-8207-0998b0f743b1 |   |     |        |           | NOT_COLLECTED
+(3 rows)
+
+  sensor  | rule_id |       kind        | alerts 
+----------+---------+-------------------+--------
+ APP_RULE | 100002  | UNLINKED_NO_MATCH |    640
+(1 row)
+
+ROLLBACK
+
+## (4-V8) V8 apply (from /tmp/s4-5-v8.log)
+BEGIN
+ installed_rank | version | success 
+----------------+---------+---------
+              1 | 1       | t
+              2 | 2       | t
+              3 | 3       | t
+              4 | 4       | t
+              5 | 5       | t
+              6 | 6       | t
+              7 | 7       | t
+(7 rows)
+
+             r10_md5              | runs 
+----------------------------------+------
+ d6a045f6cc9f0e8ed46027260a542006 |   15
+(1 row)
+
+ snapshot_rows 
+---------------
+           178
+(1 row)
+
+ROLLBACK
+-rw-rw-r-- 1 hyeonseong hyeonseong 1027631 Oct 22 03:06 /home/hyeonseong/capstone-backups/2026-10-22_validation_pre-v8.sql
+027f853ef741b4727d7af68c0483f5f70f3433380edc8ec1b375393f2f133f37  /home/hyeonseong/capstone-backups/2026-10-22_validation_pre-v8.sql
+ValidationMigrateIT > migrate() STANDARD_OUT
+    MIGRATE>> before=[1, 2, 3, 4, 5, 6, 7] after=[1, 2, 3, 4, 5, 6, 7, 8]
+    MIGRATE>>   rank=1 v=1 validation schema by=validation_rw on=2026-10-16 23:31:49.334494 success=true
+    MIGRATE>>   rank=2 v=2 measurement run by=validation_rw on=2026-10-18 18:31:27.483012 success=true
+    MIGRATE>>   rank=3 v=3 metric foundation by=validation_rw on=2026-10-20 00:13:32.325208 success=true
+    MIGRATE>>   rank=4 v=4 metric views by=validation_rw on=2026-10-20 00:13:32.457942 success=true
+    MIGRATE>>   rank=5 v=5 metric snapshot by=validation_rw on=2026-10-21 22:48:11.879923 success=true
+    MIGRATE>>   rank=6 v=6 nids telemetry by=validation_rw on=2026-10-21 23:58:24.803698 success=true
+    MIGRATE>>   rank=7 v=7 benign m14 by=validation_rw on=2026-10-22 01:41:00.401988 success=true
+    MIGRATE>>   rank=8 v=8 m14b status rule by=validation_rw on=2026-10-22 03:06:28.564431 success=true
+BUILD SUCCESSFUL in 6s
+BEGIN
+ installed_rank | version |    description    | success 
+----------------+---------+-------------------+---------
+              1 | 1       | validation schema | t
+              2 | 2       | measurement run   | t
+              3 | 3       | metric foundation | t
+              4 | 4       | metric views      | t
+              5 | 5       | metric snapshot   | t
+              6 | 6       | nids telemetry    | t
+              7 | 7       | benign m14        | t
+              8 | 8       | m14b status rule  | t
+(8 rows)
+
+             r10_md5              | runs 
+----------------------------------+------
+ d6a045f6cc9f0e8ed46027260a542006 |   15
+(1 row)
+
+ snapshot_rows 
+---------------
+           178
+(1 row)
+
+     metric_id     | definition_version |    status     | x |  n  
+-------------------+--------------------+---------------+---+-----
+ M14b_APP_RULE     | ADR-S4-01 v1.9     | OK            | 0 | 360
+ M14b_BACKEND_CORR | ADR-S4-01 v1.9     | NO_RULE       |   |    
+ M14b_NIDS         | ADR-S4-01 v1.9     | NOT_COLLECTED |   |    
+(3 rows)
+
+ status  | definition_version | count 
+---------+--------------------+-------
+ NO_RULE | ADR-S4-01 v1.9     |     3
+ OK      | ADR-S4-01 v1.9     |     6
+(2 rows)
+
+ROLLBACK
+
+## (4-S) snapshot (from /tmp/s4-5-snap.log)
+## (4-S0) pre-snapshot 2026-10-21T18:27:22Z
+a56444b fix(runbook): S4-5 (4-S) snapshot check via set_config (psql vars not substituted in dollar quotes), tested
+dirty_files=0 status=CLOSED r10=VALID reason=- run_snapshot_rows=0 total_snapshot_rows=178
+BEGIN
+ inserted 
+----------
+       12
+(1 row)
+
+     metric_id     | scope_kind |   scope_key    | numerator | denominator |   p    | wilson_hi |    status     | definition_version | snapshot_rule_version | schema_version |    paired_label     
+-------------------+------------+----------------+-----------+-------------+--------+-----------+---------------+--------------------+-----------------------+----------------+---------------------
+ M14a_APP_RULE     | SCENARIO   | PATH_TRAVERSAL |         0 |         320 | 0.0000 |    0.0119 | OK            | ADR-S4-01 v1.9     | ADR-S4-01 v1.8        | 8              | 
+ M14a_APP_RULE     | SCENARIO   | SQLI           |         0 |         320 | 0.0000 |    0.0119 | OK            | ADR-S4-01 v1.9     | ADR-S4-01 v1.8        | 8              | 
+ M14a_APP_RULE     | SCENARIO   | SSRF           |         0 |         320 | 0.0000 |    0.0119 | OK            | ADR-S4-01 v1.9     | ADR-S4-01 v1.8        | 8              | 
+ M14a_BACKEND_CORR | SCENARIO   | PATH_TRAVERSAL |           |         320 |        |           | NO_RULE       | ADR-S4-01 v1.9     | ADR-S4-01 v1.8        | 8              | 
+ M14a_BACKEND_CORR | SCENARIO   | SQLI           |           |         320 |        |           | NO_RULE       | ADR-S4-01 v1.9     | ADR-S4-01 v1.8        | 8              | 
+ M14a_BACKEND_CORR | SCENARIO   | SSRF           |           |         320 |        |           | NO_RULE       | ADR-S4-01 v1.9     | ADR-S4-01 v1.8        | 8              | 
+ M14a_NIDS         | SCENARIO   | PATH_TRAVERSAL |         0 |         320 | 0.0000 |    0.0119 | OK            | ADR-S4-01 v1.9     | ADR-S4-01 v1.8        | 8              | 
+ M14a_NIDS         | SCENARIO   | SQLI           |         0 |         320 | 0.0000 |    0.0119 | OK            | ADR-S4-01 v1.9     | ADR-S4-01 v1.8        | 8              | 
+ M14a_NIDS         | SCENARIO   | SSRF           |         0 |         320 | 0.0000 |    0.0119 | OK            | ADR-S4-01 v1.9     | ADR-S4-01 v1.8        | 8              | 
+ M14b_APP_RULE     | ALL        | ALL            |         0 |         360 | 0.0000 |    0.0106 | OK            | ADR-S4-01 v1.9     | ADR-S4-01 v1.8        | 8              | S4-STACK-6-BASELINE
+ M14b_BACKEND_CORR | ALL        | ALL            |           |             |        |           | NO_RULE       | ADR-S4-01 v1.9     | ADR-S4-01 v1.8        | 8              | S4-STACK-6-BASELINE
+ M14b_NIDS         | ALL        | ALL            |           |             |        |           | NOT_COLLECTED | ADR-S4-01 v1.9     | ADR-S4-01 v1.8        | 8              | S4-STACK-6-BASELINE
+(12 rows)
+
+ run_rows | total_after | total_before 
+----------+-------------+--------------
+       12 |         190 |          178
+(1 row)
+
+               chk_run                |               chk_pair               | chk_before 
+--------------------------------------+--------------------------------------+------------
+ 3818e21a-bfa2-4c8d-9977-f89d8df35fc2 | b1c26be1-add2-4d45-8207-0998b0f743b1 | 178
+(1 row)
+
+DO
+COMMIT
+## (4-S) end 2026-10-21T18:27:48Z

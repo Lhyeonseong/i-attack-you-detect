@@ -1,0 +1,8 @@
+id: adv-kill-chain-linked-005
+name: '[E] Kill Chain Linked - 연계 공격'
+description: SQLi UNION으로 크레덴셜 추출 후, 해당 정보로 인증하고, 인증된 세션으로 민감 파일에 접근하는 3단계 연계 공격.
+atomic_ordering:
+- aa11bb22-cc33-4dd4-ee55-ff6677889900
+- bb22cc33-dd44-4ee5-ff66-aa7788990011
+- cc33dd44-ee55-4ff6-aa77-bb8899001122
+objective: 495a9828-cab1-44dd-a0ca-66e58177d8cc

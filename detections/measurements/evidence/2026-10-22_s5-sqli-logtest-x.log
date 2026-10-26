@@ -1,0 +1,57 @@
++ set -euo pipefail
++ cd /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2
++ OUT=/tmp/s5-sqli-logtest.log
++ :
++ C=s5-logtest
++ trap 'docker rm -f "$C" >/dev/null 2>&1 || true' EXIT
+++ docker ps --format '{{.Names}}'
+++ grep -E 'wazuh\.manager'
+++ head -1
++ MGR=security-lab-wazuh.manager-1
++ '[' -n security-lab-wazuh.manager-1 ']'
+++ docker inspect security-lab-wazuh.manager-1 --format '{{.Image}}'
++ OPID=sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
++ echo 'operational_manager=security-lab-wazuh.manager-1 image=sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b'
++ tee -a /tmp/s5-sqli-logtest.log
+operational_manager=security-lab-wazuh.manager-1 image=sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
++ docker rm -f s5-logtest
++ docker run -d --name s5-logtest sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
+++ docker inspect s5-logtest --format '{{.Image}}'
++ TWID=sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
++ tee -a /tmp/s5-sqli-logtest.log
++ echo throwaway_image=sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
+throwaway_image=sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
++ '[' sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b '!=' sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b ']'
++ echo 'waiting manager init...'
++ tee -a /tmp/s5-sqli-logtest.log
+waiting manager init...
++ ready=0
+++ seq 1 60
++ for i in $(seq 1 60)
++ docker exec s5-logtest test -f /var/ossec/bin/wazuh-logtest
++ ready=1
++ break
++ '[' 1 = 1 ']'
++ docker cp docker/config/wazuh_manager/rules/vuln_rules.xml s5-logtest:/var/ossec/etc/rules/vuln_rules.xml
++ docker cp docker/config/wazuh_manager/decoders/vuln_decoder.xml s5-logtest:/var/ossec/etc/decoders/vuln_decoder.xml
++ docker exec s5-logtest /var/ossec/bin/wazuh-control restart
++ sleep 20
+++ docker exec s5-logtest sh -c 'grep -E "CRITICAL|Error loading the rules|Syntax error on tag" /var/ossec/logs/ossec.log 2>/dev/null | tail -5'
++ LOADERR=
++ '[' -n '' ']'
++ tee -a /tmp/s5-sqli-logtest.log
++ echo 'rule load OK (no CRITICAL/Syntax error)'
+rule load OK (no CRITICAL/Syntax error)
++ echo '## POSITIVE (100211 발동해야)'
++ tee -a /tmp/s5-sqli-logtest.log
+## POSITIVE (100211 발동해야)
++ for k in "'" '"' "')" "' OR '1'='1" "' OR 1=1--" "1;--" "admin'#" "' UNION SELECT NULL--" "'/*" "' AND SLEEP(1)--"
++ run POS \'
++ local fired
+++ emit \'
+++ printf '{"time":1792526840652,"metadata":{"version":"1.9.0","log_name":"attack_http_activity"},"class_uid":4002,"class_name":"HTTP Activity","activity_id":3,"rid":"t","src_endpoint":{"ip":"172.20.0.1"},"http_request":{"http_method":"GET","url":{"path":"/api/products/search"},"user_agent":"Mozilla/5.0","args":"keyword=%s"},"http_response":{"code":200,"latency_ms":10,"body_length":5},"validation":{"outcome":"SUCCEEDED","evidence":[],"validator_version":"v1","technique_id":"T1190"},"correlation":{"op_id":null,"ability_id":null,"source":"NONE"}}' \'
+++ docker exec -i s5-logtest /var/ossec/bin/wazuh-logtest
+++ grep -oE 'id: '\''[0-9]+'\'''
+++ tail -1
++ fired=
++ docker rm -f s5-logtest

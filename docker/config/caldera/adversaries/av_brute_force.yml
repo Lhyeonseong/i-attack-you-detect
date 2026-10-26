@@ -1,0 +1,6 @@
+id: adv-av-bf-001
+name: '[V4] Validation — Brute Force (T1110)'
+description: 'Brute Force 단일 검증. Dictionary auth + 공격자 verdict(bf.verdict). 탐지 대상 Wazuh 100230~100233.'
+atomic_ordering:
+- 7aa89a87-3fd7-4d52-8c9e-1e5b2f4c6a3d
+objective: 495a9828-cab1-44dd-a0ca-66e58177d8cc

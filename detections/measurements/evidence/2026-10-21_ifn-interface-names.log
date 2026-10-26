@@ -1,0 +1,525 @@
+# 슬라이스 IFN — target-web 인터페이스 이름 명시 (재부팅 후 Gap #4 재발 방지)
+# 근거(1차, DRI 제시): moby/moby#49935(이름 지정 없는 인터페이스 순서는 생성·재시작에 걸쳐 미보장, gateway priority 는 이름 순서용 아님),
+#   Docker Engine 28 릴리스 노트(com.docker.network.endpoint.ifname, eth 접두사 지정 시 자동 이름과 겹쳐 시작 실패 가능),
+#   Compose interface_name(2.36.0+), 1c (3-11)(50b9625 는 priority 만, 컨테이너 설정에 안 남아 docker start 때 미적용),
+#   ATT&CK DET0080 AN0222(169.254.169.254 이그레스 = 탐지 신호 → IMDS 캡처는 측정 전제). 직전 커밋 bac71f8
+# 설계: target-web interface_name app_net→app0 / attack_net→atk0 / imds_net→imds0 / security_net→sec0 (eth 접두사 금지), priority 유지,
+#   suricata -i app0 -i atk0 -i imds0 (sec0 미캡처), RUNBOOK (0-c) 추가, docker/README·known-gaps Gap #4 갱신
+
+## (0-0) Step 0 — 확인만 (상태 변경 없음) 2026-10-21T03:05+09:00 HEAD=bac71f8
+
+## (0-1) 저장소 전체 eth0~eth3 참조 (grep -rnE '\beth[0-3]\b' --exclude-dir=.git .) — 67줄, 5개 파일(모두 tracked)
+  | 파일 | 줄 수 | 이번 슬라이스 허용 파일 |
+  | docker/docker-compose.yml | 7 | 예 (target-web networks 주석·suricata command) |
+  | docker/README.md | 1 | 예 |
+  | detections/known-gaps.md | 7 | 예 |
+  | detections/measurements/evidence/2026-10-20_1c-wazuh-4.14.9.log | 51 | 아니오 — 커밋된 과거 증거(bac71f8), 수정 대상 아님 |
+  | detections/measurements/evidence/2026-10-20_s4-2-gap4-verify.log | 1 | 아니오 — 커밋된 과거 증거, 수정 대상 아님 |
+  원문:
+  docker/docker-compose.yml
+    68:        priority: 100      # -> eth0
+    70:        priority: 90       # -> eth1
+    72:        priority: 80       # -> eth2
+    74:        priority: 70       # -> eth3 (관리 평면, 미캡처)
+    103:      - eth0
+    105:      - eth1
+    107:      - eth2
+  docker/README.md
+    63:  # 1) 인터페이스 매핑 재확인 (재생성 때마다): eth0=app(172.20) / eth1=attack(172.18) / eth2=imds(169.254)
+  detections/known-gaps.md
+    159:## Gap #4 — Suricata 가 앱 트래픽을 못 봄: target-web 인터페이스 순서 변경 (`-i eth0` 고정)
+    163:| 대상 | `suricata` (`network_mode: service:target-web`, `-i eth0` 단일 인터페이스 캡처) |
+    171:`ethN` 이 바뀐다. 현재 `eth0`=imds_net(169.254.169.2), `eth2`=app_net(호스트 공개 포트 트래픽), `eth3`=attack_net(Caldera).
+    172:S2 에서 imds_net 이 추가되고 재생성된 시점(10-11)부터 `eth0` 이 imds_net 이 된 것으로 보인다.
+    173:README 의 "eth0 이 보여야 한다" 확인은 인터페이스 존재만 보므로 이 상태를 잡지 못한다.
+    179:- 확인 절차에 "eth0 rx 패킷이 앱 요청과 함께 증가하는지" 추가
+    347:  - Suricata: AF_PACKET 단일 인터페이스(`-i eth0`), `copy-mode: none`, 로그 "non-inline operation",
+  detections/measurements/evidence/2026-10-20_s4-2-gap4-verify.log
+    9:["-i","eth0","-i","eth1","-i","eth2","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.7.stats.enabled=no","--set","outputs.1.eve-log.types.26.stats.enabled=no"]
+  detections/measurements/evidence/2026-10-20_1c-wazuh-4.14.9.log 줄 번호(원문은 해당 파일 그대로):
+    608 609 611 612 613 614 617 618 621 622 623 629 645 656 658 660 662 666 670 673 674 675 686 699 700 701 702 703 706 746 747 748 749 754 761 763 764 765 793 877 878 879 880 881 882 883 884 885 888 889 897
+  코드·설정 의존 확인: *.java·*.py·*.sh·*.yml·*.yaml·*.xml·*.conf·*.json·*.ts·*.js 에서 in_iface·/proc/net/dev·"iface"·ifname 참조 0줄(증거 로그 제외)
+    → 측정 하네스(CampaignRunnerIT 등)·Wazuh 설정은 인터페이스 이름에 의존하지 않음
+  RUNBOOK-S4-1b-smoke.md: eth 참조 0줄 (Step 1 에서 (0-c) 신규 추가 대상)
+
+## (0-2) target-web 네트워크 4개
+  | compose 키 | docker 네트워크 | id | driver | subnet | gateway | 설계 interface_name |
+  | app_net | security-lab_app_net | 6a06c902634f | bridge | 172.20.0.0/16 | 172.20.0.1 | app0 |
+  | attack_net | security-lab_attack_net | c81b6fab8d03 | bridge | 172.18.0.0/16 | 172.18.0.1 | atk0 |
+  | imds_net | security-lab_imds_net | ec05b6dbdab5 | bridge | 169.254.169.0/24 | 169.254.169.1 | imds0 |
+  | security_net | security-lab_security_net | ef17512d8450 | bridge | 172.19.0.0/16 | 172.19.0.1 | sec0 |
+  (imds_net 만 compose 에 ipam subnet 명시, 나머지는 Docker 자동 할당. internal=false 4개 모두)
+
+## (0-3) 현재 짝 (target-web b681cfc9fc7a netns, suricata 에서 /sys/class/net·ip -4 조회)
+  | 인터페이스 | ifindex | MAC | IPv4 | 네트워크(inspect MAC 일치) | 50b9625 표 |
+  | eth0 | 2 | 6e:20:4c:bd:f7:cf | 172.20.0.3/16 | security-lab_app_net | app SAME |
+  | eth1 | 3 | 0a:58:f7:c1:24:40 | 172.18.0.3/16 | security-lab_attack_net | attack SAME |
+  | eth2 | 4 | a2:7a:34:4b:89:da | 169.254.169.2/24 | security-lab_imds_net | imds SAME |
+  | eth3 | 5 | a6:c5:3f:66:50:d9 | 172.19.0.5/16 | security-lab_security_net | security SAME |
+  | lo | 1 | 00:00:00:00:00:00 | 127.0.0.1/8 | - | - |
+  suricata Config.Cmd 원문: ["-i","eth0","-i","eth1","-i","eth2","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.7.stats.enabled=no","--set","outputs.1.eve-log.types.26.stats.enabled=no"]
+  suricata HostConfig.NetworkMode = container:<현재 target-web Id> → yes
+
+## (0-4) 새 이름 검사
+  | 이름 | 길이(IFNAMSIZ 15 이하) | eth 접두사 | target-web 안 기존 이름과 겹침 |
+  | app0 | 4 | 아님 | 없음 |
+  | atk0 | 4 | 아님 | 없음 |
+  | imds0 | 5 | 아님 | 없음 |
+  | sec0 | 4 | 아님 | 없음 |
+  (기존 이름: eth0 eth1 eth2 eth3 lo)
+  지시 외 확인(읽기 전용, 저장소 밖) — docker 상태 변경 없음: 저장소 밖 스크래치 compose(서비스 1개, networks.n1 에 priority 100 + interface_name app0)로
+    $ docker compose -f <scratch>/compose.yml config → exit=0, 결과에 'interface_name: app0' 유지, JSON 파싱 {'n1': {'interface_name': 'app0', 'priority': 100}}
+    생성된 네트워크 0개(config 만 실행). → 이 Compose 빌드가 interface_name 키를 받아들임. 엔진 전달 여부는 Step 2 재생성 후 확인
+
+## (0-5) 버전
+  | 항목 | 값 | 요구 |
+  | Docker Engine | 29.1.3 (API 1.52) | ifname 은 Engine 28+ → 충족 |
+  | Docker Compose | 2.40.3+ds1-0ubuntu1~24.04.1 (Ubuntu 패키지) | interface_name 은 2.36.0+ → 충족 |
+
+## (0-6) 10개 컨테이너 StartedAt (Step 2·3 비교 기준)
+  | 컨테이너 | id | 상태 | StartedAt |
+  | suricata | dd05e021bdd5 | running | 2026-10-20T17:35:58.375782272Z |
+  | target-web | b681cfc9fc7a | running | 2026-10-20T17:35:56.811525965Z |
+  | security-lab-wazuh.agent-1 | ea593a328c20 | running | 2026-10-20T17:00:49.686845212Z |
+  | security-lab-wazuh.manager-1 | 2e981a803ed5 | running | 2026-10-20T17:00:50.997397674Z |
+  | security-lab-wazuh.indexer-1 | 4de121e938e7 | running | 2026-10-20T17:00:51.739122373Z |
+  | postgres | 03c8a168cf37 | running | 2026-10-20T17:00:52.299058825Z |
+  | caldera | 655ec54ec456 | running | 2026-10-20T17:00:52.925780782Z |
+  | mock-imds | aadb7b5b54d1 | running | 2026-10-20T17:00:53.819402488Z |
+  | react-dashboard | 04cd261f05f1 | running | 2026-10-20T17:00:56.887797127Z |
+  | backend | 1f46e3ad546a | running | 2026-10-20T17:00:58.035420748Z |
+  (keen_brahmagupta hello-world exited — 대상 아님)
+
+## (0-J) Step 0 결과
+  측정 실패 0. eth 참조가 있는 허용 외 파일은 커밋된 과거 증거 로그 2개뿐(수정하지 않음). 코드·설정의 인터페이스 이름 의존 0. Step 1 승인 대기
+
+## (1-0) Step 1 — 파일 수정 (상태 변경 없음, DRI 승인) 2026-10-21T03:20+09:00
+- DRI 결정(현성): 과거 증거 로그 2개(2026-10-20_1c-wazuh-4.14.9.log, 2026-10-20_s4-2-gap4-verify.log) 수정 안 함(증거는 덧붙이기만).
+  known-gaps.md Gap #4 기존 문단(171~179행)은 이력으로 유지, 재발·해결 기록만 덧붙임. known-gaps.md 347행(현재 구성 설명)은 고침.
+  Step 0 의 임시 compose config 확인은 "지시 외 확인(읽기 전용, 저장소 밖)"으로 표시함 → (0-4) 갱신
+- known-gaps.md 347행 절과 앞뒤 원문(수정 전):
+    344: ### 3. 모드 확정 — 전 구간 탐지 전용(IDS)
+    345:
+    346: - 현재 전 구간 탐지 전용(IDS), 차단 비활성 → **Verdict의 BLOCKED류는 확장 설계**. S0 실측으로 입증.
+    347:   - Suricata: AF_PACKET 단일 인터페이스(`-i eth0`), `copy-mode: none`, 로그 "non-inline operation",
+    348:     로드된 64개 룰 전부 `alert` (`drop`/`reject` 0개)
+    349:   - Wazuh: manager·agent `ossec.conf` 의 `<active-response>` 블록 0개(기본 `<command>` 정의만 존재),
+    350:     manager `active-responses.log` 공란. agent 측 1줄은 공유 설정 변경에 따른 `restart.sh agent reload`(차단 아님)
+    351:
+    352: ### 4. 유보 — 파이프라인 튜닝
+  (342: '- 이유: 파이프라인 버퍼링이 탐지 성능 지표를 오염시키지 않도록 지표를 분리한다.' / 343: 빈 줄)
+
+## (1-1) 수정 내용 (git diff --stat)
+   detections/known-gaps.md                       | 15 ++++++++++++-
+   detections/measurements/RUNBOOK-S4-1b-smoke.md | 31 ++++++++++++++++++++++++++
+   docker/README.md                               |  7 +++---
+   docker/docker-compose.yml                      | 22 +++++++++++-------
+   4 files changed, 63 insertions(+), 12 deletions(-)
+  1. compose: target-web networks 4개에 interface_name(app0·atk0·imds0·sec0), priority 100/90/80/70 유지(eth 번호 주석만 제거), 주석 3줄 교체.
+     suricata command -i eth0/eth1/eth2 → -i app0/atk0/imds0 (나머지 인자 무변경)
+  2. RUNBOOK: (0-b) 뒤에 '(0-c) Suricata 캡처 인터페이스 확인 (읽기 전용)' 신규 — 이름↔서브넷, eth_count=0, suricata -i, NetworkMode, 멈출 것(스모크 금지)
+  3. docker/README: 운영 규칙의 확인 주석 1줄·설명 2줄 → 이름 고정(interface_name, 재부팅·docker start 후 유지), 확인은 RUNBOOK (0-c). "target-web 재생성 시 suricata 재생성 필수" 규칙과 통과 기준은 무변경
+  4. known-gaps.md Gap #4: '### 재발·해결 기록 (2026-10-21, 슬라이스 IFN)' 덧붙임(재발·원인·임시 복구·해결·검증 위치). 기존 문단·표 무변경
+     known-gaps.md 347행: 'AF_PACKET 3개 인터페이스(-i app0 -i atk0 -i imds0, compose interface_name으로 고정)' 로 교체, 줄 끝에 '(2026-10-21 IFN에서 갱신, 이전 표기 -i eth0 단일은 50b9625 이후 사실과 달랐음)'
+     (주의: 347행 bullet 은 348행 '로드된 64개 룰 …' 으로 이어짐 — 지시대로 347행 줄 끝에 덧붙임)
+  git diff 전체 원문: 저장소 작업 트리 diff 와 같음(커밋 시 포함) — 요지는 위 1~4
+
+## (1-2) config 비교 (HEAD bac71f8 ↔ 작업 트리)
+  방법: git show HEAD:docker/docker-compose.yml 을 docker/ 안 임시 파일(.compose-head-tmp.yml, 상대 경로 해석용)로 두고 config 실행 → 비교 직후 삭제(ls 로 없음 확인)
+  config --services: head 10 / work 10 → SAME (backend caldera mock-imds postgres react-dashboard suricata target-web wazuh.agent wazuh.indexer wazuh.manager)
+  config --images: head 10 / work 10 → SAME
+  렌더 결과(필요 필드만, config 전체는 .env 치환 비밀값이 있어 미출력):
+    target-web.networks = {"app_net": {"interface_name": "app0", "priority": 100}, "attack_net": {"interface_name": "atk0", "priority": 90}, "imds_net": {"interface_name": "imds0", "priority": 80}, "security_net": {"interface_name": "sec0", "priority": 70}}
+    suricata.command = ["-i", "app0", "-i", "atk0", "-i", "imds0", "-k", "none", "-l", "/var/log/suricata", "-S", "/var/lib/suricata/rules/local.rules", "--set", "outputs.7.stats.enabled=no", "--set", "outputs.1.eve-log.types.26.stats.enabled=no"]
+    suricata.network_mode = service:target-web
+
+## (1-3) dry-run·이미지
+  현재 이미지: target-web sha256:e33f35d940b6b66d52ab4d4b629a9a622fbb9272b1e4c67f2f59f4cb197e9e17 (= 로컬 security-lab-target-web Id)
+               suricata   sha256:5b3f3aabc3646a4d94ee26abc4f487c2d11a8700b0e6ee52d9b47f110812e898 (= digest 고정 이미지 Id)
+  $ docker compose -p security-lab -f docker/docker-compose.yml up -d --no-build --pull never --no-deps --force-recreate target-web suricata --dry-run
+     DRY-RUN MODE -  Container target-web  Recreate
+     DRY-RUN MODE -  Container target-web  Recreated
+     DRY-RUN MODE -  Container suricata  Recreate
+     DRY-RUN MODE -  Container suricata  Recreated
+     DRY-RUN MODE -  Container b681cfc9fc7a_target-web  Starting
+     DRY-RUN MODE -  Container b681cfc9fc7a_target-web  Started
+     DRY-RUN MODE -  Container dd05e021bdd5_suricata  Starting
+     DRY-RUN MODE -  Container dd05e021bdd5_suricata  Started
+  exit=0 → Recreate 2개뿐, pull·build 줄 0, --no-build·--pull never 라 이미지 Id 무변경
+## (1-4) 신규 RUNBOOK (0-c) 명령 시험 실행 (현재 = 재생성 전 상태, 읽기 전용)
+  app0 / atk0 / imds0 / sec0 → 주소 빈칸(인터페이스 없음), eth_count=4
+  security-lab_app_net 172.20.0.0/16 / security-lab_attack_net 172.18.0.0/16 / security-lab_imds_net 169.254.169.0/24 / security-lab_security_net 172.19.0.0/16
+  ["-i","eth0","-i","eth1","-i","eth2", …], NM_OK
+  → 명령 동작 확인, 재생성 전 상태를 '멈출 것(스모크 금지)'으로 올바르게 잡음
+## (1-J) Step 1 결과
+  수정 4개 파일(허용 목록 안), 서비스·이미지 변화 0, dry-run Recreate 2개. 컨테이너 상태 변경 없음. Step 2 승인 대기
+
+## (1-5) 파일 정리 (DRI 지시, 상태 변경 없음) 2026-10-21T03:08+09:00
+  known-gaps.md: 갱신 메모를 347행 문장 중간에서 bullet 끝(348행 '…(`drop`/`reject` 0개)' 뒤)으로 옮김, 내용 동일. 현재 줄 번호 360·361:
+    360:  - Suricata: AF_PACKET 3개 인터페이스(-i app0 -i atk0 -i imds0, compose interface_name으로 고정), `copy-mode: none`, 로그 "non-inline operation",
+    361-    로드된 64개 룰 전부 `alert` (`drop`/`reject` 0개) (2026-10-21 IFN에서 갱신, 이전 표기 -i eth0 단일은 50b9625 이후 사실과 달랐음)
+  DRI 결정: Gap #4 상태 행(166행)은 Step 4 통과 후 DRI 문구로 갱신. 187행 줄 번호는 이력이라 유지. README "재부팅·docker start 후에도 유지"는 Step 3 결과로 확인, 실패 시 되돌림
+
+## (2-0) Step 2 — 재생성 (DRI 승인) 2026-10-21T03:08:44+09:00 T_recreate_utc=2026-10-20T18:08:44Z
+  전 상태: target-web b681cfc9fc7a started 17:35:56.81Z / suricata dd05e021bdd5 started 17:35:58.38Z, eve.json 16570줄. 다른 8개 StartedAt = (0-6)
+  $ docker compose -p security-lab -f docker/docker-compose.yml up -d --no-build --pull never --no-deps --force-recreate target-web suricata
+     Container target-web  Recreate
+     Container target-web  Recreated
+     Container suricata  Recreate
+     Container suricata  Recreated
+     Container target-web  Starting
+     Container target-web  Started
+     Container suricata  Starting
+     Container suricata  Started
+  exit=0 (18:08:54Z 종료)
+  docker journal sbJoin(target-web, 원본 시각): 03:08:53.231 app_net → 03:08:53.450 attack_net → 03:08:53.507 imds_net → 03:08:53.775 security_net, level=error 0
+  kernel(원본): 03:08:47~48 옛 netns 'veth…: renamed from eth0/eth1/eth2/eth3' (옛 컨테이너 정리) /
+                03:08:53 'app0: renamed from veth9d12954' 'atk0: renamed from vethd827f8e' 'imds0: renamed from veth14561a8' 'sec0: renamed from vethfab2816'
+
+## (2-1) 확인 ①~⑥ → 전부 통과
+### ① target-web 인터페이스 (suricata 에서 /sys/class/net·ip -4, 같은 netns)
+  | 이름 | ifindex | MAC | IPv4 | 네트워크(inspect MAC 일치) | 서브넷 |
+  | app0 | 2 | 1a:36:83:6f:b2:f8 | 172.20.0.3/16 | security-lab_app_net | 172.20.0.0/16 안 |
+  | atk0 | 3 | 06:6a:a3:6c:09:a7 | 172.18.0.3/16 | security-lab_attack_net | 172.18.0.0/16 안 |
+  | imds0 | 4 | 66:f5:9e:41:32:63 | 169.254.169.2/24 | security-lab_imds_net | 169.254.169.0/24 안 |
+  | sec0 | 5 | d6:65:b9:42:c9:0c | 172.19.0.5/16 | security-lab_security_net | 172.19.0.0/16 안 |
+  | lo | 1 | 00:00:00:00:00:00 | 127.0.0.1/8 | - | - |
+  eth* 인터페이스 0개
+  target-web EndpointSettings.DriverOpts (원본):
+    security-lab_app_net      {"com.docker.network.endpoint.ifname":"app0"}  gwprio=0
+    security-lab_attack_net   {"com.docker.network.endpoint.ifname":"atk0"}  gwprio=0
+    security-lab_imds_net     {"com.docker.network.endpoint.ifname":"imds0"} gwprio=0
+    security-lab_security_net {"com.docker.network.endpoint.ifname":"sec0"}  gwprio=0
+  → 이름이 컨테이너 설정(EndpointSettings)에 저장됨. 1c (3-11) 의 priority 방식은 DriverOpts=null 이었음 → docker start 때도 적용될 근거(Step 3 에서 확인)
+### ② suricata
+  새 target-web Id=83f741aa894993bd8cbfd8639039303aeb47efcdf84c56767b18e5edc52088e9 created 18:08:45.27Z started 18:08:52.91Z
+  새 suricata Id=eb0a83659102f603b4a052f88881581de8cf5a0613e3d65d56b0d3cab3b75893 started 18:08:53.83Z restarts=0
+  HostConfig.NetworkMode=container:83f741aa894993bd8cbfd8639039303aeb47efcdf84c56767b18e5edc52088e9 → 새 target-web Id MATCH
+  docker logs suricata 전체(원본 7줄):
+    Checking for capability sys_nice: yes
+    Checking for capability net_admin: yes
+    i: suricata: This is Suricata version 7.0.15 RELEASE running in SYSTEM mode
+    W: af-packet: app0: AF_PACKET tpacket-v3 is recommended for non-inline operation
+    W: af-packet: atk0: AF_PACKET tpacket-v3 is recommended for non-inline operation
+    W: af-packet: imds0: AF_PACKET tpacket-v3 is recommended for non-inline operation
+    i: threads: Threads created -> W: 12 FM: 1 FR: 1   Engine started.
+  → E: 줄 0, 인터페이스 오류 0, app0·atk0·imds0 각각 af-packet 캡처 시작 줄 있음
+### ③ target-web health
+  앱 로그 'Started VulnApplication in 5.442 seconds' (18:09:00.806Z), 기동 후 ERROR 0. 대기는 HTTP 없이 앱 로그로
+  health 요청 1회 T_health=2026-10-20T18:09:49.089Z: GET http://127.0.0.1:8080/actuator/health → http_code=200, status=UP (세부 미출력, 응답 파일 즉시 삭제)
+### ④ 다른 8개 StartedAt: 전 상태와 diff 0 → 8/8 SAME, postgres healthy
+### ⑤ agent_control -l: ID: 004, Name: wazuh.agent, IP: any, Active
+### ⑥ eve.json (새 suricata 시작 18:08:53.83Z 이후, 'timestamp' 기준, 종료 flush 분리)
+  비-flush 이벤트 (in_iface, event_type): app0 flow 6·http 1·fileinfo 1 / atk0 flow 6 / imds0 flow 5
+  in_iface=app0 flow 6건 (원본 요약: 줄·기록시각·src·dst·dport·app_proto·state·reason·flow start):
+    16581 18:09:28.361 fe80::41b:7dff:fe8f:bea2 → ff02::16 - - new timeout 18:08:55.170
+    16584 18:09:41.284 fe80::b8b0:4dff:fe11:a965 → ff02::fb 5353 failed new timeout 18:09:08.980
+    16591 18:09:58.060 fe80::41b:7dff:fe8f:bea2 → ff02::fb 5353 failed new timeout 18:08:55.056
+    16594 18:10:30.008 fe80::41b:7dff:fe8f:bea2 → ff02::2 - - new timeout 18:08:58.794
+    16596 18:10:31.997 fe80::41b:7dff:fe8f:bea2 → ff02::fb 5353 failed new timeout 18:09:58.060
+    16599 18:10:50.893 172.20.0.1 → 172.20.0.3 8080 http closed timeout 18:09:49.223   ← health 요청 flow (앱 IP = 재생성 후 inspect 172.20.0.3)
+  http 이벤트: 18:09:49.512 app0 172.20.0.1 -> 172.20.0.3 8080 GET /actuator/health 200
+  → app0 flow ≥ 1 충족, 앱 IP 로 가는 flow 1건(health)
+  종료 flush 구분: 18:08:44~18:08:53.83 사이 기록은 eth0 flow reason=shutdown 10건(옛 suricata, 옛 이름) — 새 suricata 시작 이후 shutdown flush 0건
+
+## (2-2) RUNBOOK (0-c) 실행 → 통과
+  app0 172.20.0.3/16
+  atk0 172.18.0.3/16
+  imds0 169.254.169.2/24
+  sec0 172.19.0.5/16
+  eth_count=0
+  security-lab_app_net 172.20.0.0/16
+  security-lab_attack_net 172.18.0.0/16
+  security-lab_imds_net 169.254.169.0/24
+  security-lab_security_net 172.19.0.0/16
+  ["-i","app0","-i","atk0","-i","imds0","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.7.stats.enabled=no","--set","outputs.1.eve-log.types.26.stats.enabled=no"]
+  NM_OK
+
+## (2-J) Step 2 결과
+  ①~⑥·(0-c) 전부 통과. 재생성 1회. Step 3 승인 대기
+
+## (3-0) Step 3 — 재시작 내구성 테스트 (DRI 승인, 재부팅 대체) 2026-10-21T03:13+09:00
+  대상: target-web 83f741aa8949·suricata eb0a83659102 두 개만 docker stop/start (재생성 아님 — 두 시험 모두 전후 Id 동일)
+  다른 8개 기준: 시험 직전 StartedAt = (0-6) SAME
+  확인 방법: ①~⑤·(0-c)는 저장소 밖 스크래치 스크립트(읽기 전용, health 요청 1회), ⑥은 eve.json 읽기만(새 suricata StartedAt 이후 'timestamp', reason=shutdown 분리)
+
+## (3-1) 시험 1 — 정상 순서: stop → start target-web → start suricata
+  T1_stop_utc=2026-10-20T18:13:54.359Z
+  $ docker stop suricata target-web
+  suricata
+  target-web
+  exit=0
+  T1_start_tw_utc=2026-10-20T18:13:56.728Z
+  $ docker start target-web
+  target-web
+  exit=0
+  T1_start_su_utc=2026-10-20T18:13:57.904Z
+  $ docker start suricata
+  suricata
+  exit=0
+  docker journal sbJoin(target-web, 원본 시각): 03:13:57.045 attack_net → 03:13:57.321 imds_net → 03:13:57.415 security_net → 03:13:57.773 app_net
+  kernel(원본): 03:13:55 'veth9d12954: renamed from app0' 'vethd827f8e: renamed from atk0' 'veth14561a8: renamed from imds0' 'vethfab2816: renamed from sec0' (정지)
+                03:13:57 'atk0: renamed from veth19ec577' 'imds0: renamed from veth2ca4933' 'sec0: renamed from vethf7eda1c' 'app0: renamed from veth2fb54cb' (시작)
+  ** docker start 의 연결 순서가 재생성(app→attack→imds→security)과 달리 attack→imds→security→app — app_net 이 마지막(ifindex 5).
+     이름 지정이 없었다면 app_net=eth3(미캡처)이 됐을 순서. interface_name 으로 이름은 app0 유지 **
+### ① 인터페이스 → 통과
+  app0 ifindex=5 mac=2e:cb:03:9d:91:b6 172.20.0.3/16 (security-lab_app_net)
+  atk0 ifindex=2 mac=1a:c5:ce:12:31:2f 172.18.0.3/16 (security-lab_attack_net)
+  imds0 ifindex=3 mac=32:a7:6e:45:9a:83 169.254.169.2/24 (security-lab_imds_net)
+  sec0 ifindex=4 mac=b2:06:5e:a9:b4:9c 172.19.0.5/16 (security-lab_security_net)
+  lo ifindex=1, eth_count=0 (inspect MAC 일치)
+  DriverOpts: app_net {"com.docker.network.endpoint.ifname":"app0"} / attack_net {"…":"atk0"} / imds_net {"…":"imds0"} / security_net {"…":"sec0"} → Step 2 값 그대로
+### ② suricata → 통과
+  target-web started 18:13:56.789Z restarts=0 / suricata started 18:13:57.949Z restarts=0 status=running
+  NetworkMode=container:83f741aa894993bd8cbfd8639039303aeb47efcdf84c56767b18e5edc52088e9 → NM_MATCH
+  docker logs suricata --since 시작(원본 7줄): Suricata 7.0.15, W: af-packet app0·atk0·imds0 'AF_PACKET tpacket-v3 is recommended for non-inline operation', 'Engine started.' → E: 0
+### ③ health → 통과
+  'Started VulnApplication in 5.847 seconds' (18:14:04.940Z), ERROR 0. 1회 T_health=2026-10-20T18:14:22.285Z → http_code=200, status=UP
+### ④ 다른 8개 StartedAt 8/8 SAME, postgres healthy → 통과
+### ⑤ ID: 004, Name: wazuh.agent, IP: any, Active → 통과
+### ⑥ eve.json (since 18:13:57.949Z) → 통과
+  비-flush: app0 flow 5·http 1·fileinfo 1 / atk0 flow 4 / imds0 flow 3, 이후 shutdown flush 0
+  app0 flow 5건 중 앱 IP: 줄 16645 18:15:31.161 172.20.0.1 → 172.20.0.3 8080 http closed timeout (flow start 18:14:22.293 = health), 나머지 4건 IPv6 멀티캐스트
+  종료 flush(18:13:54.3~18:13:57.949): app0 flow shutdown 10·atk0 flow shutdown 1 (정지 전 suricata)
+### RUNBOOK (0-c) → 통과
+  app0 172.20.0.3/16 / atk0 172.18.0.3/16 / imds0 169.254.169.2/24 / sec0 172.19.0.5/16 / eth_count=0
+  서브넷 172.20.0.0/16·172.18.0.0/16·169.254.169.0/24·172.19.0.0/16, ["-i","app0","-i","atk0","-i","imds0",…], NM_OK
+
+## (3-2) 시험 2 — 재부팅 때 관찰된 순서: stop → start suricata(실패 예상) → start target-web → start suricata
+  T2_stop_utc=2026-10-20T18:15:52.752Z
+  $ docker stop suricata target-web
+  suricata
+  target-web
+  exit=0
+  T2_start_su1_utc=2026-10-20T18:15:54.318Z
+  $ docker start suricata
+  Error response from daemon: cannot join network namespace of a non running container: container target-web is exited
+  failed to start containers: suricata
+  exit=1
+  suricata State: status=exited exit=128 error="cannot join network namespace of a non running container: container target-web is exited" restarts=0 (StartedAt 은 18:13:57.949Z 그대로)
+  docker journal(원본): level=error msg="eb0a83659102f603b4a052f88881581de8cf5a0613e3d65d56b0d3cab3b75893 cleanup: failed to delete container from containerd: NotFound: container \"eb0a83659102…\" in namespace \"moby\": not found"
+    (+ 정지 때 'ShouldRestart failed … hasBeenManuallyStopped=true' warning 2줄 — 정상)
+  → 1c (3-11) 에서 추정한 재부팅 때 suricata 1회 실패 원인(target-web 미기동)과 같은 메시지. 재부팅 때는 CLI 출력이 남지 않았음
+  T2_start_tw_utc=2026-10-20T18:15:54.399Z
+  $ docker start target-web
+  target-web
+  exit=0
+  T2_start_su2_utc=2026-10-20T18:15:55.401Z
+  $ docker start suricata
+  suricata
+  exit=0
+  docker journal sbJoin(target-web): 03:15:54.596 attack_net → 03:15:54.770 imds_net → 03:15:55.045 security_net → 03:15:55.294 app_net
+  kernel(원본): 03:15:54 'atk0: renamed from vethd2fe3f7' 'imds0: renamed from veth5fbb4b5' / 03:15:55 'sec0: renamed from veth22c4d97' 'app0: renamed from veth7644a05'
+### ① 인터페이스 → 통과
+  app0 ifindex=5 mac=8a:2e:d8:6f:0c:dc 172.20.0.3/16 (security-lab_app_net)
+  atk0 ifindex=2 mac=46:39:c3:23:f0:6f 172.18.0.3/16 (security-lab_attack_net)
+  imds0 ifindex=3 mac=be:1b:d5:c4:9d:69 169.254.169.2/24 (security-lab_imds_net)
+  sec0 ifindex=4 mac=9e:98:5d:14:6d:59 172.19.0.5/16 (security-lab_security_net)
+  lo ifindex=1, eth_count=0 (inspect MAC 일치), DriverOpts ifname app0·atk0·imds0·sec0 그대로
+### ② suricata → 통과
+  target-web started 18:15:54.436Z restarts=0 / suricata started 18:15:55.441Z restarts=0 status=running exit=0 error=""
+  NetworkMode=container:83f741aa894993bd8cbfd8639039303aeb47efcdf84c56767b18e5edc52088e9 → NM_MATCH
+  docker logs suricata --since 시작(원본 7줄): 시험 1 과 같음(W: af-packet app0·atk0·imds0, Engine started.) → E: 0
+### ③ health → 통과
+  'Started VulnApplication in 4.113 seconds' (18:16:00.204Z), ERROR 0. 1회 T_health=2026-10-20T18:16:03.330Z → http_code=200, status=UP
+### ④ 다른 8개 StartedAt 8/8 SAME, postgres healthy → 통과
+### ⑤ ID: 004, Name: wazuh.agent, IP: any, Active → 통과
+### ⑥ eve.json (since 18:15:55.441Z) → 통과
+  비-flush: app0 flow 5·http 1·fileinfo 1 / atk0 flow 3 / imds0 flow 3, 이후 shutdown flush 0
+  app0 flow 5건 중 앱 IP: 줄 16672 18:17:07.492 172.20.0.1 → 172.20.0.3 8080 http closed timeout (flow start 18:16:03.346 = health), 나머지 4건 IPv6 멀티캐스트
+  종료 flush(18:15:52.7~18:15:55.441): app0 flow shutdown 11 (정지 전 suricata)
+### RUNBOOK (0-c) → 통과
+  app0 172.20.0.3/16 / atk0 172.18.0.3/16 / imds0 169.254.169.2/24 / sec0 172.19.0.5/16 / eth_count=0
+  서브넷 4개 일치, ["-i","app0","-i","atk0","-i","imds0",…], NM_OK
+
+## (3-J) Step 3 결과
+  시험 1·2 모두 ①~⑥·(0-c) 통과. docker start 경로에서 연결 순서가 바뀌어도(app_net 마지막) 이름·서브넷 짝 유지,
+  DriverOpts com.docker.network.endpoint.ifname 이 컨테이너 설정에 남아 docker start 때 적용됨.
+  → docker/README "재부팅·docker start 후에도 유지" 문구: docker start 경로로 확인됨(실제 VM 재부팅은 시험하지 않음 — Step 3 은 재부팅 대체)
+  Step 4 는 sandcat 준비 여부 DRI 확인 후
+
+## (4-0) RUNBOOK 사전 조건 2026-10-21T03:20:52+09:00 (DRI: sandcat 준비됨, Step 4 승인)
+### (0) 사전 점검
+  bac71f8 S4 stack 1c: Wazuh 4.14.8 -> 4.14.9 (indexer/manager/agent, digest pinned)  porcelain=5(미커밋 → git_dirty=true 예상)
+  target-web	Up 4 minutes
+  security-lab-wazuh.manager-1	Up About an hour
+  security-lab-wazuh.indexer-1	Up About an hour
+  postgres	Up About an hour (healthy)
+  caldera	Up About an hour
+  red agents (paw group trusted last_seen, 키 미출력):
+  mcukpa	red	false	2026-10-16T18:23:26Z
+  jznjpj	red	false	2026-10-18T10:10:09Z
+  oeintf	red	false	2026-10-20T13:45:21Z
+  pqkuqm	red	false	2026-10-20T14:30:41Z
+  zetofr	red	true	2026-10-20T18:20:16Z
+  now=2026-10-20T18:20:52Z → alive(trusted=true) 정확히 1개 = zetofr (1c 스모크와 같은 sandcat, 계속 실행 중)
+  실행 직전 재조회: zetofr red true 2026-10-20T18:20:16Z (start 18:21:13Z)
+  label S4-STACK-IFN-SMOKE: 0
+### (0-b) Caldera operation 확인
+  total=42
+  finished=42   (running= / paused= 줄 없음)
+### (0-c) Suricata 캡처 인터페이스 확인
+  app0 172.20.0.3/16
+  atk0 172.18.0.3/16
+  imds0 169.254.169.2/24
+  sec0 172.19.0.5/16
+  eth_count=0
+  security-lab_app_net 172.20.0.0/16
+  security-lab_attack_net 172.18.0.0/16
+  security-lab_imds_net 169.254.169.0/24
+  security-lab_security_net 172.19.0.0/16
+  ["-i","app0","-i","atk0","-i","imds0","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.7.stats.enabled=no","--set","outputs.1.eve-log.types.26.stats.enabled=no"]
+  NM_OK
+  agent_control -l: ID: 004, Name: wazuh.agent, IP: any, Active
+
+## (4-1) 스모크 실행 (RUNBOOK-S4-1b (2), 라벨만 변경) 2026-10-21T03:21:13+09:00
+$ RUN_CALDERA_MEASURE=1 MEASURE_N=1 MEASURE_LABEL='S4-STACK-IFN-SMOKE' APP_CALDERA_APIKEY=… INDEXER_USERNAME=… INDEXER_PASSWORD=… POSTGRES_DB=… VALIDATION_DB_PASSWORD=… ./gradlew cleanTest test --tests 'com.capstone.vuln.measure.CampaignRunnerIT' -i | grep -E '<RUNBOOK 필터>'   (값은 docker/.env 에서 env 로만 주입, 미출력)
+  start=2026-10-20T18:21:13Z
+  CampaignRunnerIT STANDARD_OUT
+      2026-10-21T03:21:27.327+09:00  INFO 53409 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Starting CampaignRunnerIT using Java 17.0.20.1 with PID 53409 (started by hyeonseong in /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2)
+      2026-10-21T03:21:27.333+09:00 DEBUG 53409 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Running with Spring Boot v3.5.13, Spring v6.2.17
+      2026-10-21T03:21:27.334+09:00  INFO 53409 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : No active profile set, falling back to 1 default profile: "default"
+      2026-10-21T03:21:29.756+09:00  INFO 53409 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Started CampaignRunnerIT in 3.762 seconds (process running for 6.17)
+  CampaignRunnerIT > measure() STANDARD_OUT
+      MEASURE>> starting campaign run label=S4-STACK-IFN-SMOKE n=1 truncate=false
+      PER-RUN op=edf3a04f-83f8-42fc-81dd-fb4d21dfa06c rows=8
+        [SQLI/SINGLE] rid=eabb9fbf-6c1c-4f97-93ec-bc81e77c0b76 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_MISSED conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [SSRF/SINGLE] rid=6156b4e2-20b7-416e-aac3-eef757d2c2fd gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1792
+        [SSRF/SINGLE] rid=7215dfcd-e5d7-4d4d-8dfc-dd218135e02d gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1334
+        [SSRF/SINGLE] rid=24f4f634-c889-4a6f-8423-9bfdd94baca9 gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [PATH_TRAVERSAL/SINGLE] rid=92696c9e-70dd-4a2c-8d24-22b3f30ac83f gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1001
+        [PATH_TRAVERSAL/SINGLE] rid=a137bee5-5ceb-4704-8d40-62a6fbdb2f6e gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=909
+        [PATH_TRAVERSAL/SINGLE] rid=eb03d415-48d3-4ee5-9ede-ed0898354d14 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=891
+        [BRUTE_FORCE/BF_SEQUENCE] rid=b0ed73a6-771c-441b-923e-e7e7335b01d2 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=2100
+      GATE overall=INCONCLUSIVE totalSamples=7 totalUncertain=0 report=detections/measurements/gate-report-2026-10-20T18-24-46-337Z.md
+      RUN run_id=c97930ba-64fe-4777-88c5-1b61c99390c4 R10=VALID
+      MEASURE>> done overall=INCONCLUSIVE totalSamples=7
+  BUILD SUCCESSFUL in 3m 32s
+  end=2026-10-20T18:24:47Z
+  op_id 교차검증 WARN 줄 수: 0  ('Caldera operation 조회 실패' 0, FAILED 0)
+
+## (4-2) DB 확인 (validation_rw, BEGIN READ ONLY … ROLLBACK) 2026-10-21T03:25+09:00
+       label        |  kind  | status | ended |                git_commit                | git_dirty |         started_at         |          ended_at          | wazuh_rules  | suricata_rules |  adversary   | abilities | expected_attempts | expected_controls
+--------------------+--------+--------+-------+------------------------------------------+-----------+----------------------------+----------------------------+--------------+----------------+--------------+-----------+-------------------+-------------------
+ S4-STACK-1c-SMOKE  | ATTACK | CLOSED | t     | 233454f07af061c145bf8cf03d4e80908cc28712 | t         | 2026-10-20 17:41:27.867+00 | 2026-10-20 17:44:51.918+00 | 47715556fd0f | 007b188d4e80   | cba127e95e91 |         4 |                 7 |                 1
+ S4-STACK-IFN-SMOKE | ATTACK | CLOSED | t     | bac71f8ad7ece01d3323bb534ac78fd05fd8b142 | t         | 2026-10-20 18:21:31.301+00 | 2026-10-20 18:24:46.33+00  | 47715556fd0f | 007b188d4e80   | cba127e95e91 |         4 |                 7 |                 1
+(2 rows)
+
+       label        | attack | control |  r10
+--------------------+--------+---------+-------
+ S4-STACK-IFN-SMOKE |      7 |       1 | VALID
+(1 row)
+
+       label        | attempt_role | gt_outcome | count
+--------------------+--------------+------------+-------
+ S4-STACK-1c-SMOKE  | ATTACK       | SUCCEEDED  |     7
+ S4-STACK-1c-SMOKE  | CONTROL      | FAILED     |     1
+ S4-STACK-IFN-SMOKE | ATTACK       | SUCCEEDED  |     7
+ S4-STACK-IFN-SMOKE | CONTROL      | FAILED     |     1
+(4 rows)
+
+ correlations | op_id_not_null | all_resolved | distinct_op_ids |                op_id
+--------------+----------------+--------------+-----------------+--------------------------------------
+            8 |              8 | t            |               1 | edf3a04f-83f8-42fc-81dd-fb4d21dfa06c
+(1 row)
+
+    scenario    |  role   | k |   gt_1c   |  gt_ifn   |     verdict_1c     |    verdict_ifn     |      init_1c       |      init_ifn      |  atk_1c   |  atk_ifn  | ovr_1c | ovr_ifn |    det_1c    |   det_ifn    | cmp
+----------------+---------+---+-----------+-----------+--------------------+--------------------+--------------------+--------------------+-----------+-----------+--------+---------+--------------+--------------+------
+ BRUTE_FORCE    | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f       | DETECTED     | DETECTED     | same
+ PATH_TRAVERSAL | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f       | DETECTED     | DETECTED     | same
+ PATH_TRAVERSAL | ATTACK  | 2 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f       | DETECTED     | DETECTED     | same
+ PATH_TRAVERSAL | ATTACK  | 3 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f       | DETECTED     | DETECTED     | same
+ SQLI           | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED | SUCCEEDED | f      | f       | NOT_DETECTED | NOT_DETECTED | same
+ SSRF           | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f       | DETECTED     | DETECTED     | same
+ SSRF           | ATTACK  | 2 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f       | DETECTED     | DETECTED     | same
+ SSRF           | CONTROL | 1 | FAILED    | FAILED    | FAILED_UNSEEN      | FAILED_UNSEEN      | FAILED_UNSEEN      | FAILED_UNSEEN      | SUCCEEDED | SUCCEEDED | t      | t       | NOT_DETECTED | NOT_DETECTED | same
+(8 rows)
+(비교: S4-STACK-1c-SMOKE ↔ S4-STACK-IFN-SMOKE, 시나리오·attempt_role 안 verdict·id 순 k번째 짝(FULL JOIN, 한쪽 없으면 DIFF). 6개 컬럼 gt_outcome·verdict·initial_verdict·attacker_verdict·overestimate·detection_status, IS NOT DISTINCT FROM)
+
+      label      | status | verdicts
+-----------------+--------+----------
+ S3-GATE-dc66322 | CLOSED |      160
+(1 row)
+### (3-c 보강) Caldera operation
+  db op_id=edf3a04f-83f8-42fc-81dd-fb4d21dfa06c (= PER-RUN op)
+  edf3a04f-83f8-42fc-81dd-fb4d21dfa06c	S4-measure #1 2026-10-20T18:21:31.580Z	finished	2026-10-20T18:21:31Z	4 links	zetofr:0 zetofr:0 zetofr:0 zetofr:0
+
+## (4-3) 사후 2026-10-21T03:25:35+09:00
+  (0-b): total=43 finished=43 (running/paused 0)
+  agent_control -l: ID: 004, Name: wazuh.agent, IP: any, Active
+  red alive: zetofr red true 2026-10-20T18:24:53Z
+
+## (4-4) Suricata — 스모크 구간 sid 별 alert (eve.json 읽기만)
+  구간: 1c 2026-10-20T17:41:07Z~17:44:52Z (1c 로그 (4-1)) / IFN 18:21:13Z~18:24:47Z, eve 'timestamp' 기준
+       sid   1c  ifn cmp   iface(ifn)         msg
+   1000001   20   20 same  app0:20            [CALDERA] Agent detected via User-Agent
+   1000002   20   20 same  app0:20            [CALDERA] Operation header detected - X-Caldera-Op-Id
+   1000003   20   20 same  app0:20            [CALDERA] Technique header detected - X-Caldera-Technique
+   1000004   20   20 same  app0:20            [CALDERA] Ability header detected - X-Caldera-Ability
+   1000020    3    3 same  app0:3             [PATH_TRAVERSAL] Directory traversal pattern in URI - T1083
+   1000030   13   13 same  app0:13            [BRUTE_FORCE] Login attempt to /api/auth/login - T1110
+   1000031    1    1 same  app0:1             [BRUTE_FORCE] Multiple login attempts detected - T1110
+   1000032    2    2 same  app0:2             [BRUTE_FORCE] Slow brute force detected (5/180s) - T1110 (Feedback)
+   1000060    2    2 same  app0:2             [SSRF] Cloud metadata IP (169.254.169.254) in URI - T1090  <== IMDS sid
+  total alerts 1c=101 ifn=101, sid 9종 모두 same. ** sid 1000060: 1c 2건, IFN 2건 — 나옴 **
+
+## (4-5) eve.json in_iface 별 이벤트 (스모크 구간)
+  [1c]  in_iface 합계 {'eth0': 163, 'eth2': 6}
+        (eth0: alert 101·fileinfo 33·flow 8·http 21 / eth2: fileinfo 2·flow 2·http 2)
+  [IFN] in_iface 합계 {'app0': 163, 'imds0': 7}
+        (app0: alert 101·fileinfo 33·flow 8·http 21 / imds0: fileinfo 2·flow 3·http 2)
+  dest_ip=169.254.169.254 (event_type, in_iface): 1c {http eth2: 2, flow eth2: 2} / IFN {http imds0: 2, flow imds0: 2} → 같음
+  판정 기준 대비:
+    app0 ≥ 1 → 163 충족
+    imds0 ≥ 1 → 7 충족, imds0 의 169.254.169.254 http 2·flow 2 = 1c eth2 (http 2, flow 2) 같음
+    ** atk0 ≥ 1 → 0건, 미충족 **
+  atk0 추가 사실(읽기 전용, 수정 없음):
+    - atk0 캡처 자체는 동작: 새 suricata 시작(18:15:55.441Z) 이후 atk0 flow 14건(전부 IPv6/IPv4 멀티캐스트·mDNS, src 172.18.0.1·fe80::…·192.168.11.128).
+      스모크 직전 18:21:09.142(start 18:20:34.730) ff02::2 ICMPv6, 직후 18:25:00.845(start 18:24:27.411) ff02::fb mDNS 기록 — 구간 안에는 기록 0
+    - 커널 카운터(target-web netns, 18:25:56Z): app0 rx 350/tx 330, atk0 rx 55/tx 3, imds0 rx 67/tx 17, sec0 rx 55/tx 3
+    - 과거 스모크 구간의 attack 인터페이스도 0건: 1b 구간 {eth0: 162, eth2: 6}, 1c 구간 {eth0: 163, eth2: 6} — eth1(=attack, 50b9625 매핑) 0
+    - 해석(추정): 스모크 공격 경로는 sandcat(호스트) → 127.0.0.1:8080 → app_net(게이트웨이 172.20.0.1 → 172.20.0.3) 이라 attack_net 에는 스모크 트래픽이 없음.
+      'atk0 1건 이상'은 스모크 구간 기준으로는 1b·1c 에서도 충족된 적 없는 조건
+
+## (4-J) D5 판정 2026-10-21T03:27+09:00
+- R10: VALID (expected 7/1 = actual 7/1) → 충족
+- GT: ATTACK 7 SUCCEEDED, CONTROL 1 FAILED (S4-STACK-1c-SMOKE 와 동일) → 충족
+- verdict 비교(vs S4-STACK-1c-SMOKE, 6개 컬럼): 8행 모두 same, DIFF 0 → 충족
+- op_id 교차검증 WARN 0줄, correlation op_id_resolved=t 8/8, distinct op_id 1 = PER-RUN = Caldera finished op(zetofr ×4), rows=8 → 충족
+- 룰 해시 wazuh 47715556fd0f / suricata 007b188d4e80 / adversary cba127e95e91 / abilities 4 → 1c 와 같음
+- Suricata sid 9종·101건 1c 와 같음, 1000060 2건 → 충족
+- in_iface: app0 163 충족, imds0 7(169.254.169.254 http 2·flow 2 = 1c) 충족, **atk0 0 미충족** → DRI 판단 대기 (기준 미충족이므로 통과로 기록하지 않음)
+- 사후: running/paused 0, agent 004 Active → 충족
+- 기록 사항: run git_commit=bac71f8, git_dirty=true(IFN 수정·증거 로그 미커밋 상태에서 측정). red agent zetofr
+- 하네스 생성 gate-report: 2026-10-20T18-24-46-337Z.{md,json}
+- 비밀값 자가 점검(커밋 후보 7개 파일 + git diff, 값 미출력·건수만): docker/.env 의 PASS·KEY·SECRET·TOKEN·SALT 키 11개 값 일치 0건.
+  패턴(password=·passwd·PRIVATE KEY·Bearer·'KEY: '·apikey=) 14건 = compose ${VAR} 참조 2, RUNBOOK 의 'grep … docker/.env' 명령 6, known-gaps.md 기존 PT 시험 문자열(etc/passwd 등) 6 — 비밀값 아님
+### DRI 판정 (현성, 2026-10-21)
+- 원래 기준 "atk0 1건 이상": 미충족. 기준 정의 오류(설계자 Claude). 근거: 1b {eth0:162, eth2:6}, 1c {eth0:163, eth2:6}로 attack 인터페이스는 스모크 구간에서 원래 0건.
+- 판정 기준: ADR-S4-03 D5(직전 스모크 동일). app0 163 = 1c eth0 163, atk0 0 = 1c eth1 0,
+  imds0의 169.254.169.254 http 2·flow 2 = 1c eth2, verdict 8/8 same, sid 9개·101건 동일, op_id WARN 0 → 통과.
+- atk0 캡처 동작은 Step 2·3 기록과 스모크 전후 기록(18:21:09, 18:25:00), 커널 rx 55로 별도 확인.
+- (결과를 보고 기준을 고쳐 쓰지 않고, 사전에 정한 ADR-S4-03 D5 "직전 스모크(1c)와 동일" 기준으로 판정함)
+### 추가 확인: imds0 전체 7건 vs 1c eth2 구간 6건 — 차이 1건 원문 (eve.json 읽기만)
+  [1c eth2, 6건] (줄 시각 event_type src → dst proto app_proto flow)
+    16324 17:42:40.453 http 169.254.169.2:50646 -> 169.254.169.254:80 TCP
+    16325 17:42:40.454 fileinfo 169.254.169.254:80 -> 169.254.169.2:50646 TCP http
+    16333 17:42:40.631 http 169.254.169.2:50650 -> 169.254.169.254:80 TCP
+    16334 17:42:40.631 fileinfo 169.254.169.254:80 -> 169.254.169.2:50650 TCP http
+    16371 17:43:42.042 flow 169.254.169.2:50646 -> 169.254.169.254:80 TCP http closed timeout (start 17:42:40.370)
+    16374 17:43:49.005 flow 169.254.169.2:50650 -> 169.254.169.254:80 TCP http closed timeout (start 17:42:40.628)
+  [IFN imds0, 7건]
+    16702 18:21:36.997 flow fe80:0000:0000:0000:f0a1:6bff:fee9:3c13 -> ff02:0000:0000:0000:0000:0000:0000:0002 IPv6-ICMP - new timeout (start 18:20:59.307)   ← 차이 1건
+    16709 18:22:20.828 http 169.254.169.2:39108 -> 169.254.169.254:80 TCP
+    16710 18:22:20.829 fileinfo 169.254.169.254:80 -> 169.254.169.2:39108 TCP http
+    16718 18:22:21.013 http 169.254.169.2:39124 -> 169.254.169.254:80 TCP
+    16719 18:22:21.014 fileinfo 169.254.169.254:80 -> 169.254.169.2:39124 TCP http
+    16757 18:23:25.386 flow 169.254.169.2:39124 -> 169.254.169.254:80 TCP http closed timeout (start 18:22:21.009)
+    16759 18:23:27.374 flow 169.254.169.2:39108 -> 169.254.169.254:80 TCP http closed timeout (start 18:22:20.737)
+  → 차이 1건 = IPv6 ICMP 멀티캐스트(ff02::2, router solicitation 대상) flow, 스모크 시작(18:21:13) 전 18:20:59 에 시작해 구간 안에 timeout 기록됨. IMDS 트래픽 아님.
+    IMDS 6건(http 2·fileinfo 2·flow 2)은 1c 와 구성 같음
+
+## (5-0) Step 5 전 문서 갱신 (DRI 문구) 2026-10-21T03:35+09:00
+  detections/known-gaps.md Gap #4 상태 행(166행) 교체:
+    전: | 상태 | 해결 (조치 2026-10-13 커밋 50b9625, 2026-10-16 기록으로 실관측 확인 — 2026-10-20 검증). 이전: 미해결 — 조치 방식 결정 필요 (이번 슬라이스 범위 밖) |
+    후: | 상태 | 해결 (조치 2026-10-13 커밋 50b9625 → 2026-10-21 VM 재부팅 후 재발: compose priority가 컨테이너 설정에 남지 않아 docker start 때 순서 미적용 → 슬라이스 IFN에서 interface_name(app0·atk0·imds0·sec0)으로 재해결, docker start 재현 시험 2종 통과. 실제 VM 재부팅 검증은 슬라이스 6 직전 예정) |

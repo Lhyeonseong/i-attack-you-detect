@@ -1,0 +1,14 @@
+.gradle/
+build/
+ui/node_modules/
+ui/dist/
+
+# 호스트 UI 빌드 산출물이 이미지로 새지 않도록.
+# React 정적 자원은 Docker UI 스테이지에서 생성하고,
+# 로그인 전용 정적 자원만 build context에 포함한다.
+src/main/resources/static/*
+!src/main/resources/static/login/
+!src/main/resources/static/login/**
+
+*.pem
+*.key

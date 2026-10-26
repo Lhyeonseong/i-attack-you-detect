@@ -1,0 +1,247 @@
+## (0) 사전 확인 2026-10-20T00:11:21+09:00 HEAD=28dc09b
+ version |    description    | success 
+---------+-------------------+---------
+ 1       | validation schema | t
+ 2       | measurement run   | t
+(2 rows)
+
+ run_id_null 
+-------------
+           0
+(1 row)
+
+      label      | status 
+-----------------+--------
+ S3-GATE-dc66322 | CLOSED
+ S4-1b-SMOKE     | CLOSED
+(2 rows)
+
+## (1) V3+V4 적용 2026-10-20T00:13:06+09:00
+ValidationMigrateIT > migrate() STANDARD_OUT
+    MIGRATE>> before=[1, 2] after=[1, 2, 3, 4]
+    MIGRATE>>   rank=1 v=1 validation schema by=validation_rw on=2026-10-16 23:31:49.334494 success=true
+    MIGRATE>>   rank=2 v=2 measurement run by=validation_rw on=2026-10-18 18:31:27.483012 success=true
+    MIGRATE>>   rank=3 v=3 metric foundation by=validation_rw on=2026-10-20 00:13:32.325208 success=true
+    MIGRATE>>   rank=4 v=4 metric views by=validation_rw on=2026-10-20 00:13:32.457942 success=true
+BUILD SUCCESSFUL in 13s
+## (2) 사후 확인 2026-10-20T00:14:22+09:00
+ version |    description    | installed_by  | success 
+---------+-------------------+---------------+---------
+ 1       | validation schema | validation_rw | t
+ 2       | measurement run   | validation_rw | t
+ 3       | metric foundation | validation_rw | t
+ 4       | metric views      | validation_rw | t
+(4 rows)
+
+ run_id_nullable 
+-----------------
+ NO
+(1 row)
+
+   kind    |      unit      
+-----------+----------------
+ SCENARIO  | BRUTE_FORCE
+ SCENARIO  | PATH_TRAVERSAL
+ SCENARIO  | SQLI
+ SCENARIO  | SSRF
+ TECHNIQUE | T1110
+ TECHNIQUE | T1190
+(6 rows)
+
+      label      | actual_attack | actual_control | r10_status | r10_reason 
+-----------------+---------------+----------------+------------+------------
+ S3-GATE-dc66322 |           140 |             20 | VALID      | 
+ S4-1b-SMOKE     |             7 |              1 | VALID      | 
+(2 rows)
+
+   proname   |                      args                      
+-------------+------------------------------------------------
+ quantile_t8 | vals double precision[], prob double precision
+ wilson_ci   | x bigint, n bigint
+(2 rows)
+
+       table_name       
+------------------------
+ v_metric_attacker
+ v_metric_attempt
+ v_metric_correlation
+ v_metric_coverage
+ v_metric_coverage_unit
+ v_metric_h2
+ v_metric_mttd
+ v_metric_rates
+ v_metric_run
+ v_metric_split_attempt
+ v_metric_split_count
+ v_run_integrity
+(12 rows)
+
+## (3) baseline 첫 지표 조회 2026-10-20T00:15:48+09:00
+--- v_metric_rates
+                run_id                | definition_version |  metric_id  | split_kind |   split_unit   |  x  |  n  |          p          |          lo          |          hi          |     status     
+--------------------------------------+--------------------+-------------+------------+----------------+-----+-----+---------------------+----------------------+----------------------+----------------
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M01         | SCENARIO   | PATH_TRAVERSAL |  60 |  60 |                   1 |   0.9398281469657729 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M01         | TECHNIQUE  | T1110          |  20 |  20 |                   1 |   0.8388748398148705 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M01         | SCENARIO   | BRUTE_FORCE    |  20 |  20 |                   1 |   0.8388748398148705 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M01         | SCENARIO   | SSRF           |  40 |  40 |                   1 |   0.9123783975415363 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M01         | SCENARIO   | SQLI           |  20 |  20 |                   1 |   0.8388748398148705 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M01         | ALL        | ALL            | 140 | 140 |                   1 |   0.9732937992205284 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M01         | TECHNIQUE  | T1190          | 120 | 120 |                   1 |   0.9689808331071251 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M02         | SCENARIO   | SQLI           |   0 |  20 |                   0 |                    0 |  0.16112516018512965 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M02         | ALL        | ALL            | 120 | 140 |  0.8571428571428571 |   0.7896297687765333 |   0.9055800878095585 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M02         | SCENARIO   | PATH_TRAVERSAL |  60 |  60 |                   1 |   0.9398281469657729 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M02         | SCENARIO   | BRUTE_FORCE    |  20 |  20 |                   1 |   0.8388748398148705 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M02         | TECHNIQUE  | T1110          |  20 |  20 |                   1 |   0.8388748398148705 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M02         | TECHNIQUE  | T1190          | 100 | 120 |  0.8333333333333334 |   0.7565471853891594 |   0.8894400366822575 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M02         | SCENARIO   | SSRF           |  40 |  40 |                   1 |   0.9123783975415363 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M02_INITIAL | SCENARIO   | BRUTE_FORCE    |  20 |  20 |                   1 |   0.8388748398148705 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M02_INITIAL | SCENARIO   | SQLI           |   0 |  20 |                   0 |                    0 |  0.16112516018512965 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M02_INITIAL | TECHNIQUE  | T1190          | 100 | 120 |  0.8333333333333334 |   0.7565471853891594 |   0.8894400366822575 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M02_INITIAL | SCENARIO   | PATH_TRAVERSAL |  60 |  60 |                   1 |   0.9398281469657729 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M02_INITIAL | ALL        | ALL            | 120 | 140 |  0.8571428571428571 |   0.7896297687765333 |   0.9055800878095585 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M02_INITIAL | TECHNIQUE  | T1110          |  20 |  20 |                   1 |   0.8388748398148705 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M02_INITIAL | SCENARIO   | SSRF           |  40 |  40 |                   1 |   0.9123783975415363 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M03         | TECHNIQUE  | T1110          |   0 |  20 |                   0 |                    0 |  0.16112516018512965 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M03         | ALL        | ALL            |  20 | 140 | 0.14285714285714285 |   0.0944199121904416 |   0.2103702312234667 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M03         | SCENARIO   | PATH_TRAVERSAL |   0 |  60 |                   0 |                    0 | 0.060171853034227174 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M03         | SCENARIO   | SQLI           |  20 |  20 |                   1 |   0.8388748398148705 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M03         | SCENARIO   | SSRF           |   0 |  40 |                   0 |                    0 |  0.08762160245846368 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M03         | SCENARIO   | BRUTE_FORCE    |   0 |  20 |                   0 |                    0 |  0.16112516018512965 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M03         | TECHNIQUE  | T1190          |  20 | 120 | 0.16666666666666666 |  0.11055996331774244 |  0.24345281461084062 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M03_INITIAL | TECHNIQUE  | T1190          |  20 | 120 | 0.16666666666666666 |  0.11055996331774244 |  0.24345281461084062 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M03_INITIAL | SCENARIO   | SQLI           |  20 |  20 |                   1 |   0.8388748398148705 |                    1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M03_INITIAL | ALL        | ALL            |  20 | 140 | 0.14285714285714285 |   0.0944199121904416 |   0.2103702312234667 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M03_INITIAL | SCENARIO   | SSRF           |   0 |  40 |                   0 |                    0 |  0.08762160245846368 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M03_INITIAL | TECHNIQUE  | T1110          |   0 |  20 |                   0 |                    0 |  0.16112516018512965 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M03_INITIAL | SCENARIO   | BRUTE_FORCE    |   0 |  20 |                   0 |                    0 |  0.16112516018512965 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M03_INITIAL | SCENARIO   | PATH_TRAVERSAL |   0 |  60 |                   0 |                    0 | 0.060171853034227174 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M07b        | SCENARIO   | SQLI           |   0 |   0 |                     |                      |                      | NO_DATA
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M07b        | SCENARIO   | SSRF           |   0 |   0 |                     |                      |                      | NO_DATA
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M07b        | SCENARIO   | BRUTE_FORCE    |   0 |   0 |                     |                      |                      | NO_DATA
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M07b        | SCENARIO   | PATH_TRAVERSAL |   0 |   0 |                     |                      |                      | NO_DATA
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M08         | ALL        | ALL            |   0 | 140 |                   0 |                    0 | 0.026706200779471608 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M08         | TECHNIQUE  | T1110          |   0 |  20 |                   0 |                    0 |  0.16112516018512965 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M08         | SCENARIO   | SSRF           |   0 |  40 |                   0 |                    0 |  0.08762160245846368 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M08         | SCENARIO   | PATH_TRAVERSAL |   0 |  60 |                   0 |                    0 | 0.060171853034227174 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M08         | SCENARIO   | SQLI           |   0 |  20 |                   0 |                    0 |  0.16112516018512965 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M08         | TECHNIQUE  | T1190          |   0 | 120 |                   0 |                    0 |  0.03101916689287469 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M08         | SCENARIO   | BRUTE_FORCE    |   0 |  20 |                   0 |                    0 |  0.16112516018512965 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M10         | SCENARIO   | SQLI           |   0 |   0 |                     |                      |                      | NO_DATA
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M10         | SCENARIO   | SSRF           |   0 |  40 |                   0 |                    0 |  0.08762160245846368 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M10         | ALL        | ALL            |   0 | 120 |                   0 |                    0 |  0.03101916689287469 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M10         | SCENARIO   | BRUTE_FORCE    |   0 |  20 |                   0 |                    0 |  0.16112516018512965 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M10         | SCENARIO   | PATH_TRAVERSAL |   0 |  60 |                   0 |                    0 | 0.060171853034227174 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M12         | ALL        | ALL            |     |     |                     |                      |                      | NOT_APPLICABLE
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M01         | ALL        | ALL            |   7 |   7 |                   1 |   0.6456695613241317 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M01         | TECHNIQUE  | T1110          |   1 |   1 |                   1 |   0.2065493117918027 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M01         | SCENARIO   | PATH_TRAVERSAL |   3 |   3 |                   1 |  0.43850296436068037 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M01         | TECHNIQUE  | T1190          |   6 |   6 |                   1 |   0.6096657083436265 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M01         | SCENARIO   | SQLI           |   1 |   1 |                   1 |   0.2065493117918027 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M01         | SCENARIO   | BRUTE_FORCE    |   1 |   1 |                   1 |   0.2065493117918027 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M01         | SCENARIO   | SSRF           |   2 |   2 |                   1 |   0.3423802239546494 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M02         | SCENARIO   | SQLI           |   0 |   1 |                   0 |                    0 |   0.7934506882081973 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M02         | SCENARIO   | SSRF           |   2 |   2 |                   1 |   0.3423802239546494 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M02         | SCENARIO   | BRUTE_FORCE    |   1 |   1 |                   1 |   0.2065493117918027 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M02         | TECHNIQUE  | T1190          |   5 |   6 |  0.8333333333333334 |   0.4364971749742326 |    0.969946630588185 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M02         | ALL        | ALL            |   6 |   7 |  0.8571428571428571 |    0.486872167860775 |   0.9743203759421759 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M02         | SCENARIO   | PATH_TRAVERSAL |   3 |   3 |                   1 |  0.43850296436068037 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M02         | TECHNIQUE  | T1110          |   1 |   1 |                   1 |   0.2065493117918027 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M02_INITIAL | SCENARIO   | SSRF           |   2 |   2 |                   1 |   0.3423802239546494 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M02_INITIAL | TECHNIQUE  | T1110          |   1 |   1 |                   1 |   0.2065493117918027 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M02_INITIAL | TECHNIQUE  | T1190          |   5 |   6 |  0.8333333333333334 |   0.4364971749742326 |    0.969946630588185 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M02_INITIAL | SCENARIO   | BRUTE_FORCE    |   1 |   1 |                   1 |   0.2065493117918027 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M02_INITIAL | SCENARIO   | PATH_TRAVERSAL |   3 |   3 |                   1 |  0.43850296436068037 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M02_INITIAL | ALL        | ALL            |   6 |   7 |  0.8571428571428571 |    0.486872167860775 |   0.9743203759421759 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M02_INITIAL | SCENARIO   | SQLI           |   0 |   1 |                   0 |                    0 |   0.7934506882081973 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M03         | SCENARIO   | BRUTE_FORCE    |   0 |   1 |                   0 |                    0 |   0.7934506882081973 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M03         | SCENARIO   | SQLI           |   1 |   1 |                   1 |   0.2065493117918027 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M03         | TECHNIQUE  | T1190          |   1 |   6 | 0.16666666666666666 | 0.030053369411815023 |   0.5635028250257673 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M03         | ALL        | ALL            |   1 |   7 | 0.14285714285714285 | 0.025679624057823897 |   0.5131278321392249 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M03         | TECHNIQUE  | T1110          |   0 |   1 |                   0 |                    0 |   0.7934506882081973 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M03         | SCENARIO   | PATH_TRAVERSAL |   0 |   3 |                   0 |                    0 |   0.5614970356393196 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M03         | SCENARIO   | SSRF           |   0 |   2 |                   0 |                    0 |   0.6576197760453506 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M03_INITIAL | SCENARIO   | SSRF           |   0 |   2 |                   0 |                    0 |   0.6576197760453506 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M03_INITIAL | SCENARIO   | SQLI           |   1 |   1 |                   1 |   0.2065493117918027 |                    1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M03_INITIAL | SCENARIO   | BRUTE_FORCE    |   0 |   1 |                   0 |                    0 |   0.7934506882081973 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M03_INITIAL | TECHNIQUE  | T1190          |   1 |   6 | 0.16666666666666666 | 0.030053369411815023 |   0.5635028250257673 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M03_INITIAL | TECHNIQUE  | T1110          |   0 |   1 |                   0 |                    0 |   0.7934506882081973 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M03_INITIAL | SCENARIO   | PATH_TRAVERSAL |   0 |   3 |                   0 |                    0 |   0.5614970356393196 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M03_INITIAL | ALL        | ALL            |   1 |   7 | 0.14285714285714285 | 0.025679624057823897 |   0.5131278321392249 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M07b        | SCENARIO   | PATH_TRAVERSAL |   0 |   0 |                     |                      |                      | NO_DATA
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M07b        | SCENARIO   | SQLI           |   0 |   0 |                     |                      |                      | NO_DATA
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M07b        | SCENARIO   | SSRF           |   0 |   0 |                     |                      |                      | NO_DATA
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M07b        | SCENARIO   | BRUTE_FORCE    |   0 |   0 |                     |                      |                      | NO_DATA
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M08         | TECHNIQUE  | T1110          |   0 |   1 |                   0 |                    0 |   0.7934506882081973 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M08         | TECHNIQUE  | T1190          |   0 |   6 |                   0 |                    0 |  0.39033429165637346 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M08         | SCENARIO   | BRUTE_FORCE    |   0 |   1 |                   0 |                    0 |   0.7934506882081973 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M08         | SCENARIO   | SSRF           |   0 |   2 |                   0 |                    0 |   0.6576197760453506 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M08         | SCENARIO   | SQLI           |   0 |   1 |                   0 |                    0 |   0.7934506882081973 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M08         | ALL        | ALL            |   0 |   7 |                   0 |                    0 |  0.35433043867586833 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M08         | SCENARIO   | PATH_TRAVERSAL |   0 |   3 |                   0 |                    0 |   0.5614970356393196 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M10         | ALL        | ALL            |   0 |   6 |                   0 |                    0 |  0.39033429165637346 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M10         | SCENARIO   | SSRF           |   0 |   2 |                   0 |                    0 |   0.6576197760453506 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M10         | SCENARIO   | PATH_TRAVERSAL |   0 |   3 |                   0 |                    0 |   0.5614970356393196 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M10         | SCENARIO   | BRUTE_FORCE    |   0 |   1 |                   0 |                    0 |   0.7934506882081973 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M10         | SCENARIO   | SQLI           |   0 |   0 |                     |                      |                      | NO_DATA
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M12         | ALL        | ALL            |     |     |                     |                      |                      | NOT_APPLICABLE
+(104 rows)
+
+--- v_metric_h2
+                run_id                | definition_version |  n  | rid_header_x | rid_header_p |   rid_header_lo    | rid_header_hi | none_x | none_p | none_lo |       none_hi       |  h2_status   
+--------------------------------------+--------------------+-----+--------------+--------------+--------------------+---------------+--------+--------+---------+---------------------+--------------
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | 120 |          120 |            1 | 0.9689808331071251 |             1 |      0 |      0 |       0 | 0.03101916689287469 | PASS
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     |   6 |            6 |            1 | 0.6096657083436265 |             1 |      0 |      0 |       0 | 0.39033429165637346 | INCONCLUSIVE
+(2 rows)
+
+--- v_metric_attacker (M09)
+                run_id                | definition_version | split_kind |   split_unit   | x  | n  | p |         lo          | hi | overestimate | uncertain | criteria_met | status 
+--------------------------------------+--------------------+------------+----------------+----+----+---+---------------------+----+--------------+-----------+--------------+--------
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | SCENARIO   | BRUTE_FORCE    | 20 | 20 | 1 |  0.8388748398148705 |  1 |            0 |         0 | t            | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | SCENARIO   | PATH_TRAVERSAL | 60 | 60 | 1 |  0.9398281469657729 |  1 |            0 |         0 | t            | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | SCENARIO   | SQLI           | 20 | 20 | 1 |  0.8388748398148705 |  1 |            0 |         0 | t            | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | SCENARIO   | SSRF           | 40 | 40 | 1 |  0.9123783975415363 |  1 |            0 |         0 | t            | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | SCENARIO   | BRUTE_FORCE    |  1 |  1 | 1 |  0.2065493117918027 |  1 |            0 |         0 | f            | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | SCENARIO   | PATH_TRAVERSAL |  3 |  3 | 1 | 0.43850296436068037 |  1 |            0 |         0 | f            | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | SCENARIO   | SQLI           |  1 |  1 | 1 |  0.2065493117918027 |  1 |            0 |         0 | f            | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | SCENARIO   | SSRF           |  2 |  2 | 1 |  0.3423802239546494 |  1 |            0 |         0 | f            | OK
+(8 rows)
+
+--- v_metric_mttd
+                run_id                | definition_version | split_kind |   split_unit   |  n  | p50_ms |       p95_ms       | status  
+--------------------------------------+--------------------+------------+----------------+-----+--------+--------------------+---------
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | SCENARIO   | SQLI           |   0 |        |                    | NO_DATA
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | ALL        | ALL            | 120 |    966 | 1931.1499999999999 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | SCENARIO   | SSRF           |  40 |    708 | 1974.0000000000005 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | TECHNIQUE  | T1110          |  20 |   1083 | 2019.5499999999993 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | SCENARIO   | BRUTE_FORCE    |  20 |   1083 | 2019.5499999999993 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | SCENARIO   | PATH_TRAVERSAL |  60 |   1070 | 1912.9499999999998 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | TECHNIQUE  | T1190          | 100 |  942.5 | 1925.8999999999999 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | SCENARIO   | SSRF           |   2 |    318 |                552 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | SCENARIO   | BRUTE_FORCE    |   1 |    772 |                772 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | TECHNIQUE  | T1190          |   5 |   1478 |               1569 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | TECHNIQUE  | T1110          |   1 |    772 |                772 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | ALL        | ALL            |   6 |   1125 |               1569 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | SCENARIO   | SQLI           |   0 |        |                    | NO_DATA
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | SCENARIO   | PATH_TRAVERSAL |   3 |   1507 |               1569 | OK
+(14 rows)
+
+--- v_metric_coverage
+                run_id                | definition_version | metric_id | split_kind | x | n |  p   |         lo          |         hi         | status 
+--------------------------------------+--------------------+-----------+------------+---+---+------+---------------------+--------------------+--------
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M06a      | SCENARIO   | 3 | 4 | 0.75 |  0.3006418400969081 |  0.954412739704631 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M06b      | SCENARIO   | 3 | 4 | 0.75 |  0.3006418400969081 |  0.954412739704631 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M06a      | TECHNIQUE  | 2 | 2 |    1 |  0.3423802239546494 |                  1 | OK
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | ADR-S4-01 v1.4     | M06b      | TECHNIQUE  | 1 | 2 |  0.5 | 0.09453120463920084 | 0.9054687953607992 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M06a      | SCENARIO   | 3 | 4 | 0.75 |  0.3006418400969081 |  0.954412739704631 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M06b      | SCENARIO   | 3 | 4 | 0.75 |  0.3006418400969081 |  0.954412739704631 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M06a      | TECHNIQUE  | 2 | 2 |    1 |  0.3423802239546494 |                  1 | OK
+ d73fe183-fe1f-4aca-a828-d6431684134c | ADR-S4-01 v1.4     | M06b      | TECHNIQUE  | 1 | 2 |  0.5 | 0.09453120463920084 | 0.9054687953607992 | OK
+(8 rows)
+
+## (4) run_id↔label 대응 2026-10-20T00:20:51+09:00
+                run_id                |      label      |  kind  | status |          started_at           |           ended_at            |                git_commit                | git_dirty |                                                                                                                                                                                                                                                                                                                                                                                                                                   rules_digest                                                                                                                                                                                                                                                                                                                                                                                                                                    | expected_attempts | expected_controls |                          notes                          
+--------------------------------------+-----------------+--------+--------+-------------------------------+-------------------------------+------------------------------------------+-----------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------+-------------------+---------------------------------------------------------
+ bd2de561-a7dc-429f-8d39-fc2d70950727 | S3-GATE-dc66322 | ATTACK | CLOSED | 2026-10-16 17:04:01.091971+00 | 2026-10-16 18:07:23.246309+00 | 17a0b04                                  |           | {"reason": "single-file bind-mount, runtime rules unprovable", "status": "unverified", "observed_after": {"why": "containers restarted after measurement (StartedAt 2026-10-18T07:59Z > 2026-10-16T17:04Z); file hashes match 17a0b04 but runtime at measurement time is not observable", "caldera": {"started_at": "2026-10-18T07:59:35Z", "abilities_4_match_17a0b04": true, "attack_validation_web_yml": "cba127e95e913f68b9ee650e9bfbec80d3b517dd445e5063d8211ceab6b8d3f2"}, "verdict": "inconsistent", "suricata": {"started_at": "2026-10-18T07:59:40Z", "local_rules": "007b188d4e80f10582668659f6db9f02b5047af1fa72cbefa295b42601a947a4", "matches_17a0b04": true}, "observed_at": "2026-10-18", "wazuh_manager": {"started_at": "2026-10-18T07:59:35Z", "vuln_rules_xml": "47715556fd0fd7c9c8449d8308c454074884a07a996996ce9fe0dd07d1e239cb", "matches_17a0b04": true}}} |               140 |                20 | backfilled; code 17a0b04, report dc66322; dirty unknown
+ d73fe183-fe1f-4aca-a828-d6431684134c | S4-1b-SMOKE     | ATTACK | CLOSED | 2026-10-18 10:03:17.081+00    | 2026-10-18 10:06:51.136+00    | 21885c250077ee8f6551b391859542942a210f51 | f         | {"wazuh_rules": "47715556fd0fd7c9c8449d8308c454074884a07a996996ce9fe0dd07d1e239cb", "suricata_rules": "007b188d4e80f10582668659f6db9f02b5047af1fa72cbefa295b42601a947a4", "caldera_abilities": {"7aa89a87-3fd7-4d52-8c9e-1e5b2f4c6a3d": "544261e4328051b6d9f5000c3ea75466a8eca0e688e7ce7e1036a05806d7dad0", "a7f3c1d9-5e2b-4a6c-9f08-1b2c3d4e5f60": "4b082c2e7f3e20f910ea1c2801f261071bbb779cb4e691639addd46afa9c6710", "c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b": "8ea20816400aa762ba6a65f848135661c4ab09405f90ee94bc3410b70cca85c7", "e3f1a9c7-2b4d-4e6f-a8c2-5d7e9f1b3a5c": "ec1f1db416eb5aa10c18e7359ac9fb60cafbdf2a3ea7897c615fd2149ca3636f"}, "caldera_adversary": "cba127e95e913f68b9ee650e9bfbec80d3b517dd445e5063d8211ceab6b8d3f2"}                                                                                                                                         |                 7 |                 1 | 
+(2 rows)
+

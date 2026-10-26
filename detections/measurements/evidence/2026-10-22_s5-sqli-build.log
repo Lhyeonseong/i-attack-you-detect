@@ -1,0 +1,24 @@
+> Task :clean
+> Task :compileJava
+> Task :processResources
+> Task :classes
+> Task :resolveMainClassName
+> Task :bootJar
+> Task :jar
+> Task :assemble
+
+> Task :compileTestJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :processTestResources NO-SOURCE
+> Task :testClasses
+OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+> Task :test
+> Task :check
+> Task :build
+
+[Incubating] Problems report is available at: file:///home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/build/reports/problems/problems-report.html
+
+BUILD SUCCESSFUL in 10m 32s
+8 actionable tasks: 8 executed

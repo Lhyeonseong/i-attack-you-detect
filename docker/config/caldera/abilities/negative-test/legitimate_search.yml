@@ -1,0 +1,29 @@
+- id: 77a8b9c0-1d2e-4345-ef02-345678901007
+  name: '[NEGATIVE] Legitimate Product Search'
+  description: SQL 메타문자 없는 정상 키워드로 상품 검색을 수행합니다. SQLi 시그니처 룰이 정상 검색에서 오탐하지 않는지 검증합니다.
+  tactic: negative-test
+  technique:
+    attack_id: T0000
+    name: Negative Test - Legitimate Traffic
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T0000"
+          ABILITY_ID="77a8b9c0-1d2e-4345-ef02-345678901007"
+          TARGET="http://#{target.url}"
+
+          KEYWORDS=("laptop" "phone" "book" "monitor")
+
+          for KW in "${KEYWORDS[@]}"; do
+            echo "[*] Legitimate Search: keyword=${KW}"
+            curl -s -o /dev/null -w "HTTP=%{http_code} SIZE=%{size_download}\n" \
+              -H "X-Caldera-Op-Id: ${OP_ID}" \
+              -H "X-Caldera-Technique: ${TECH_ID}" \
+              -H "X-Caldera-Ability: ${ABILITY_ID}" \
+              -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+              "${TARGET}/api/products/search?keyword=${KW}"
+          done
+
+          echo "[*] SQLi 룰 미발동되어야 정상"

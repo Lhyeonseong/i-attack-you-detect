@@ -1,0 +1,6 @@
+id: adv-av-ssrf-001
+name: '[V1] Validation — SSRF (T1190)'
+description: 'SSRF 단일 검증. Mock IMDS 메타데이터 접근 + 공격자 verdict(ssrf.verdict). 탐지 대상 Wazuh 100240.'
+atomic_ordering:
+- a7f3c1d9-5e2b-4a6c-9f08-1b2c3d4e5f60
+objective: 495a9828-cab1-44dd-a0ca-66e58177d8cc

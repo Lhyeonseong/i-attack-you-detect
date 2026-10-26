@@ -1,0 +1,127 @@
+ValidationMigrateIT > migrate() STANDARD_OUT
+    MIGRATE>> before=[1] after=[1, 2]
+    MIGRATE>>   rank=1 v=1 validation schema by=validation_rw on=2026-10-16 23:31:49.334494 success=true
+    MIGRATE>>   rank=2 v=2 measurement run by=validation_rw on=2026-10-18 18:31:27.483012 success=true
+BUILD SUCCESSFUL in 3s
+ installed_rank | version |    description    | installed_by  | success 
+----------------+---------+-------------------+---------------+---------
+              1 | 1       | validation schema | validation_rw | t
+              2 | 2       | measurement run   | validation_rw | t
+(2 rows)
+
+                                                Table "validation.verdict_result"
+        Column         |           Type           | Collation | Nullable |                        Default                        
+-----------------------+--------------------------+-----------+----------+-------------------------------------------------------
+ id                    | bigint                   |           | not null | nextval('validation.verdict_result_id_seq'::regclass)
+ unit_key              | text                     |           | not null | 
+ unit_type             | text                     |           | not null | 
+ scenario              | text                     |           |          | 
+ technique_id          | text                     |           |          | 
+ verdict               | text                     |           | not null | 
+ initial_verdict       | text                     |           | not null | 
+ uncertain_reason      | text                     |           |          | 
+ detection_status      | text                     |           | not null | 
+ gt_outcome            | text                     |           | not null | 
+ attacker_verdict      | text                     |           |          | 
+ attacker_match        | boolean                  |           |          | 
+ overestimate          | boolean                  |           | not null | 
+ best_confidence       | double precision         |           | not null | 
+ mttd_ms               | bigint                   |           |          | 
+ late_detection        | boolean                  |           | not null | 
+ compromise_detected   | boolean                  |           |          | 
+ compromise_alert_time | timestamp with time zone |           |          | 
+ spray_account_count   | integer                  |           | not null | 
+ engine_version        | text                     |           | not null | 
+ run_id                | uuid                     |           |          | 
+ decided_at            | timestamp with time zone |           | not null | now()
+ attempt_role          | text                     |           | not null | 'ATTACK'::text
+Indexes:
+    "verdict_result_pkey" PRIMARY KEY, btree (id)
+    "ix_verdict_result_run" btree (run_id)
+    "uq_verdict_result_unit_key" UNIQUE CONSTRAINT, btree (unit_key)
+Check constraints:
+    "ck_verdict_result_attacker_verdict" CHECK (attacker_verdict = ANY (ARRAY['SUCCEEDED'::text, 'FAILED'::text, 'UNKNOWN'::text]))
+    "ck_verdict_result_attempt_role" CHECK (attempt_role = ANY (ARRAY['ATTACK'::text, 'CONTROL'::text]))
+    "ck_verdict_result_detection_status" CHECK (detection_status = ANY (ARRAY['DETECTED'::text, 'NOT_DETECTED'::text, 'BLOCKED'::text]))
+    "ck_verdict_result_gt_outcome" CHECK (gt_outcome = ANY (ARRAY['SUCCEEDED'::text, 'FAILED'::text, 'UNKNOWN'::text]))
+    "ck_verdict_result_initial_verdict" CHECK (initial_verdict = ANY (ARRAY['SUCCEEDED_MISSED'::text, 'SUCCEEDED_DETECTED'::text, 'SUCCEEDED_BLOCKED'::text, 'BLOCKED'::text, 'FAILED_DETECTED'::text, 'FAILED_UNSEEN'::text, 'UNCERTAIN'::text]))
+    "ck_verdict_result_uncertain_consistency" CHECK ((verdict = 'UNCERTAIN'::text) = (uncertain_reason IS NOT NULL))
+    "ck_verdict_result_uncertain_reason" CHECK (uncertain_reason = ANY (ARRAY['GT_UNKNOWN'::text, 'LOW_CONFIDENCE'::text, 'NO_EVIDENCE'::text]))
+    "ck_verdict_result_unit_type" CHECK (unit_type = ANY (ARRAY['SINGLE'::text, 'BF_SEQUENCE'::text, 'SPRAY_CAMPAIGN'::text]))
+    "ck_verdict_result_verdict" CHECK (verdict = ANY (ARRAY['SUCCEEDED_MISSED'::text, 'SUCCEEDED_DETECTED'::text, 'SUCCEEDED_BLOCKED'::text, 'BLOCKED'::text, 'FAILED_DETECTED'::text, 'FAILED_UNSEEN'::text, 'UNCERTAIN'::text]))
+Foreign-key constraints:
+    "fk_verdict_result_run" FOREIGN KEY (run_id) REFERENCES validation.measurement_run(run_id)
+Referenced by:
+    TABLE "validation.verdict_history" CONSTRAINT "verdict_history_verdict_id_fkey" FOREIGN KEY (verdict_id) REFERENCES validation.verdict_result(id)
+    TABLE "validation.verdict_member" CONSTRAINT "verdict_member_verdict_id_fkey" FOREIGN KEY (verdict_id) REFERENCES validation.verdict_result(id) ON DELETE CASCADE
+Triggers:
+    trg_verdict_result_reject_closed_run BEFORE INSERT ON validation.verdict_result FOR EACH ROW EXECUTE FUNCTION validation.verdict_result_reject_closed_run()
+
+                      Table "validation.measurement_run"
+      Column       |           Type           | Collation | Nullable | Default 
+-------------------+--------------------------+-----------+----------+---------
+ run_id            | uuid                     |           | not null | 
+ label             | text                     |           | not null | 
+ kind              | text                     |           | not null | 
+ status            | text                     |           | not null | 
+ started_at        | timestamp with time zone |           | not null | 
+ ended_at          | timestamp with time zone |           |          | 
+ git_commit        | text                     |           | not null | 
+ git_dirty         | boolean                  |           |          | 
+ rules_digest      | jsonb                    |           | not null | 
+ expected_attempts | integer                  |           |          | 
+ expected_controls | integer                  |           |          | 
+ notes             | text                     |           |          | 
+Indexes:
+    "measurement_run_pkey" PRIMARY KEY, btree (run_id)
+Check constraints:
+    "ck_measurement_run_closed_has_end" CHECK ((status = 'CLOSED'::text) = (ended_at IS NOT NULL))
+    "ck_measurement_run_kind" CHECK (kind = ANY (ARRAY['ATTACK'::text, 'BENIGN'::text]))
+    "ck_measurement_run_status" CHECK (status = ANY (ARRAY['OPEN'::text, 'CLOSED'::text]))
+Referenced by:
+    TABLE "validation.verdict_result" CONSTRAINT "fk_verdict_result_run" FOREIGN KEY (run_id) REFERENCES validation.measurement_run(run_id)
+
+BEGIN
+ to_attribute | planned_attack | planned_control |          started_at           |           ended_at            | null_outside_window 
+--------------+----------------+-----------------+-------------------------------+-------------------------------+---------------------
+          160 |            140 |              20 | 2026-10-16 17:04:01.091971+00 | 2026-10-16 18:07:23.246309+00 |                   0
+(1 row)
+
+    scenario    | planned_role |      verdict       | count 
+----------------+--------------+--------------------+-------
+ BRUTE_FORCE    | ATTACK       | SUCCEEDED_DETECTED |    20
+ PATH_TRAVERSAL | ATTACK       | SUCCEEDED_DETECTED |    60
+ SQLI           | ATTACK       | SUCCEEDED_MISSED   |    20
+ SSRF           | ATTACK       | SUCCEEDED_DETECTED |    40
+ SSRF           | CONTROL      | FAILED_UNSEEN      |    20
+(5 rows)
+
+ expected_attempts | attack | expected_controls | control |  r10  
+-------------------+--------+-------------------+---------+-------
+               140 |    140 |                20 |      20 | VALID
+(1 row)
+
+ existing_runs 
+---------------
+             0
+(1 row)
+
+ROLLBACK
+=== (4) backfill: interactive psql, raw output not captured; COMMIT 2026-10-18 18:36 KST; verified by (5) below ===
+BEGIN
+      label      |  kind  | status |          started_at           |           ended_at            | git_commit | git_dirty | expected_attempts | expected_controls | digest_status | observed_after 
+-----------------+--------+--------+-------------------------------+-------------------------------+------------+-----------+-------------------+-------------------+---------------+----------------
+ S3-GATE-dc66322 | ATTACK | CLOSED | 2026-10-16 17:04:01.091971+00 | 2026-10-16 18:07:23.246309+00 | 17a0b04    |           |               140 |                20 | unverified    | inconsistent
+(1 row)
+
+ attributed | attack | control | run_id_null 
+------------+--------+---------+-------------
+        160 |    140 |      20 |           0
+(1 row)
+
+      label      |  r10  
+-----------------+-------
+ S3-GATE-dc66322 | VALID
+(1 row)
+
+ROLLBACK

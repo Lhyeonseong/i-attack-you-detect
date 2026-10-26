@@ -1,0 +1,60 @@
+## SQLi 원천 확인 2026-10-20T00:24:19+09:00
+manager=security-lab-wazuh.manager-1
+-rw-r----- 1 wazuh wazuh 6985330 Oct 16 18:25 ossec-alerts-16.json
+-rw-r----- 1 wazuh wazuh 9166109 Oct 16 18:25 ossec-alerts-16.log
+-rw-r----- 1 wazuh wazuh    1781 Oct 17 14:49 ossec-alerts-17.json
+-rw-r----- 1 wazuh wazuh     901 Oct 17 14:49 ossec-alerts-17.log
+file=/var/ossec/logs/alerts/2026/Oct/ossec-alerts-16.json
+rule=100210 count=0
+rule=100220 count=60
+rule=100230 count=218
+rule=100240 count=40
+products/search 관련 alert(모든 룰)=100
+docker/config/caldera/abilities/negative-test/legitimate_bulk_traffic.yml:84:                "${TARGET}/api/products/search?keyword=${kw}"
+docker/config/caldera/abilities/negative-test/legitimate_search.yml:26:              "${TARGET}/api/products/search?keyword=${KW}"
+docker/config/caldera/abilities/negative-test/legitimate_search_with_sql_keywords.yml:25:            "${TARGET}/api/products/search?keyword=SELECT+a+product"
+docker/config/caldera/abilities/negative-test/legitimate_search_with_sql_keywords.yml:33:            "${TARGET}/api/products/search?keyword=UNION+of+brands"
+docker/config/caldera/abilities/negative-test/legitimate_search_with_sql_keywords.yml:41:            "${TARGET}/api/products/search?keyword=ORDER+BY+price+ascending"
+docker/config/caldera/abilities/negative-test/legitimate_search_with_sql_keywords.yml:49:            "${TARGET}/api/products/search?keyword=DROP+shipping+available"
+docker/config/caldera/abilities/initial-access/sqli_evasion.yml:32:            "${TARGET}/api/products/search?keyword=%27+UNION+/*foo*/+SELECT+id%2Cusername%2Cpassword%2C0%2C0+FROM+users--"
+docker/config/caldera/abilities/initial-access/sqli_evasion.yml:36:            "${TARGET}/api/products/search?keyword=%27+UnIoN+SeLeCt+id%2Cusername%2Cpassword%2C0%2C0+FROM+users--"
+docker/config/caldera/abilities/initial-access/sqli_evasion.yml:40:            "${TARGET}/api/products/search?keyword=%2527+UNION+SELECT+id%2Cusername%2Cpassword%2C0%2C0+FROM+users--"
+docker/config/caldera/abilities/initial-access/sqli_evasion.yml:44:            "${TARGET}/api/products/search?keyword=%27+UNION+/*x*/+SELECT+/*x*/+id%2Cusername%2Cpassword%2C0%2C0+/*x*/+FROM+/*x*/+users--"
+docker/config/caldera/abilities/initial-access/sqli_blind_boolean.yml:27:            "${TARGET}/api/products/search?keyword=test%27+OR+1%3D1--")
+docker/config/caldera/abilities/initial-access/sqli_blind_boolean.yml:32:            "${TARGET}/api/products/search?keyword=test%27+OR+1%3D2--")
+docker/config/caldera/abilities/initial-access/sqli_blind_time_based.yml:25:            "${TARGET}/api/products/search?keyword=%27+OR+(SELECT+1+FROM+pg_sleep(5))%3D1--")
+docker/config/caldera/abilities/initial-access/sqli_union_extract.yml:23:            "${TARGET}/api/products/search?keyword=%27+UNION+SELECT+id%2Cusername%2Cpassword%2C0%2C0+FROM+users--")
+docker/config/caldera/abilities/initial-access/xss_evasion.yml:46:              "${TARGET}/api/products/search?keyword=${EVASION_PAYLOADS[$i]}")
+docker/config/caldera/abilities/initial-access/sqli_evasion_advanced.yml:27:            "${TARGET}/api/products/search?keyword=%27%09UNION%09SELECT%09id%2Cusername%2Cpassword%2C0%2C0%09FROM%09users--"
+docker/config/caldera/abilities/initial-access/sqli_evasion_advanced.yml:31:            "${TARGET}/api/products/search?keyword=%27%0aUNION%0aSELECT%0aid%2Cusername%2Cpassword%2C0%2C0%0aFROM%0ausers--"
+docker/config/caldera/abilities/initial-access/sqli_evasion_advanced.yml:35:            "${TARGET}/api/products/search?keyword=laptop&keyword=%27+UNION+SELECT+id%2Cusername%2Cpassword%2C0%2C0+FROM+users--"
+docker/config/caldera/abilities/initial-access/sqli_evasion_advanced.yml:39:            "${TARGET}/api/products/search?keyword=%27+UNION+SELECT+id%2Cusername%2Cpassword%2CCHR(48)%2CCHR(48)+FROM+users--"
+docker/config/caldera/abilities/initial-access/sqli_error_probe.yml:24:          RESP=$(curl -s -m 8 -w "\n__CODE__:%{http_code}" -H "$H1" -H "$H2" -H "$H3" -A "$UA" "${TARGET}/api/products/search?keyword=%27");
+docker/config/caldera/abilities/initial-access/xss_reflected_search.yml:36:              "${TARGET}/api/products/search?keyword=${XSS_PAYLOADS[$i]}")
+docker/config/caldera/abilities/initial-access/sqli_credential_extract.yml:21:            "${TARGET}/api/products/search?keyword=%27+UNION+SELECT+id%2Cusername%2Cpassword%2C0%2C0+FROM+users--")
+docker/config/caldera/abilities/initial-access/sqli_column_enum.yml:26:              "${TARGET}/api/products/search?keyword=%27+ORDER+BY+${i}--")
+## SQLi 원천 확인 2 2026-10-20T01:42:51+09:00
+     20 "rule":{"level":2,"description":"Unknown problem somewhere in the system.","id":"1002"
+     20 "rule":{"level":3,"description":"Suricata: Alert - [CALDERA] Ability header detected - X-Caldera-Ability","id":"86601"
+     20 "rule":{"level":3,"description":"Suricata: Alert - [CALDERA] Agent detected via User-Agent","id":"86601"
+     20 "rule":{"level":3,"description":"Suricata: Alert - [CALDERA] Operation header detected - X-Caldera-Op-Id","id":"86601"
+     20 "rule":{"level":3,"description":"Suricata: Alert - [CALDERA] Technique header detected - X-Caldera-Technique","id":"86601"
+2:  name: SQL Injection - Error-Based Probe (Step 1)
+10:    attack_id: T1190
+11:    name: Exploit Public-Facing Application
+docker/config/caldera/adversaries/attack_path.yml
+docker/config/caldera/adversaries/av_sqli.yml
+docker/config/caldera/adversaries/attack_validation_web.yml
+src/main/java/com/capstone/vuln/product/SqliValidator.java:8:import com.capstone.vuln.attack.Evidence.EvidenceKind;
+src/main/java/com/capstone/vuln/product/SqliValidator.java:49:            return build(ctx, AttackOutcome.UNKNOWN, SqliResultType.UNKNOWN.name(), List.of(),
+src/main/java/com/capstone/vuln/product/SqliValidator.java:64:            case UNION_DATA_LEAKED -> build(ctx, AttackOutcome.SUCCEEDED, name,
+src/main/java/com/capstone/vuln/product/SqliValidator.java:65:                    List.of(evidence(EvidenceKind.DATA_EXPOSURE, resultType,
+src/main/java/com/capstone/vuln/product/SqliValidator.java:68:            case SQL_ERROR_EXPOSED -> build(ctx, AttackOutcome.SUCCEEDED, name,
+src/main/java/com/capstone/vuln/product/SqliValidator.java:69:                    List.of(evidence(EvidenceKind.RESPONSE_PATTERN, resultType,
+src/main/java/com/capstone/vuln/product/SqliValidator.java:73:                    List.of(evidence(EvidenceKind.TIMING, resultType,
+src/main/java/com/capstone/vuln/product/SqliValidator.java:77:                    List.of(evidence(EvidenceKind.TIMING, resultType,
+src/main/java/com/capstone/vuln/product/SqliValidator.java:80:            case NORMAL -> build(ctx, AttackOutcome.FAILED, name, List.of(),
+src/main/java/com/capstone/vuln/product/SqliValidator.java:82:            case UNKNOWN -> build(ctx, AttackOutcome.UNKNOWN, name, List.of(),
+src/main/java/com/capstone/vuln/product/SqliValidator.java:102:    private static Evidence evidence(EvidenceKind kind, SqliResultType resultType, String summary) {
+src/main/java/com/capstone/vuln/evaluator/SqliResultType.java:9:    UNKNOWN
+src/main/java/com/capstone/vuln/evaluator/SqliEvaluator.java:81:        return SqliResultType.UNKNOWN;

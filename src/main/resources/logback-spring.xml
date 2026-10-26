@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    기존 콘솔/파일 로깅: Spring Boot 기본 구성(base.xml) 그대로 사용
+      - 파일 경로는 LOGGING_FILE_NAME(=LOG_FILE)을 따른다 (docker: /var/log/target/application.log)
+    OCSF JSON 로그: 로거 "attack.http.activity" → attack.json.log 로만 출력 (접두사 없는 한 줄 JSON)
+      - additivity=false 이므로 application.log / 콘솔에는 섞이지 않는다
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/base.xml"/>
+
+    <property name="ATTACK_JSON_LOG_FILE" value="${ATTACK_JSON_LOG_FILE:-/var/log/target/attack.json.log}"/>
+
+    <appender name="ATTACK_JSON" class="ch.qos.logback.core.FileAppender">
+        <file>${ATTACK_JSON_LOG_FILE}</file>
+        <encoder>
+            <pattern>%msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <logger name="attack.http.activity" level="INFO" additivity="false">
+        <appender-ref ref="ATTACK_JSON"/>
+    </logger>
+</configuration>

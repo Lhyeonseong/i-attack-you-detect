@@ -1,0 +1,25 @@
+# Source of truth. Wazuh rule 100240 is the hand-converted deployment of this.
+title: SSRF Internal/Metadata Target in URL Preview Request
+id: 9b2f1c7e-5a3d-4c8b-9e1f-2d6a4b8c0e11
+status: experimental
+description: |
+    Detects server-side request forgery attempts in the args of /api/preview requests,
+    where the url value targets cloud metadata endpoints or internal/loopback/private ranges,
+    based on the OCSF HTTP Activity JSON log (attack.json.log).
+    Uses request fields only (http_request.*); app-side validation.* / correlation.* are not referenced (detection independent of ground-truth).
+author: capstone
+date: 2026-10-11
+tags:
+    - attack.t1190
+    - attack.t1090
+logsource:
+    product: target-web
+    service: attack_http_activity
+detection:
+    selection:
+        http_request.url.path: /api/preview
+        http_request.args|re: '(?i)(169\.254\.169\.254|/latest/meta-?data|metadata|127\.|169\.254\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|::1)'
+    condition: selection
+falsepositives:
+    - Rare; external public hosts (e.g. example.com) do not match the internal/metadata pattern
+level: high

@@ -1,0 +1,338 @@
+# 슬라이스 BOOT-ABIL — Caldera bootstrap_abilities 비우기 + gate-report thresholds 키 순서 고정
+# 배경: sandcat 기동 시 bootstrap ability "Avoid logs"(43b3754c, T1070.003)가 호스트 셸에서 ~/.bash_history 를 비우고 unset HISTFILE
+#   (2026-10-21_s3-boot-4.1.log (5-0): link c816f227, 호스트 ~/.bash_history 0 bytes mtime = link 시각). 방어자 로그 삭제 → 증거 보존 목적과 충돌
+#   gate-report thresholds 키 순서가 run 마다 다름(GateReportWriter.java:65 Map.of). 값 동일. 측정·verdict 로직 변경 없음. 직전 커밋 b5c577e
+
+## Step 0 — 확인(읽기만) 2026-10-21T09:22:32Z HEAD=b5c577e porcelain=1
+### (0-1) bootstrap_abilities 정의 위치 — 컨테이너 전용 파일
+  컨테이너 caldera:/usr/src/app/conf/agents.yml (ls: -rw-r--r-- root 311 bytes, mtime Oct 20 20:20) 원문:
+         1	bootstrap_abilities:
+         2	- 43b3754c-def4-4699-a673-1d85648fda6a
+         3	deployments:
+         4	- 2f34977d-9558-4c12-abad-349716777c6b
+         5	- 356d1722-7784-40c4-822b-0cf864b0b36d
+         6	- 1837b43e-4fff-46b2-a604-a602f7540469
+         7	- 0ab383be-b819-41bf-91b9-1bd4404d83bf
+         8	implant_name: splunkd
+         9	sleep_max: 60
+        10	sleep_min: 30
+        11	untrusted_timer: 90
+        12	watchdog: 0
+  caldera 마운트(docker inspect .Mounts):
+    bind /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docker/config/caldera/local.yml.template -> /usr/src/app/conf/local.yml.template rw=false
+    volume /var/lib/docker/volumes/security-lab_caldera-data/_data -> /usr/src/app/data rw=true
+    bind /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docker/config/caldera/abilities -> /usr/src/app/data/abilities rw=true
+    bind /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docker/config/caldera/adversaries -> /usr/src/app/data/adversaries rw=true
+    bind /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docker/config/caldera/entrypoint.sh -> /usr/src/app/entrypoint.sh rw=false
+  → conf/agents.yml 은 bind-mount·볼륨 아님(컨테이너 쓰기 레이어). 저장소 docker/config/caldera/ 에 agents.yml 없음, 'grep -rn bootstrap_abilities docker/' 0건
+    저장소 local.yml.template(→ entrypoint.sh:7-11 이 conf/local.yml 생성)에도 agent 키 없음
+  Caldera 5.2.0 코드(컨테이너 안 읽기):
+    server.py:229 'BaseWorld.apply_config("agents", BaseWorld.strip_yml("conf/agents.yml")[0])'  ← 기동 시 읽음
+    app/service/app_svc.py:150-153 teardown → ':153 await self._save_configurations(main_config_file=main_config_file)' 다음 ':154 data_svc.save_state()'
+    app/service/app_svc.py:224-227 '_save_configurations': for ('main',…),('agents','agents'),('payloads','payloads'): open('conf/%s.yml' % cfg_file, 'w') … yaml.dump(get_config(cfg_name))  ← 종료 시 다시 씀
+    app/objects/c_agent.py:242-247 'async def bootstrap(self, data_svc): … for i in self.get_config(name='agents', prop='bootstrap_abilities') … await self.task(abilities, obfuscator='plain-text')'
+    API 반영: app/api/v2/managers/config_api_manager.py:106-107 (PATCH /api/v2/config/agents bootstrap_abilities) — 메모리 설정, 종료 시 위 :224-227 로 컨테이너 파일에 저장
+  mtime Oct 20 20:20 = 직전 정상 종료 시 teardown 이 다시 쓴 것으로 보임(추정)
+### (0-2) 같은 파일의 다른 키
+  deadman_abilities: 키 없음 (API config/agents 'deadman_abilities: null'). c_agent.py:249-255 deadman() 은 값이 있을 때만 실행 → 현재 자동 실행 없음
+  deployments: 4개 payload id — UI 배포 목록(자동 실행 아님) / implant_name: splunkd (sandcat 바이너리 표시 이름) / sleep_min 30 / sleep_max 60 / untrusted_timer 90 / watchdog 0
+  → 자동 실행 키는 bootstrap_abilities 하나뿐
+### (0-3) 43b3754c 'Avoid logs' 의 측정 경로 사용 여부
+  저장소: 'grep -rn 43b3754c' (build·.git 제외) → 증거 로그 1개 외 0건
+  측정 adversary: application.yaml:44 'adversary-id: ${APP_MEASURE_ADVERSARY_ID:adv-attack-validation-web-001}' →
+    docker/config/caldera/adversaries/attack_validation_web.yml:8-12 atomic_ordering = e3f1a9c7(SQLi) a7f3c1d9(SSRF) c4e8f2b1(PT) 7aa89a87(BF) — 43b3754c 없음
+  Caldera API adversaries 중 43b3754c 포함: ef4d997c 'Defense Evasion', 785baa02 'Everything Bagel', 0b73bf34 'Nosy Neighbor' (stockpile 내장, 측정 미사용)
+  하네스 op 귀속: bootstrap link 는 operation chain 밖(agent.links), OperationResolver 는 operation link 만 봄 → 비워도 측정 무관
+### (0-4) GateReportWriter thresholds
+  src/main/java/com/capstone/vuln/measure/GateReportWriter.java:65-68 원문:
+    '        root.put("thresholds", Map.of('
+    '                "minConclusiveSamples", GateEvaluator.MIN_CONCLUSIVE_SAMPLES,'
+    '                "minMatchRate", GateEvaluator.MIN_MATCH_RATE,'
+    '                "maxOverestimate", 0));'
+  경로: json(GateReport) :60 root LinkedHashMap → :65 thresholds(Map.of, 순서 비보장) → :83 MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(root)
+        → write() :32 Files.writeString(json, …) → detections/measurements/gate-report-<iso>.json. 호출: MeasurementCampaign.run → reportWriter.write
+  테스트: JSON 출력(키 순서)을 검사하는 테스트 없음 (MeasurementCampaignTest:75 FakeWriter, MeasurementRunPersistenceTest:218 은 writer 주입만)
+
+## Step 1 — 파일 수정(미커밋) 2026-10-21T09:25:06Z
+### (1-1) bootstrap_abilities — 컨테이너 전용 파일이라 수정하지 않음. 수정 방법 제안(대기)
+  제안 A (권장, DaC — local.yml 과 같은 방식):
+    1) 저장소에 docker/config/caldera/agents.yml.template 신규 — 현재 컨테이너 agents.yml 과 같은 키, bootstrap_abilities: [] 만 다름
+       (deployments 4개·implant_name splunkd·sleep_min 30·sleep_max 60·untrusted_timer 90·watchdog 0 유지)
+    2) docker-compose.yml caldera volumes 에 '- ./config/caldera/agents.yml.template:/usr/src/app/conf/agents.yml.template:ro' 추가
+    3) docker/config/caldera/entrypoint.sh 에서 exec 전에 'cp /usr/src/app/conf/agents.yml.template /usr/src/app/conf/agents.yml' (기동마다 git 값으로 덮어씀)
+    이유: conf/agents.yml 을 직접 :ro bind 하면 종료 때 app_svc.py:226 open('conf/agents.yml','w') 가 실패 → 같은 teardown 의 :154 data_svc.save_state() 까지 못 갈 수 있음.
+          rw 단일 파일 bind 는 종료 때 Caldera 가 yaml.dump 로 저장소 파일을 다시 써서 git 이 바뀜(형식·키 순서 변화)
+    반영: caldera 재생성(up -d --force-recreate caldera) 필요 → sandcat 재기동 필요(멈춤 단계)
+  제안 B (즉시, 재시작 없음 — DaC 아님): PATCH /api/v2/config/agents {"bootstrap_abilities": []} (config_api_manager.py:106-107)
+    메모리 설정만 바뀌고 종료 시 컨테이너 agents.yml 에 저장. caldera 컨테이너를 재생성하면 이미지 기본값으로 돌아감(이미지 기본 agents.yml 내용은 확인 안 함 — 추정: 같은 bootstrap 포함)
+    → A 를 적용하기 전 sandcat 을 살린 채 막는 임시 조치로만 의미. Caldera 설정 변경이라 승인 필요
+### (1-2) GateReportWriter thresholds 순서 고정
+  src/main/java/com/capstone/vuln/measure/GateReportWriter.java:65-70 — Map.of(...) → LinkedHashMap, put 순서 = 기존 Map.of 인자 순서(minConclusiveSamples, minMatchRate, maxOverestimate)
+    (md 리포트 :53-55 게이트 문구 순서 conclusive → matchRate → overestimate 와 같음). 키·값·타입(Integer 20 / Double 0.95 / Integer 0) 동일
+  검증(jshell, build/classes + runtime classpath, 3-SMOKE 값으로 GateReport 재구성 → GateReportWriter.json):
+    새 thresholds 순서 [minConclusiveSamples, minMatchRate, maxOverestimate] / 3-SMOKE [maxOverestimate, minConclusiveSamples, minMatchRate] / 2-SMOKE [minConclusiveSamples, maxOverestimate, minMatchRate]
+    thresholds 키 집합 같음(새·3-SMOKE·2-SMOKE) True, 값 {'minConclusiveSamples': 20, 'minMatchRate': 0.95, 'maxOverestimate': 0} 같음 True
+    전체 내용(dict 비교) 새 = 3-SMOKE True, 최상위·scenarios 키 순서 같음 True
+    JVM 3회 실행 출력 sha256 앞 16자 84a0dea909e1abb6 ×3 (같음 — 순서 결정적)
+    부수: jshell 이 ~/.java/.userPrefs 디렉터리를 만듦(저장소 밖, 'Created user preferences directory.')
+### (1-3) ./gradlew clean build
+  start=2026-10-21T09:22:57Z end=2026-10-21T09:23:57Z exit=0, BUILD SUCCESSFUL in 59s
+  총 tests=239 failures=0 errors=0 skipped=3 passed=236 (suite 50개)
+  suite 50개 결과가 b5c577e 직전 build(Step 3-1) 와 같음. GateReportWriter JSON 순서를 검사하는 기존 테스트 없음 → 테스트 변경 없음
+### (1-4) git diff
+   src/main/java/com/capstone/vuln/measure/GateReportWriter.java | 10 ++++++----
+   1 file changed, 6 insertions(+), 4 deletions(-)
+  diff --git a/src/main/java/com/capstone/vuln/measure/GateReportWriter.java b/src/main/java/com/capstone/vuln/measure/GateReportWriter.java
+  index b233ed2..7e826f4 100644
+  --- a/src/main/java/com/capstone/vuln/measure/GateReportWriter.java
+  +++ b/src/main/java/com/capstone/vuln/measure/GateReportWriter.java
+  @@ -62,10 +62,12 @@ public class GateReportWriter {
+           root.put("overall", r.overall().name());
+           root.put("totalSamples", r.totalSamples());
+           root.put("totalUncertain", r.totalUncertain());
+  -        root.put("thresholds", Map.of(
+  -                "minConclusiveSamples", GateEvaluator.MIN_CONCLUSIVE_SAMPLES,
+  -                "minMatchRate", GateEvaluator.MIN_MATCH_RATE,
+  -                "maxOverestimate", 0));
+  +        // Map.of 는 순서를 보장하지 않아 run 마다 키 순서가 달라졌다 — 재현성을 위해 순서 고정
+  +        Map<String, Object> thresholds = new LinkedHashMap<>();
+  +        thresholds.put("minConclusiveSamples", GateEvaluator.MIN_CONCLUSIVE_SAMPLES);
+  +        thresholds.put("minMatchRate", GateEvaluator.MIN_MATCH_RATE);
+  +        thresholds.put("maxOverestimate", 0);
+  +        root.put("thresholds", thresholds);
+           List<Map<String, Object>> scenarios = new ArrayList<>();
+           for (ScenarioGate g : r.scenarios()) {
+               Map<String, Object> m = new LinkedHashMap<>();
+  git status --short:
+     M src/main/java/com/capstone/vuln/measure/GateReportWriter.java
+    ?? detections/measurements/evidence/2026-10-21_boot-abil.log
+
+## Step 2 — 파일 준비(미커밋) 2026-10-21T09:30:28Z — DRI: 제안 A, thresholds 순서(minConclusiveSamples→minMatchRate→maxOverestimate) 확정
+### (2-1) docker/config/caldera/agents.yml.template 신규 — 원본: docker exec caldera cat /usr/src/app/conf/agents.yml (311 bytes, sha256 앞 16자 728d4d701913ea3d)
+  원본 원문(cat -A):
+    bootstrap_abilities:$
+    - 43b3754c-def4-4699-a673-1d85648fda6a$
+    deployments:$
+    - 2f34977d-9558-4c12-abad-349716777c6b$
+    - 356d1722-7784-40c4-822b-0cf864b0b36d$
+    - 1837b43e-4fff-46b2-a604-a602f7540469$
+    - 0ab383be-b819-41bf-91b9-1bd4404d83bf$
+    implant_name: splunkd$
+    sleep_max: 60$
+    sleep_min: 30$
+    untrusted_timer: 90$
+    watchdog: 0$
+  템플릿(cat -n):
+         1	bootstrap_abilities: []
+         2	deployments:
+         3	- 2f34977d-9558-4c12-abad-349716777c6b
+         4	- 356d1722-7784-40c4-822b-0cf864b0b36d
+         5	- 1837b43e-4fff-46b2-a604-a602f7540469
+         6	- 0ab383be-b819-41bf-91b9-1bd4404d83bf
+         7	implant_name: splunkd
+         8	sleep_max: 60
+         9	sleep_min: 30
+        10	untrusted_timer: 90
+        11	watchdog: 0
+  diff 원본 → 템플릿:
+    1,2c1
+    < bootstrap_abilities:
+    < - 43b3754c-def4-4699-a673-1d85648fda6a
+    ---
+    > bootstrap_abilities: []
+  YAML 파싱 비교: 값이 다른 키 = ['bootstrap_abilities'] 하나 (원본 [43b3754c-…] → 템플릿 [])
+### (2-2)·(2-3) compose 마운트·entrypoint (git diff)
+  diff --git a/docker/config/caldera/entrypoint.sh b/docker/config/caldera/entrypoint.sh
+  index 2b84fa6..2369357 100755
+  --- a/docker/config/caldera/entrypoint.sh
+  +++ b/docker/config/caldera/entrypoint.sh
+  @@ -9,4 +9,7 @@ sed -e "s|\${CALDERA_API_KEY_RED}|${CALDERA_API_KEY_RED}|g" \
+       -e "s|\${CALDERA_CRYPT_SALT}|${CALDERA_CRYPT_SALT}|g" \
+       -e "s|\${CALDERA_ENCRYPTION_KEY}|${CALDERA_ENCRYPTION_KEY}|g" \
+       "$TMPL" > "$OUT"
+  +# agents 설정은 git 템플릿이 원본(bootstrap_abilities: [] — 호스트 로그 삭제 ability 자동 실행 방지).
+  +# Caldera 가 종료 때 conf/agents.yml 을 다시 써도 기동마다 덮어쓴다. 템플릿이 없으면 set -e 로 기동 실패
+  +cp /usr/src/app/conf/agents.yml.template /usr/src/app/conf/agents.yml
+   exec python3 server.py
+  diff --git a/docker/docker-compose.yml b/docker/docker-compose.yml
+  index 63aa4a1..c87b813 100644
+  --- a/docker/docker-compose.yml
+  +++ b/docker/docker-compose.yml
+  @@ -23,6 +23,8 @@ services:
+         - ./config/caldera/abilities:/usr/src/app/data/abilities
+         - ./config/caldera/adversaries:/usr/src/app/data/adversaries
+         - ./config/caldera/local.yml.template:/usr/src/app/conf/local.yml.template:ro
+  +      # agents 설정(bootstrap_abilities 등)도 git 템플릿이 원본 — entrypoint 가 기동마다 conf/agents.yml 로 복사
+  +      - ./config/caldera/agents.yml.template:/usr/src/app/conf/agents.yml.template:ro
+         - ./config/caldera/entrypoint.sh:/usr/src/app/entrypoint.sh:ro
+       networks:
+         - attack_net
+### (2-5) 확인
+  docker compose -p security-lab -f docker/docker-compose.yml config --format json | jq '.services.caldera | {image, entrypoint, volumes}' (environment 는 비밀값이라 출력 안 함):
+    {
+      "image": "ghcr.io/mitre/caldera:5.2.0@sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7",
+      "entrypoint": [
+        "sh",
+        "/usr/src/app/entrypoint.sh"
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "caldera-data",
+          "target": "/usr/src/app/data",
+          "read_only": null
+        },
+        {
+          "type": "bind",
+          "source": "/home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docker/config/caldera/abilities",
+          "target": "/usr/src/app/data/abilities",
+          "read_only": null
+        },
+        {
+          "type": "bind",
+          "source": "/home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docker/config/caldera/adversaries",
+          "target": "/usr/src/app/data/adversaries",
+          "read_only": null
+        },
+        {
+          "type": "bind",
+          "source": "/home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docker/config/caldera/local.yml.template",
+          "target": "/usr/src/app/conf/local.yml.template",
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "/home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docker/config/caldera/agents.yml.template",
+          "target": "/usr/src/app/conf/agents.yml.template",
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "/home/hyeonseong/capstone-dev/mitre-attack-capstone-v2/docker/config/caldera/entrypoint.sh",
+          "target": "/usr/src/app/entrypoint.sh",
+          "read_only": true
+        }
+      ]
+    }
+  entrypoint 렌더링 시뮬레이션(scratchpad, 경로만 바꾸고 exec 는 echo, 더미 env — 실제 비밀값 미사용):
+    템플릿 있음 → exit 0, conf/agents.yml == agents.yml.template (cmp 바이트 동일), local.yml 치환 정상(dummy 6곳)
+    템플릿 없음 → 'cp: cannot stat '…/conf/agents.yml.template': No such file or directory' exit 1 (set -e 로 기동 중단 — 의도한 fail-closed)
+  [예상 밖 — 위험] 실행 중 caldera 는 수정된 entrypoint 를 이미 봄(단일 파일 :ro bind, 호스트 inode 1577001 유지):
+    docker exec caldera tail entrypoint.sh → 'cp /usr/src/app/conf/agents.yml.template /usr/src/app/conf/agents.yml' 줄 보임
+    docker exec caldera ls /usr/src/app/conf/agents.yml.template → 'No such file or directory' (템플릿 마운트는 재생성해야 생김)
+    restart policy = unless-stopped → Step 3 재생성 전에 caldera 가 재시작되면(재부팅·docker 재시작·docker restart caldera) cp 실패로 기동 안 됨
+    지금 실행 중 프로세스에는 영향 없음(entrypoint 는 기동 때 1회만 실행). 고치지 않음
+### (2-6) ./gradlew clean build start=2026-10-21T09:29:26Z end=2026-10-21T09:30:10Z exit=0, BUILD SUCCESSFUL in 43s
+  총 tests=239 failures=0 errors=0 skipped=3 passed=236 (suite 50개)
+  suite 별 결과 Step 1 build 와 같음
+  git status --short:
+     M docker/config/caldera/entrypoint.sh
+     M docker/docker-compose.yml
+     M src/main/java/com/capstone/vuln/measure/GateReportWriter.java
+    ?? detections/measurements/evidence/2026-10-21_boot-abil.log
+    ?? docker/config/caldera/agents.yml.template
+
+## Step 3 — caldera 재생성 + 검증 (DRI: (a) 즉시 재생성, fail-closed 유지)
+### (3-0) 재생성 전 2026-10-21T09:32:23Z
+  실행 중 컨테이너 8개 (caldera 포함) → 다른 컨테이너 7개 (지시서 '9개' 와 다름 — 실제 수 기록)
+  /caldera id=655ec54ec456926998ff447b37a98bbe8c32f8323f25cc8c8c4c382ac035f4e6 image=sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7 started=2026-10-21T07:15:37.093831197Z restarts=0
+  /mock-imds id=aadb7b5b54d16b20a9a06eeb55db2bdaf93831d54c295dadf25f83ceb6a3665c image=sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 started=2026-10-21T07:15:37.062028664Z restarts=0
+  /postgres id=03c8a168cf37686b3f680b277d7bfd52a83aeafc34f249b6b34ac4c2875ba078 image=sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d started=2026-10-21T07:15:37.064938795Z restarts=0
+  /security-lab-wazuh.agent-1 id=ea593a328c20824ab1cdf6fa8fc875ac8d55f62493529a8fd516d7a0864f2d87 image=sha256:db274c1e2c56106f108fa1469f7ee99995ad3cac41003e8ca7a975cda2af20d8 started=2026-10-21T07:15:37.06021795Z restarts=0
+  /security-lab-wazuh.indexer-1 id=4de121e938e7f6b077307aecf1287a37da683601ca926d9b2803bd48964e9a3a image=sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6 started=2026-10-21T07:15:37.062511986Z restarts=0
+  /security-lab-wazuh.manager-1 id=2e981a803ed5b7671a8fd948bc7c06a9aeeeed3f84df17f6b293900853c8756d image=sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b started=2026-10-21T07:15:37.06306438Z restarts=0
+  /suricata id=96fa726ee3c012f42fdc83e3981eacae7c7b4cf58e4788012b329e32172a1325 image=sha256:bf4bea5b45d9c10265a3ee6628e2ec8930b9d1fb7caf9d1afb63af413b9cbb26 started=2026-10-21T08:48:22.871074544Z restarts=0
+  /target-web id=ad6c5ca1175044a692539f29de5f1c6b025709456fb4914bf49ca93363372d1d image=sha256:29369098bfa0b0512b4e74ff3f57fdbc709e831f0e3ba922af03f8e4b6e892d5 started=2026-10-21T08:48:18.197902747Z restarts=0
+  호스트 ~/.bash_history (크기·mtime만): 0 bytes mtime=2026-10-21 17:59:46.140477462 +0900
+### (3-1) 재생성 2026-10-21T09:32:24Z
+  docker compose -p security-lab -f docker/docker-compose.yml up -d --no-build --pull never --no-deps --force-recreate caldera
+     Container caldera  Recreate
+     Container caldera  Recreated
+     Container caldera  Starting
+     Container caldera  Started
+  exit=0
+### (3-2) 확인 2026-10-21T09:34:14Z
+--- ① caldera
+  image=sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7 Config.Image=ghcr.io/mitre/caldera:5.2.0@sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7 started=2026-10-21T09:32:28.719271801Z restarts=0 status=running
+  docker logs 248줄, 'All systems ready' 줄: 1, ERROR 줄(헤더 기준): 9
+  ERROR 원문(docker logs, 줄바꿈 이어 붙임):
+     ERROR Error importing plugin=builder, No c_plugin.py:91
+     ERROR Error loading plugin=builder, c_plugin.py:59
+    2026-10-21 09:32:34 ERROR Ability=d5f9a3c2-0e6b-4a8f-b4d7-9b3 data_svc.py:174
+     ERROR Ability=55e6f7a8-9b0c-4123-cef0-123 data_svc.py:174
+     ERROR Ability=c4e8f2b1-9d5a-4f7e-b3c6-8a2 data_svc.py:174
+     ERROR Ability=55e6f7a8-9b0c-4123-cef0-123 data_svc.py:174
+     ERROR Ability=44d5e6f7-8a9b-4012-bdef-012 data_svc.py:174
+     ERROR Ability=44d5e6f7-8a9b-4012-bdef-012 data_svc.py:174
+     ERROR Ability=e2a3b4c5-d6e7-f8a9-b0c1-d2e data_svc.py:174
+  해석(코드 사실): 'wrong tactic' = data_svc.py 'if tactic and tactic not in filename: self.log.error(...)' 후 바로 '_create_ability(...)' — 로그만, ability 는 생성됨
+    c4e8f2b1(측정 PT) 파일 docker/config/caldera/abilities/discovery/path_traversal_tier1.yml:8 'tactic: initial-access' (디렉터리 discovery ≠ tactic)
+    API 확인: 측정 ability 4개 모두 로드(c4e8f2b1 PT·e3f1a9c7 SQLi·a7f3c1d9 SSRF 'initial-access', 7aa89a87 BF 'credential-access', executors 1)
+  builder: 'Error importing plugin=builder, No module named 'docker'' — local.yml.template plugins 목록에 builder 없음(활성화 안 된 플러그인 import 시도)
+  이전 기동에도 있었는지: 이전 caldera 컨테이너 로그는 재생성으로 사라짐. 저장소 증거·문서에 이 ERROR 기록 없음(grep 0) → 확인 불가.
+    (참고: 세션 메모에 55e6f7a8·44d5e6f7·e2a3b4c5 'wrong tactic' 을 기존 부채로 기록한 것 있음 — c4e8f2b1·d5f9a3c2 는 그 목록에 없음)
+  → ① 불충족('오류 0' 아님) — 고치지 않고 멈춤. 아래 ②~⑤ 는 읽기만 기록
+--- ② 컨테이너 conf/agents.yml
+  -rw-r--r-- 1 root   root   275 Oct 21 09:32 /usr/src/app/conf/agents.yml
+  -rw-rw-r-- 1 ubuntu ubuntu 275 Oct 21 09:28 /usr/src/app/conf/agents.yml.template
+    cmp: agents.yml == template
+  bootstrap_abilities: []
+--- ③ API config/agents (bootstrap_abilities 길이·deadman 만)
+  bootstrap_abilities length=0 type=array, deadman_abilities=null, sleep_min=30 sleep_max=60 untrusted_timer=90 watchdog=0 implant_name=splunkd
+--- ④ 다른 컨테이너 (재생성 전 (3-0) 과 비교)
+  mock-imds started=2026-10-21T07:15:37.062028664Z restarts=0 same
+  postgres started=2026-10-21T07:15:37.064938795Z restarts=0 same
+  security-lab-wazuh.agent-1 started=2026-10-21T07:15:37.06021795Z restarts=0 same
+  security-lab-wazuh.indexer-1 started=2026-10-21T07:15:37.062511986Z restarts=0 same
+  security-lab-wazuh.manager-1 started=2026-10-21T07:15:37.06306438Z restarts=0 same
+  suricata started=2026-10-21T08:48:22.871074544Z restarts=0 same
+  target-web started=2026-10-21T08:48:18.197902747Z restarts=0 same
+  caldera before: id=655ec54ec456
+started=2026-10-21T07:15:37.093831197Z → now: id=3b794753b14a started=2026-10-21T09:32:28.719271801Z
+--- ⑤ (0-b)
+  total=46
+  finished=46
+--- agents (재생성 후)
+  mcukpa red trusted=false last_seen=2026-10-16T18:23:26Z
+  jznjpj red trusted=false last_seen=2026-10-18T10:10:09Z
+  oeintf red trusted=false last_seen=2026-10-20T13:45:21Z
+  pqkuqm red trusted=false last_seen=2026-10-20T14:30:41Z
+  zetofr red trusted=false last_seen=2026-10-20T19:32:51Z
+  qpiere red trusted=false last_seen=2026-10-20T20:18:02Z
+  dmceil red trusted=true last_seen=2026-10-21T09:34:04Z
+  호스트 ~/.bash_history (크기·mtime만): 0 bytes mtime=2026-10-21 17:59:46.140477462 +0900
+--- 참고: 기존 agent dmceil 재접속 2026-10-21T09:34:29Z
+  dmceil trusted=true created=2026-10-21T08:59:46Z last_seen=2026-10-21T09:34:04Z links=1
+    link id=c816f227-c4df-4ede-8399-f329784711b9 ability=43b3754c-def4-4699-a673-1d85648fda6a Avoid logs decide=2026-10-21T08:59:46Z finish=2026-10-21T08:59:46Z status=0
+  → sandcat 프로세스(dmceil)는 caldera 재생성 후에도 살아서 재접속(agent 기록은 caldera-data 볼륨에 남음). 재생성 후 새 link 없음(목록은 08:59:46Z bootstrap 1개뿐)
+  호스트 ~/.bash_history: 0 bytes mtime 17:59:46 KST 그대로(재생성 전후 변화 없음)
+### (3-J) 판정: 멈춤 — ① 'ERROR 0' 불충족(builder import 2·wrong tactic 7). ②③④⑤ 통과. ⑥⑦(새 sandcat) 미진행
+  DRI(2026-10-21): ERROR 9줄 수용 — builder 플러그인·wrong-tactic 7건 모두 기존 부채, 로그만 남고 ability 정상 생성·측정 무관.
+  wrong-tactic 경고 7건 측정 무관, 파일 폴더↔tactic 정리는 S5 후보
+### (3-3) 새 sandcat (사람이 기존 sandcat 종료 후 새로 기동) — ⑥⑦ 확인 2026-10-21T09:38:41Z
+  mcukpa red trusted=false created=2026-10-16T09:08:02Z last_seen=2026-10-16T18:23:26Z links=1
+  jznjpj red trusted=false created=2026-10-18T09:59:18Z last_seen=2026-10-18T10:10:09Z links=1
+  oeintf red trusted=false created=2026-10-20T12:57:25Z last_seen=2026-10-20T13:45:21Z links=1
+  pqkuqm red trusted=false created=2026-10-20T14:21:08Z last_seen=2026-10-20T14:30:41Z links=1
+  zetofr red trusted=false created=2026-10-20T17:11:55Z last_seen=2026-10-20T19:32:51Z links=1
+  qpiere red trusted=false created=2026-10-20T19:35:42Z last_seen=2026-10-20T20:18:02Z links=1
+  dmceil red trusted=false created=2026-10-21T08:59:46Z last_seen=2026-10-21T09:35:44Z links=1
+  qvfnuu red trusted=true created=2026-10-21T09:36:49Z last_seen=2026-10-21T09:38:40Z links=0
+--- ⑥ 새 agent qvfnuu link 목록
+  qvfnuu created=2026-10-21T09:36:49Z trusted=true links=0 links_json=[]
+  operations chain 중 paw=qvfnuu link: 0개
+  (참고) 이전 agent 7개의 agent.links 1개씩 — ability:
+    mcukpa link=bd9ea06d ability=43b3754c Avoid logs decide=2026-10-16T09:08:02Z
+    jznjpj link=098ac86c ability=43b3754c Avoid logs decide=2026-10-18T09:59:18Z
+    oeintf link=dcda8d6f ability=43b3754c Avoid logs decide=2026-10-20T12:57:25Z
+    pqkuqm link=4cf28b09 ability=43b3754c Avoid logs decide=2026-10-20T14:21:08Z
+    zetofr link=6b3b844b ability=43b3754c Avoid logs decide=2026-10-20T17:11:55Z
+    qpiere link=13fab38e ability=43b3754c Avoid logs decide=2026-10-20T19:35:42Z
+    dmceil link=c816f227 ability=43b3754c Avoid logs decide=2026-10-21T08:59:46Z
+--- ⑦ 호스트 ~/.bash_history (크기·mtime만)
+  now: 101 bytes mtime=2026-10-21 18:36:27.663187912 +0900  (기준: 0 bytes mtime=2026-10-21 17:59:46.140477462 +0900, 새 agent 등록 09:36:49Z = 18:36:49 KST)
+  → ⑥ 통과: 새 agent qvfnuu(created 09:36:49Z) links=[] , operation chain 0 — bootstrap 43b3754c 'Avoid logs' 미실행
+     (참고: 이전 agent 7개 mcukpa·jznjpj·oeintf·pqkuqm·zetofr·qpiere·dmceil 모두 등록 시각(decide=created)에 'Avoid logs' link 1개씩 — 그동안 sandcat 기동마다 실행됐음)
+  → ⑦ 통과: ~/.bash_history 101 bytes (> 0, 비워지지 않음), mtime 18:36:27 KST = 새 agent 등록(18:36:49 KST) 22초 전 —
+     사람이 기존 sandcat 종료·새 기동 과정에서 셸 기록이 쓰인 것으로 보임(추정). 등록 이후 수정 없음(새로 지우지 않음)
+### (3-K) BOOT-ABIL 판정: ①(ERROR 9줄 DRI 수용)·②~⑦ 통과 → 커밋

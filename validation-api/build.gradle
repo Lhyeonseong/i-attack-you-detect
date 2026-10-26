@@ -1,0 +1,57 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.1.1'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.cyclonedx.bom' version '3.0.0'   // D8 SBOM (Spring Boot 4.1 docs 고정 버전)
+}
+
+group = 'com.capstone'
+version = '0.0.1-SNAPSHOT'
+description = 'validation-api'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // ADR-S4-02 D1: JdbcClient·읽기전용. JPA·Flyway 런타임 의존성 없음.
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    // 테스트 전용: 컨테이너에 validation 스키마 적재(런타임 아티팩트엔 포함 안 됨 — D1 준수)
+    testImplementation 'org.flywaydb:flyway-core'
+    testImplementation 'org.flywaydb:flyway-database-postgresql'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// D8: CycloneDX SBOM — org.cyclonedx.bom 3.0.0.
+// 3.0.0 은 설정을 '확장'이 아니라 '태스크'(cyclonedxDirectBom=CyclonedxDirectTask)에 둔다.
+// includeConfigs 기본값은 [](=모든 구성) 이므로 런타임 의존성만 담으려면 명시해야 한다.
+// 출처: CycloneDX/cyclonedx-gradle-plugin README @ tag cyclonedx-gradle-plugin-3.0.0
+//   (Configuration Properties / Output Configuration / Advanced Configuration).
+// 산출: build/reports/bom.json (JSON 전용). 엔드포인트 미노출 — 이미지에 파일로만 포함(Dockerfile 복사).
+tasks.named('cyclonedxDirectBom') {
+    includeConfigs = ['runtimeClasspath']          // 런타임 의존성만
+    skipConfigs = ['.*test.*', '.*Test.*']
+    projectType = 'application'
+    includeLicenseText = false
+    jsonOutput = layout.buildDirectory.file('reports/bom.json')
+    xmlOutput.unsetConvention()                    // JSON 전용
+}

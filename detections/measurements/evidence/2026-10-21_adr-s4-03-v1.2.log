@@ -1,0 +1,42 @@
+# ADR-S4-03 v1.2 — 근거 정정 + 업그레이드·측정 절차 추가 (증거)
+# 범위: docs/adr/ADR-S4-03-stack-version-baseline.md 수정. docker 상태 변경 없음(Caldera 확인은 docker exec 읽기만). 직전 커밋 c978766
+
+## (0) Caldera 5.2.0 resume_operations 확인 (docker exec 읽기만) 2026-10-21T03:50+09:00
+  컨테이너 caldera: image=sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7
+                    cfg=ghcr.io/mitre/caldera:5.2.0@sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7
+  /usr/src/app/app/version.py:1: __version__ = '5.2.0'
+  WorkingDir=/usr/src/app, Entrypoint ["sh","/usr/src/app/entrypoint.sh"]
+  파일 sha256: app/service/app_svc.py 03e3470f15e78139a4bf5235258749592566865371fb5fd856d5db858b88c387
+               server.py              dc9e7cf847369c60fb8b8f0eeef5c7587a079ed505895d6f70e4467477761a72
+
+### $ docker exec caldera grep -n "resume_operations" -r /usr/src/app/app
+/usr/src/app/app/service/app_svc.py:112:    async def resume_operations(self):
+/usr/src/app/app/service/interfaces/i_app_svc.py:41:    def resume_operations(self):
+  (exit=0. 호출 줄은 app/ 밖 소스 루트에 있음)
+### $ docker exec caldera grep -n "resume_operations" /usr/src/app/server.py
+95:    loop.create_task(app_svc.resume_operations())
+  (plugins/ 아래 참조 0)
+
+### app/service/app_svc.py 112~115행 (resume_operations 함수 본문 전체, 원문·들여쓰기 그대로, 116행은 빈 줄)
+    async def resume_operations(self):
+        await asyncio.sleep(10)
+        for op in await self.get_service('data_svc').locate('operations', match=dict(finish=None)):
+            self.loop.create_task(op.run(self.get_services()))
+
+### server.py 94~96행 (호출 위치 앞뒤, 원문)
+    loop.create_task(app_svc.start_sniffer_untrusted_agents())
+    loop.create_task(app_svc.resume_operations())
+    loop.create_task(app_svc.run_scheduler())
+
+### 판독
+  서버 기동 때(server.py:95) 10초 대기 후 data_svc 에서 finish 가 None 인(끝나지 않은) operation 을 모두 찾아 각각 op.run() 을 새 task 로 다시 실행.
+  → DRI 지시 1-0 의 (가) 조건("끝나지 않은(finish가 없는) operation을 찾아 다시 실행")에 해당 → ADR 5절 120행을 (가) 문구로 교체
+  슬라이스 4 첫 스모크 INVALID(2026-10-20, Caldera 재시작 후 S2 op 736ab6e7 이 새 agent 로 link 재실행)의 메커니즘. 대책은 RUNBOOK (0-b)(running/paused 0개)
+
+## (1) ADR 수정 확인 2026-10-21T03:58+09:00
+  git diff --stat: docs/adr/ADR-S4-03-stack-version-baseline.md | 50 ++++++++++++++++++----------  (33 insertions, 17 deletions)
+  지시 1-1~1-9 반영: 4행 v1.2 / 4절 D3 행 기업별·2026 칸 / D4 행 2026 칸 끝 덧붙임 / D5 행 2026 칸 / 5절 Gartner·Caldera 줄 교체, attack_net 줄 추가 /
+    6절 출처 1줄 추가 / D3 표 상태 열·IFN 행·재부팅 검증 행 / D9 신설 + 4절 D9 행 / 7절 v1.2 행
+  D3 표 순서 칸: 새 행은 기존 번호를 바꾸지 않으려고 '4.1'(IFN, 1c 뒤)·'7.1'(재부팅 검증, 슬라이스 6 앞)로 표기(지시 행에 순서 칸 값이 없어 Claude 가 정함)
+  D1~D8 본문 불변 확인: '### D1.' ~ ('### D9.' 또는 '## 3.') 직전 범위, 표 행('|' 시작) 제외 → HEAD f74326990da566a3 = 작업 트리 f74326990da566a3, 39줄 diff 0
+  삭제된 줄('-')은 D3 표 11줄과 4절 D3·D4·D5 행, 5절 Gartner·Caldera 2줄, 4행 버전뿐

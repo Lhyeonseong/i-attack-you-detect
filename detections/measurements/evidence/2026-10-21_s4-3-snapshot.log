@@ -1,0 +1,161 @@
+=== (0) 2026-10-21T22:47:35+09:00 ===
+86359fc feat(validation): V5 immutable metric_snapshot and withdrawal log (S4-3)
+1
+BEGIN
+        label        |                run_id                |  kind  | status | r10_status | r10_reason 
+---------------------+--------------------------------------+--------+--------+------------+------------
+ S3-GATE-dc66322     | bd2de561-a7dc-429f-8d39-fc2d70950727 | ATTACK | CLOSED | VALID      | 
+ S4-STACK-6-BASELINE | b1c26be1-add2-4d45-8207-0998b0f743b1 | ATTACK | CLOSED | VALID      | 
+(2 rows)
+
+ installed_rank | version |  checksum   | success 
+----------------+---------+-------------+---------
+              1 | 1       |  -302875525 | t
+              2 | 2       |  1699786641 | t
+              3 | 3       | -1339579969 | t
+              4 | 4       |  -254580708 | t
+(4 rows)
+
+ snapshot_table 
+----------------
+ 
+(1 row)
+
+ROLLBACK
+-rw-rw-r-- 1 hyeonseong hyeonseong 376128 Oct 21 22:47 /home/hyeonseong/capstone-backups/2026-10-21_validation_pre-v5.sql
+3c476fa100bc7066becb92bc7705561794ed903a815df25cb67bbb17a1c9b09e  /home/hyeonseong/capstone-backups/2026-10-21_validation_pre-v5.sql
+=== (1) 2026-10-21T22:48:08+09:00 ===
+ValidationMigrateIT > migrate() STANDARD_OUT
+    MIGRATE>> before=[1, 2, 3, 4] after=[1, 2, 3, 4, 5]
+    MIGRATE>>   rank=1 v=1 validation schema by=validation_rw on=2026-10-16 23:31:49.334494 success=true
+    MIGRATE>>   rank=2 v=2 measurement run by=validation_rw on=2026-10-18 18:31:27.483012 success=true
+    MIGRATE>>   rank=3 v=3 metric foundation by=validation_rw on=2026-10-20 00:13:32.325208 success=true
+    MIGRATE>>   rank=4 v=4 metric views by=validation_rw on=2026-10-20 00:13:32.457942 success=true
+    MIGRATE>>   rank=5 v=5 metric snapshot by=validation_rw on=2026-10-21 22:48:11.879923 success=true
+BUILD SUCCESSFUL in 3s
+=== (2) dry-run b1c26be1-add2-4d45-8207-0998b0f743b1 2026-10-21T22:48:37+09:00 ===
+BEGIN
+ inserted 
+----------
+       89
+(1 row)
+
+ definition_version | snapshot_rule_version |     source_view      | count 
+--------------------+-----------------------+----------------------+-------
+ ADR-S4-01 v1.4     | ADR-S4-01 v1.6        | v_metric_attacker    |     4
+ ADR-S4-01 v1.4     | ADR-S4-01 v1.6        | v_metric_correlation |    20
+ ADR-S4-01 v1.4     | ADR-S4-01 v1.6        | v_metric_coverage    |     4
+ ADR-S4-01 v1.4     | ADR-S4-01 v1.6        | v_metric_h2          |     2
+ ADR-S4-01 v1.4     | ADR-S4-01 v1.6        | v_metric_mttd        |     7
+ ADR-S4-01 v1.4     | ADR-S4-01 v1.6        | v_metric_rates       |    52
+(6 rows)
+
+ i1_violations 
+---------------
+             0
+(1 row)
+
+ scope_kind | sum 
+------------+-----
+ ALL        | 140
+ SCENARIO   | 140
+ TECHNIQUE  | 140
+(3 rows)
+
+   x_n   |   point_estimate   |      ci_lower      |      ci_upper      | status 
+---------+--------------------+--------------------+--------------------+--------
+ 120/140 | 0.8571428571428571 | 0.7896297687765333 | 0.9055800878095585 | OK
+(1 row)
+
+ROLLBACK
+=== (2) dry-run bd2de561-a7dc-429f-8d39-fc2d70950727 2026-10-21T22:48:39+09:00 ===
+BEGIN
+ inserted 
+----------
+       89
+(1 row)
+
+ definition_version | snapshot_rule_version |     source_view      | count 
+--------------------+-----------------------+----------------------+-------
+ ADR-S4-01 v1.4     | ADR-S4-01 v1.6        | v_metric_attacker    |     4
+ ADR-S4-01 v1.4     | ADR-S4-01 v1.6        | v_metric_correlation |    20
+ ADR-S4-01 v1.4     | ADR-S4-01 v1.6        | v_metric_coverage    |     4
+ ADR-S4-01 v1.4     | ADR-S4-01 v1.6        | v_metric_h2          |     2
+ ADR-S4-01 v1.4     | ADR-S4-01 v1.6        | v_metric_mttd        |     7
+ ADR-S4-01 v1.4     | ADR-S4-01 v1.6        | v_metric_rates       |    52
+(6 rows)
+
+ i1_violations 
+---------------
+             0
+(1 row)
+
+ scope_kind | sum 
+------------+-----
+ ALL        | 140
+ SCENARIO   | 140
+ TECHNIQUE  | 140
+(3 rows)
+
+   x_n   |   point_estimate   |      ci_lower      |      ci_upper      | status 
+---------+--------------------+--------------------+--------------------+--------
+ 120/140 | 0.8571428571428571 | 0.7896297687765333 | 0.9055800878095585 | OK
+(1 row)
+
+ROLLBACK
+=== (3) commit b1c26be1-add2-4d45-8207-0998b0f743b1 2026-10-21T22:50:33+09:00 ===
+BEGIN
+ inserted 
+----------
+       89
+(1 row)
+
+COMMIT
+=== (3) commit bd2de561-a7dc-429f-8d39-fc2d70950727 2026-10-21T22:50:35+09:00 ===
+BEGIN
+ inserted 
+----------
+       89
+(1 row)
+
+COMMIT
+=== (4) verify b1c26be1-add2-4d45-8207-0998b0f743b1 2026-10-21T22:51:07+09:00 ===
+      run_label      | definition_version | schema_version |     left     | git_dirty | count |              min              |              max              
+---------------------+--------------------+----------------+--------------+-----------+-------+-------------------------------+-------------------------------
+ S4-STACK-6-BASELINE | ADR-S4-01 v1.4     | 5              | e3b5f5285152 | f         |    89 | 2026-10-21 13:50:33.758685+00 | 2026-10-21 13:50:33.758685+00
+(1 row)
+
+BEGIN
+ERROR:  permission denied for table metric_snapshot
+ROLLBACK
+BEGIN
+ROLLBACK
+ERROR:  metric_snapshot 는 불변 (ADR-S4-01 R13 d) — UPDATE 거부. 잘못된 스냅샷은 validation.withdraw_metric_snapshot 으로 철회
+CONTEXT:  PL/pgSQL function validation.metric_snapshot_reject_change() line 3 at RAISE
+BEGIN
+ERROR:  permission denied for table metric_snapshot
+ROLLBACK
+BEGIN
+ERROR:  run b1c26be1-add2-4d45-8207-0998b0f743b1 definition_version ADR-S4-01 v1.4 스냅샷이 이미 있다 — 덮어쓰기 금지 (R13 d), 정의가 바뀌면 새 definition_version 으로 추가된다
+CONTEXT:  PL/pgSQL function validation.take_metric_snapshot(uuid) line 50 at RAISE
+ROLLBACK
+=== (4) verify bd2de561-a7dc-429f-8d39-fc2d70950727 2026-10-21T22:51:08+09:00 ===
+    run_label    | definition_version | schema_version |  left   | git_dirty | count |              min              |              max              
+-----------------+--------------------+----------------+---------+-----------+-------+-------------------------------+-------------------------------
+ S3-GATE-dc66322 | ADR-S4-01 v1.4     | 5              | 17a0b04 |           |    89 | 2026-10-21 13:50:35.513185+00 | 2026-10-21 13:50:35.513185+00
+(1 row)
+
+BEGIN
+ERROR:  permission denied for table metric_snapshot
+ROLLBACK
+BEGIN
+ERROR:  metric_snapshot 는 불변 (ADR-S4-01 R13 d) — UPDATE 거부. 잘못된 스냅샷은 validation.withdraw_metric_snapshot 으로 철회
+CONTEXT:  PL/pgSQL function validation.metric_snapshot_reject_change() line 3 at RAISE
+ERROR:  permission denied for table metric_snapshot
+ROLLBACK
+BEGIN
+ROLLBACK
+BEGIN
+ERROR:  run bd2de561-a7dc-429f-8d39-fc2d70950727 definition_version ADR-S4-01 v1.4 스냅샷이 이미 있다 — 덮어쓰기 금지 (R13 d), 정의가 바뀌면 새 definition_version 으로 추가된다
+CONTEXT:  PL/pgSQL function validation.take_metric_snapshot(uuid) line 50 at RAISE
+ROLLBACK

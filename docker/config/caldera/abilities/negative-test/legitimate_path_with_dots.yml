@@ -1,0 +1,49 @@
+- id: 99a0b1c2-3d4e-4567-f890-abcdef000002
+  name: Legitimate Path with Dots
+  description: 정상 파일명에 점(.)이 포함된 다운로드 요청이 Path Traversal 탐지 룰에 오탐되지 않는지 검증합니다.
+  tactic: negative-test
+  technique:
+    attack_id: auto-generated
+    name: Negative Test - False Positive Verification
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T0000"
+          ABILITY_ID="99a0b1c2-3d4e-4567-f890-abcdef000002"
+          TARGET="http://#{target.url}"
+
+          echo "[*] Negative Test: Legitimate paths with dots"
+
+          echo "[1] filename=my..doc.pdf"
+          curl -s -o /dev/null -w "HTTP=%{http_code}\n" \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: ${TECH_ID}" \
+            -H "X-Caldera-Ability: ${ABILITY_ID}" \
+            -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+            "${TARGET}/api/files/download?filename=my..doc.pdf"
+
+          echo "[2] filename=v2.0/release-notes.txt"
+          curl -s -o /dev/null -w "HTTP=%{http_code}\n" \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: ${TECH_ID}" \
+            -H "X-Caldera-Ability: ${ABILITY_ID}" \
+            -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+            "${TARGET}/api/files/download?filename=v2.0/release-notes.txt"
+
+          echo "[3] filename=report.2026.05.pdf"
+          curl -s -o /dev/null -w "HTTP=%{http_code}\n" \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: ${TECH_ID}" \
+            -H "X-Caldera-Ability: ${ABILITY_ID}" \
+            -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+            "${TARGET}/api/files/download?filename=report.2026.05.pdf"
+
+          echo "[4] filename=backup../archive.zip"
+          curl -s -o /dev/null -w "HTTP=%{http_code}\n" \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: ${TECH_ID}" \
+            -H "X-Caldera-Ability: ${ABILITY_ID}" \
+            -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+            "${TARGET}/api/files/download?filename=backup../archive.zip"

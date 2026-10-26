@@ -1,0 +1,326 @@
+services:
+  caldera:
+    # digest 고정(ADR-S4-03 D1). 5.2.0 = 이전 latest와 같은 이미지. 5.3.0은 공식 이미지 없음(보류)
+    image: ghcr.io/mitre/caldera:5.2.0@sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7
+    container_name: caldera
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${CALDERA_WEB_PORT}:8888"
+      - "127.0.0.1:${CALDERA_CONTACT_HTTP_PORT}:7010"
+      - "127.0.0.1:${CALDERA_CONTACT_UDP_PORT}:7011/udp"
+      - "127.0.0.1:${CALDERA_CONTACT_TCP_PORT}:7012"
+    # 비밀값(api_key red/blue, crypt_salt, encryption_key)을 .env 로 고정 — 기동 시 템플릿을 치환해 local.yml 생성
+    entrypoint: ["sh","/usr/src/app/entrypoint.sh"]
+    environment:
+      CALDERA_API_KEY_RED: ${CALDERA_API_KEY_RED}
+      CALDERA_API_KEY_BLUE: ${CALDERA_API_KEY_BLUE}
+      CALDERA_CRYPT_SALT: ${CALDERA_CRYPT_SALT}
+      CALDERA_ENCRYPTION_KEY: ${CALDERA_ENCRYPTION_KEY}
+    volumes:
+      - caldera-data:/usr/src/app/data
+      # DaC source-of-truth: git YAML 을 Caldera core data 로더 경로에 bind.
+      # plugins/stockpile/data/abilities(162 builtin)와 별도 경로이므로 builtin 은 가려지지 않는다.
+      - ./config/caldera/abilities:/usr/src/app/data/abilities
+      - ./config/caldera/adversaries:/usr/src/app/data/adversaries
+      - ./config/caldera/local.yml.template:/usr/src/app/conf/local.yml.template:ro
+      # agents 설정(bootstrap_abilities 등)도 git 템플릿이 원본 — entrypoint 가 기동마다 conf/agents.yml 로 복사
+      - ./config/caldera/agents.yml.template:/usr/src/app/conf/agents.yml.template:ro
+      - ./config/caldera/entrypoint.sh:/usr/src/app/entrypoint.sh:ro
+    networks:
+      - attack_net
+
+  target-web:
+    build:
+      context: ..
+      dockerfile: docker/services/target-web/Dockerfile
+    container_name: target-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      # 앱은 non-superuser role vuln_app 으로만 접속 (Gap #3). role 은 db/bootstrap/app_role.sql 로 생성
+      SPRING_DATASOURCE_USERNAME: vuln_app
+      SPRING_DATASOURCE_PASSWORD: ${VULN_APP_DB_PASSWORD}
+      # S3 판정 결과 저장소 — 별도 role validation_rw (db/bootstrap/validation_role.sql). 켜는 건 S3-5b
+      VALIDATION_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}?currentSchema=validation
+      VALIDATION_DB_USERNAME: validation_rw
+      VALIDATION_DB_PASSWORD: ${VALIDATION_DB_PASSWORD}
+      APP_VALIDATION_PERSISTENCE_ENABLED: "false"
+      # S3 OperationResolver — Caldera REST API (red key)
+      APP_CALDERA_APIURL: http://caldera:8888
+      APP_CALDERA_APIKEY: ${APP_CALDERA_APIKEY}
+      APP_UPLOAD_DIR: /opt/target/uploads
+      APP_JWT_SECRET: ${TARGET_JWT_SECRET}
+      TARGET_LOG_FILE: /var/log/target/application.log
+      LOGGING_FILE_NAME: /var/log/target/application.log
+      CALDERA_HEADER_OP_ID: X-Caldera-Op-Id
+      CALDERA_HEADER_TECHNIQUE: X-Caldera-Technique
+      CALDERA_HEADER_ABILITY: X-Caldera-Ability
+    volumes:
+      - target_logs:/var/log/target
+      - target_data:/opt/target/uploads
+    ports:
+      - "127.0.0.1:${TARGET_HTTP_PORT}:8080"
+    # 인터페이스 이름 고정 (interface_name, Compose 2.36+ / Engine 28+). suricata -i 가 이 이름에 의존 (Gap #4).
+    # 이름 없는 ethN 순서는 docker start·재부팅에 걸쳐 보장되지 않음(moby#49935). eth 접두사 금지(자동 이름과 충돌 가능).
+    # priority 는 50b9625 의 연결 순서로 남겨 둠(이름이 정해지면 순서와 무관)
+    networks:
+      app_net:
+        priority: 100
+        interface_name: app0     # suricata 캡처
+      attack_net:
+        priority: 90
+        interface_name: atk0     # suricata 캡처
+      imds_net:
+        priority: 80
+        interface_name: imds0    # suricata 캡처
+      security_net:
+        priority: 70
+        interface_name: sec0     # 관리 평면, 미캡처
+
+  # Mock cloud metadata (IMDS) — SSRF 슬라이스 전용 내부 전용 타깃.
+  # 호스트 포트 미공개. 169.254.169.254 고정 IP 로 AWS IMDSv1 경로를 흉내낸다 (sentinel 응답만).
+  mock-imds:
+    image: python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+    container_name: mock-imds
+    restart: unless-stopped
+    command: ["sh", "-c", "python -u -m http.server 80 2>&1 | tee -a /logs/access.log"]
+    working_dir: /imds
+    volumes:
+      - ./config/mock-imds:/imds:ro
+      - imds_logs:/logs
+    networks:
+      imds_net:
+        ipv4_address: 169.254.169.254
+
+  suricata:
+    image: jasonish/suricata:8.0.7@sha256:bf4bea5b45d9c10265a3ee6628e2ec8930b9d1fb7caf9d1afb63af413b9cbb26
+    container_name: suricata
+    restart: unless-stopped
+    depends_on:
+      - target-web
+    network_mode: "service:target-web"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    command:
+      - -i
+      - app0
+      - -i
+      - atk0
+      - -i
+      - imds0
+      - -k
+      - none
+      - -l
+      - /var/log/suricata
+      - -S
+      - /var/lib/suricata/rules/local.rules
+      - --set
+      - outputs.5.stats.enabled=no  # 8.0.7 기본 yaml 기준 목록 번호(digest 고정). 이미지 변경 시 RUNBOOK (0-d)로 재확인
+      - --set
+      - outputs.1.eve-log.types.32.stats.enabled=no  # 8.0.7 기본 yaml 기준 목록 번호(digest 고정). 이미지 변경 시 RUNBOOK (0-d)로 재확인
+    volumes:
+      - suricata_logs:/var/log/suricata
+      - suricata_state:/var/lib/suricata
+      - ./config/suricata/local.rules:/var/lib/suricata/rules/local.rules
+
+  wazuh.indexer:
+    # digest 고정(ADR-S4-03 D1). WAZUH_VERSION을 바꿀 때 digest도 함께 바꿀 것(슬라이스 1c)
+    image: wazuh/wazuh-indexer:${WAZUH_VERSION}@sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6
+    hostname: wazuh.indexer
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${INDEXER_PORT}:9200"
+    environment:
+      - "OPENSEARCH_JAVA_OPTS=-Xms${INDEXER_HEAP} -Xmx${INDEXER_HEAP}"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - wazuh-indexer-data:/var/lib/wazuh-indexer
+      - ./config/wazuh_indexer_ssl_certs/root-ca.pem:/usr/share/wazuh-indexer/config/certs/root-ca.pem
+      - ./config/wazuh_indexer_ssl_certs/wazuh.indexer-key.pem:/usr/share/wazuh-indexer/config/certs/wazuh.indexer.key
+      - ./config/wazuh_indexer_ssl_certs/wazuh.indexer.pem:/usr/share/wazuh-indexer/config/certs/wazuh.indexer.pem
+      - ./config/wazuh_indexer_ssl_certs/admin.pem:/usr/share/wazuh-indexer/config/certs/admin.pem
+      - ./config/wazuh_indexer_ssl_certs/admin-key.pem:/usr/share/wazuh-indexer/config/certs/admin-key.pem
+      - ./config/wazuh_indexer/wazuh.indexer.yml:/usr/share/wazuh-indexer/config/opensearch.yml:ro
+      - ./config/wazuh_indexer/internal_users.yml:/usr/share/wazuh-indexer/config/opensearch-security/internal_users.yml:ro
+    networks:
+      - security_net
+
+  wazuh.manager:
+    # digest 고정(ADR-S4-03 D1). WAZUH_VERSION을 바꿀 때 digest도 함께 바꿀 것(슬라이스 1c)
+    image: wazuh/wazuh-manager:${WAZUH_VERSION}@sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
+    hostname: wazuh.manager
+    restart: unless-stopped
+    depends_on:
+      - wazuh.indexer
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 655360
+        hard: 655360
+    ports:
+      - "127.0.0.1:${WAZUH_AGENT_EVENTS_PORT}:1514"   # 외부 에이전트 추가 시 바인딩 해제
+      - "127.0.0.1:${WAZUH_AGENT_REGISTRATION_PORT}:1515"   # 외부 에이전트 추가 시 바인딩 해제
+      - "127.0.0.1:${WAZUH_SYSLOG_PORT}:514/udp"
+      - "127.0.0.1:${WAZUH_API_PORT}:55000"
+    environment:
+      - INDEXER_URL=https://wazuh.indexer:9200
+      - INDEXER_USERNAME=${INDEXER_USERNAME}
+      - INDEXER_PASSWORD=${INDEXER_PASSWORD}
+      - FILEBEAT_SSL_VERIFICATION_MODE=full
+      - SSL_CERTIFICATE_AUTHORITIES=/etc/ssl/root-ca.pem
+      - SSL_CERTIFICATE=/etc/ssl/filebeat.pem
+      - SSL_KEY=/etc/ssl/filebeat.key
+      - API_USERNAME=${WAZUH_API_USERNAME}
+      - API_PASSWORD=${WAZUH_API_PASSWORD}
+    volumes:
+      - wazuh_api_configuration:/var/ossec/api/configuration
+      - wazuh_etc:/var/ossec/etc
+      - wazuh_logs:/var/ossec/logs
+      - wazuh_queue:/var/ossec/queue
+      - wazuh_var_multigroups:/var/ossec/var/multigroups
+      - wazuh_integrations:/var/ossec/integrations
+      - wazuh_active_response:/var/ossec/active-response/bin
+      - wazuh_agentless:/var/ossec/agentless
+      - wazuh_wodles:/var/ossec/wodles
+      - filebeat_etc:/etc/filebeat
+      - filebeat_var:/var/lib/filebeat
+      - ./config/wazuh_indexer_ssl_certs/root-ca-manager.pem:/etc/ssl/root-ca.pem:ro
+      - ./config/wazuh_manager/decoders/vuln_decoder.xml:/var/ossec/etc/decoders/vuln_decoder.xml:ro
+      - ./config/wazuh_manager/rules/vuln_rules.xml:/var/ossec/etc/rules/vuln_rules.xml:ro
+      - ./config/wazuh_indexer_ssl_certs/wazuh.manager.pem:/etc/ssl/filebeat.pem:ro
+      - ./config/wazuh_indexer_ssl_certs/wazuh.manager-key.pem:/etc/ssl/filebeat.key:ro
+      - ./config/wazuh_cluster/wazuh_manager.conf:/wazuh-config-mount/etc/ossec.conf:ro
+    networks:
+      - security_net
+
+  wazuh.agent:
+    # digest 고정(ADR-S4-03 D1). WAZUH_VERSION을 바꿀 때 digest도 함께 바꿀 것(슬라이스 1c)
+    image: wazuh/wazuh-agent:${WAZUH_VERSION}@sha256:db274c1e2c56106f108fa1469f7ee99995ad3cac41003e8ca7a975cda2af20d8
+    hostname: wazuh.agent
+    restart: unless-stopped
+    depends_on:
+      - wazuh.manager
+      - suricata
+      - target-web
+    environment:
+      - WAZUH_MANAGER_SERVER=wazuh.manager
+    volumes:
+      # 에이전트 identity(client.keys) 영속화 — down/up 재생성 시 재등록 불필요
+      # ossec.conf는 저장소 파일이 원본: 이미지 init(0-wazuh-init)이 매 기동 시
+      # /wazuh-config-mount/* 를 /var/ossec 로 복사하므로 볼륨 안의 사본을 덮어쓴다
+      - wazuh_agent_etc:/var/ossec/etc
+      - ./config/wazuh-agent/ossec.conf:/wazuh-config-mount/etc/ossec.conf:ro
+      - suricata_logs:/var/log/suricata:ro
+      - target_logs:/var/log/target:ro
+      - target_data:/opt/target/uploads:ro
+    networks:
+      - security_net
+
+  postgres:
+    # digest 고정(ADR-S4-03 D1). POSTGRES_VERSION을 바꿀 때 digest도 함께 바꿀 것(슬라이스 1b)
+    image: postgres:${POSTGRES_VERSION}@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      # POSTGRES_USER(vulnuser)는 superuser — DB 관리자 전용. target-web 은 vuln_app 으로 접속한다 (Gap #3)
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app_net
+
+  validation-api:
+    # S4-6 검증 대시보드 API (ADR-S4-02 D5). app_net 만, 127.0.0.1:8090, HTTPS, 비루트.
+    build:
+      context: ../validation-api
+      dockerfile: Dockerfile
+    image: validation-api:local
+    container_name: validation-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"              # app_net 내부 포트(호스트 5433 매핑과 무관)
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: validation_ro
+      VALIDATION_RO_PASSWORD: ${VALIDATION_RO_PASSWORD}
+      VALIDATION_API_BEARER_TOKENS: ${VALIDATION_API_BEARER_TOKENS}
+      UI_USERNAME: ${VALIDATION_UI_USERNAME:-viewer}
+      UI_PASSWORD_BCRYPT: ${VALIDATION_UI_PASSWORD_BCRYPT}
+      TLS_CERT_PATH: /etc/validation-api/tls/cert.pem
+      TLS_KEY_PATH: /etc/validation-api/tls/key.pem
+    ports:
+      - "127.0.0.1:8090:8090"
+    volumes:
+      - ./config/validation-api/tls:/etc/validation-api/tls:ro
+      - imds_logs:/var/log/mock-imds:ro
+    healthcheck:
+      # jre 이미지에 curl 없음 → TCP 리슨 확인(bash /dev/tcp). actuator health 는 앱 내부 용도.
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8090' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - app_net
+
+networks:
+  attack_net:
+    driver: bridge
+  security_net:
+    driver: bridge
+  app_net:
+    driver: bridge
+  # SSRF 슬라이스 전용 내부망. 169.254.169.0/24 는 기존 대역(172.17–172.20)과 겹치지 않음을 확인함.
+  imds_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 169.254.169.0/24
+
+volumes:
+  caldera-data:
+  suricata_logs:
+  suricata_state:
+  target_logs:
+  imds_logs:
+  target_data:
+  wazuh_api_configuration:
+  wazuh_etc:
+  wazuh_logs:
+  wazuh_queue:
+  wazuh_var_multigroups:
+  wazuh_integrations:
+  wazuh_active_response:
+  wazuh_agentless:
+  wazuh_wodles:
+  wazuh_agent_etc:
+  filebeat_etc:
+  filebeat_var:
+  wazuh-indexer-data:
+  postgres-data:

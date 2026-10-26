@@ -1,0 +1,326 @@
+# 슬라이스 1a — 현재 실행 중인 이미지 index digest 고정 (동작 변화 0)
+# 근거: ADR-S4-03 D1·D4·D5 (커밋 417eb4b). 규칙: digest는 실행 중 컨테이너의 로컬 이미지 RepoDigests에서만, pull·manifest 값 미사용
+
+## (0-1) 대상 6개: compose image · 실행 중 Image ID · RepoTags/RepoDigests · 역조회 2026-10-20T21:52:18+09:00 HEAD=417eb4b
+$ git show HEAD:docker/docker-compose.yml | grep -n "image:" (수정 전 원문)
+3:    image: ghcr.io/mitre/caldera:latest
+78:    image: python:3.12-slim
+90:    image: jasonish/suricata:7.0
+123:    image: wazuh/wazuh-indexer:${WAZUH_VERSION}
+150:    image: wazuh/wazuh-manager:${WAZUH_VERSION}
+199:    image: wazuh/wazuh-agent:${WAZUH_VERSION}
+221:    image: postgres:${POSTGRES_VERSION}
+--- wazuh.manager (container=security-lab-wazuh.manager-1)
+  $ docker inspect security-lab-wazuh.manager-1 --format '{{.Image}}'
+  sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55
+  $ docker image inspect sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55 --format '{{json .RepoTags}} {{json .RepoDigests}}'
+  ["wazuh/wazuh-manager:4.14.8"] ["wazuh/wazuh-manager@sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55"]
+  $ docker image inspect 'wazuh/wazuh-manager@sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55' --format '{{.Id}}'
+  sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55  -> SAME
+--- wazuh.agent (container=security-lab-wazuh.agent-1)
+  $ docker inspect security-lab-wazuh.agent-1 --format '{{.Image}}'
+  sha256:7b87b6142c52320f0b6db5373e38c3f6f3024169fbedc08e64e5f9444a61520b
+  $ docker image inspect sha256:7b87b6142c52320f0b6db5373e38c3f6f3024169fbedc08e64e5f9444a61520b --format '{{json .RepoTags}} {{json .RepoDigests}}'
+  ["wazuh/wazuh-agent:4.14.8"] ["wazuh/wazuh-agent@sha256:7b87b6142c52320f0b6db5373e38c3f6f3024169fbedc08e64e5f9444a61520b"]
+  $ docker image inspect 'wazuh/wazuh-agent@sha256:7b87b6142c52320f0b6db5373e38c3f6f3024169fbedc08e64e5f9444a61520b' --format '{{.Id}}'
+  sha256:7b87b6142c52320f0b6db5373e38c3f6f3024169fbedc08e64e5f9444a61520b  -> SAME
+--- wazuh.indexer (container=security-lab-wazuh.indexer-1)
+  $ docker inspect security-lab-wazuh.indexer-1 --format '{{.Image}}'
+  sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de
+  $ docker image inspect sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de --format '{{json .RepoTags}} {{json .RepoDigests}}'
+  ["wazuh/wazuh-indexer:4.14.8"] ["wazuh/wazuh-indexer@sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de"]
+  $ docker image inspect 'wazuh/wazuh-indexer@sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de' --format '{{.Id}}'
+  sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de  -> SAME
+--- suricata (container=suricata)
+  $ docker inspect suricata --format '{{.Image}}'
+  sha256:5b3f3aabc3646a4d94ee26abc4f487c2d11a8700b0e6ee52d9b47f110812e898
+  $ docker image inspect sha256:5b3f3aabc3646a4d94ee26abc4f487c2d11a8700b0e6ee52d9b47f110812e898 --format '{{json .RepoTags}} {{json .RepoDigests}}'
+  ["jasonish/suricata:7.0"] ["jasonish/suricata@sha256:5b3f3aabc3646a4d94ee26abc4f487c2d11a8700b0e6ee52d9b47f110812e898"]
+  $ docker image inspect 'jasonish/suricata@sha256:5b3f3aabc3646a4d94ee26abc4f487c2d11a8700b0e6ee52d9b47f110812e898' --format '{{.Id}}'
+  sha256:5b3f3aabc3646a4d94ee26abc4f487c2d11a8700b0e6ee52d9b47f110812e898  -> SAME
+--- postgres (container=postgres)
+  $ docker inspect postgres --format '{{.Image}}'
+  sha256:760ea41aae126965bedd587d35a23de37447bb13a6ac4444bef6ff73b8b72234
+  $ docker image inspect sha256:760ea41aae126965bedd587d35a23de37447bb13a6ac4444bef6ff73b8b72234 --format '{{json .RepoTags}} {{json .RepoDigests}}'
+  ["postgres:16"] ["postgres@sha256:760ea41aae126965bedd587d35a23de37447bb13a6ac4444bef6ff73b8b72234"]
+  $ docker image inspect 'postgres@sha256:760ea41aae126965bedd587d35a23de37447bb13a6ac4444bef6ff73b8b72234' --format '{{.Id}}'
+  sha256:760ea41aae126965bedd587d35a23de37447bb13a6ac4444bef6ff73b8b72234  -> SAME
+--- mock-imds (container=mock-imds)
+  $ docker inspect mock-imds --format '{{.Image}}'
+  sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+  $ docker image inspect sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 --format '{{json .RepoTags}} {{json .RepoDigests}}'
+  ["python:3.12-slim"] ["python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"]
+  $ docker image inspect 'python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1' --format '{{.Id}}'
+  sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1  -> SAME
+## (0-3) 스모크 run 방법 2026-10-20T21:52:19+09:00
+- detections/measurements/RUNBOOK-S4-1b-smoke.md (1) sandcat -group red, (2) RUN_CALDERA_MEASURE=1 MEASURE_N=1 MEASURE_LABEL=<라벨> ./gradlew cleanTest test --tests 'com.capstone.vuln.measure.CampaignRunnerIT' (비밀값은 docker/.env 에서 env 로 주입)
+- 라벨은 env MEASURE_LABEL 로만 지정(기본값 없음, CampaignRunnerLabelTest). 정상: rows=8, R10=VALID(ATTACK 7, CONTROL 1)
+## (0-4) StartedAt (재생성 전) 2026-10-20T21:52:19+09:00
+  caldera                        2026-10-20T08:21:29.898927746Z running
+  target-web                     2026-10-20T08:21:29.808661429Z running
+  backend                        2026-10-20T08:21:29.809956225Z running
+  react-dashboard                2026-10-20T08:21:29.814149846Z running
+  security-lab-wazuh.manager-1   2026-10-20T08:21:29.829080327Z running
+  security-lab-wazuh.agent-1     2026-10-20T08:21:29.822832411Z running
+  security-lab-wazuh.indexer-1   2026-10-20T08:21:29.847930305Z running
+  suricata                       2026-10-20T08:21:34.423348763Z running
+  postgres                       2026-10-20T08:21:29.822883475Z running/healthy
+  mock-imds                      2026-10-20T11:21:59.881979018Z running
+
+## (1-1) compose 수정 — git diff docker/docker-compose.yml 2026-10-20T21:52:19+09:00
+diff --git a/docker/docker-compose.yml b/docker/docker-compose.yml
+index b5239fc..706b58b 100644
+--- a/docker/docker-compose.yml
++++ b/docker/docker-compose.yml
+@@ -75,7 +75,7 @@ services:
+   # Mock cloud metadata (IMDS) — SSRF 슬라이스 전용 내부 전용 타깃.
+   # 호스트 포트 미공개. 169.254.169.254 고정 IP 로 AWS IMDSv1 경로를 흉내낸다 (sentinel 응답만).
+   mock-imds:
+-    image: python:3.12-slim
++    image: python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+     container_name: mock-imds
+     restart: unless-stopped
+     command: ["python", "-m", "http.server", "80"]
+@@ -87,7 +87,7 @@ services:
+         ipv4_address: 169.254.169.254
+ 
+   suricata:
+-    image: jasonish/suricata:7.0
++    image: jasonish/suricata:7.0@sha256:5b3f3aabc3646a4d94ee26abc4f487c2d11a8700b0e6ee52d9b47f110812e898
+     container_name: suricata
+     restart: unless-stopped
+     depends_on:
+@@ -120,7 +120,8 @@ services:
+       - ./config/suricata/local.rules:/var/lib/suricata/rules/local.rules
+ 
+   wazuh.indexer:
+-    image: wazuh/wazuh-indexer:${WAZUH_VERSION}
++    # digest 고정(ADR-S4-03 D1). WAZUH_VERSION을 바꿀 때 digest도 함께 바꿀 것(슬라이스 1c)
++    image: wazuh/wazuh-indexer:${WAZUH_VERSION}@sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de
+     hostname: wazuh.indexer
+     restart: unless-stopped
+     ports:
+@@ -147,7 +148,8 @@ services:
+       - security_net
+ 
+   wazuh.manager:
+-    image: wazuh/wazuh-manager:${WAZUH_VERSION}
++    # digest 고정(ADR-S4-03 D1). WAZUH_VERSION을 바꿀 때 digest도 함께 바꿀 것(슬라이스 1c)
++    image: wazuh/wazuh-manager:${WAZUH_VERSION}@sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55
+     hostname: wazuh.manager
+     restart: unless-stopped
+     depends_on:
+@@ -196,7 +198,8 @@ services:
+       - security_net
+ 
+   wazuh.agent:
+-    image: wazuh/wazuh-agent:${WAZUH_VERSION}
++    # digest 고정(ADR-S4-03 D1). WAZUH_VERSION을 바꿀 때 digest도 함께 바꿀 것(슬라이스 1c)
++    image: wazuh/wazuh-agent:${WAZUH_VERSION}@sha256:7b87b6142c52320f0b6db5373e38c3f6f3024169fbedc08e64e5f9444a61520b
+     hostname: wazuh.agent
+     restart: unless-stopped
+     depends_on:
+@@ -218,7 +221,8 @@ services:
+       - security_net
+ 
+   postgres:
+-    image: postgres:${POSTGRES_VERSION}
++    # digest 고정(ADR-S4-03 D1). POSTGRES_VERSION을 바꿀 때 digest도 함께 바꿀 것(슬라이스 1b)
++    image: postgres:${POSTGRES_VERSION}@sha256:760ea41aae126965bedd587d35a23de37447bb13a6ac4444bef6ff73b8b72234
+     container_name: postgres
+     restart: unless-stopped
+     environment:
+$ git diff --numstat: 10	6	docker/docker-compose.yml   (+10 = 이미지 6 + 주석 4, -6 = 이미지 6)
+## (1-2) config --images 2026-10-20T21:52:19+09:00
+$ docker compose -p security-lab -f docker/docker-compose.yml config --images
+security-lab-react-dashboard
+postgres:16@sha256:760ea41aae126965bedd587d35a23de37447bb13a6ac4444bef6ff73b8b72234
+jasonish/suricata:7.0@sha256:5b3f3aabc3646a4d94ee26abc4f487c2d11a8700b0e6ee52d9b47f110812e898
+wazuh/wazuh-indexer:4.14.8@sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de
+wazuh/wazuh-manager:4.14.8@sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55
+ghcr.io/mitre/caldera:latest
+security-lab-backend
+wazuh/wazuh-agent:4.14.8@sha256:7b87b6142c52320f0b6db5373e38c3f6f3024169fbedc08e64e5f9444a61520b
+python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+security-lab-target-web
+## (1-3) dry-run 2026-10-20T21:52:19+09:00
+$ docker compose -p security-lab -f docker/docker-compose.yml --dry-run up -d --no-build --pull never --no-deps wazuh.indexer wazuh.manager wazuh.agent suricata postgres mock-imds
+ DRY-RUN MODE -  Container postgres  Recreate
+ DRY-RUN MODE -  Container mock-imds  Recreate
+ DRY-RUN MODE -  Container security-lab-wazuh.indexer-1  Recreate
+ DRY-RUN MODE -  Container suricata  Recreate
+ DRY-RUN MODE -  Container mock-imds  Recreated
+ DRY-RUN MODE -  Container postgres  Recreated
+ DRY-RUN MODE -  Container suricata  Recreated
+ DRY-RUN MODE -  Container security-lab-wazuh.indexer-1  Recreated
+ DRY-RUN MODE -  Container security-lab-wazuh.manager-1  Recreate
+ DRY-RUN MODE -  Container security-lab-wazuh.manager-1  Recreated
+ DRY-RUN MODE -  Container security-lab-wazuh.agent-1  Recreate
+ DRY-RUN MODE -  Container security-lab-wazuh.agent-1  Recreated
+ DRY-RUN MODE -  Container aa6e9bf0bace_postgres  Starting
+ DRY-RUN MODE -  Container aa6e9bf0bace_postgres  Started
+ DRY-RUN MODE -  Container 73998506b858_mock-imds  Starting
+ DRY-RUN MODE -  Container 73998506b858_mock-imds  Started
+ DRY-RUN MODE -  Container d9e933acb239_security-lab-wazuh.indexer-1  Starting
+ DRY-RUN MODE -  Container d9e933acb239_security-lab-wazuh.indexer-1  Started
+ DRY-RUN MODE -  Container a62a102becdf_security-lab-wazuh.manager-1  Starting
+ DRY-RUN MODE -  Container a62a102becdf_security-lab-wazuh.manager-1  Started
+ DRY-RUN MODE -  Container 55784861ac52_suricata  Starting
+ DRY-RUN MODE -  Container 55784861ac52_suricata  Started
+ DRY-RUN MODE -  Container b46df0d9a62c_security-lab-wazuh.agent-1  Starting
+ DRY-RUN MODE -  Container b46df0d9a62c_security-lab-wazuh.agent-1  Started
+
+## (2-1) 재생성 2026-10-20T21:52:41+09:00 T_up_utc=2026-10-20T12:52:41Z
+$ docker compose -p security-lab -f docker/docker-compose.yml up -d --no-build --pull never --no-deps wazuh.indexer wazuh.manager wazuh.agent suricata postgres mock-imds
+ Container mock-imds  Recreate
+ Container postgres  Recreate
+ Container suricata  Recreate
+ Container security-lab-wazuh.indexer-1  Recreate
+ Container postgres  Recreated
+ Container security-lab-wazuh.indexer-1  Recreated
+ Container security-lab-wazuh.manager-1  Recreate
+ Container suricata  Recreated
+ Container security-lab-wazuh.manager-1  Recreated
+ Container security-lab-wazuh.agent-1  Recreate
+ Container mock-imds  Recreated
+ Container security-lab-wazuh.agent-1  Recreated
+ Container mock-imds  Starting
+ Container suricata  Starting
+ Container security-lab-wazuh.indexer-1  Starting
+ Container postgres  Starting
+ Container suricata  Started
+ Container mock-imds  Started
+ Container security-lab-wazuh.indexer-1  Started
+ Container security-lab-wazuh.manager-1  Starting
+ Container postgres  Started
+ Container security-lab-wazuh.manager-1  Started
+ Container security-lab-wazuh.agent-1  Starting
+ Container security-lab-wazuh.agent-1  Started
+(exit=0)
+## (2-2) 대기 (최대 5분, 10초 간격 폴링) 2026-10-20T21:54:14+09:00
+  2026-10-20T12:53:16Z postgres=healthy running=10 actuator=UP agent_active=0 indexer_http=000
+  2026-10-20T12:53:29Z postgres=healthy running=10 actuator=UP agent_active=1 indexer_http=401
+  READY 2026-10-20T12:53:29Z
+## (2-3) 사후 확인 2026-10-20T21:54:14+09:00
+### ① 재생성 6개 Image ID = Step 0
+  security-lab-wazuh.manager-1   sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55 started=2026-10-20T12:52:55.647866853Z -> SAME
+  security-lab-wazuh.agent-1     sha256:7b87b6142c52320f0b6db5373e38c3f6f3024169fbedc08e64e5f9444a61520b started=2026-10-20T12:52:56.286752022Z -> SAME
+  security-lab-wazuh.indexer-1   sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de started=2026-10-20T12:52:54.821567761Z -> SAME
+  suricata                       sha256:5b3f3aabc3646a4d94ee26abc4f487c2d11a8700b0e6ee52d9b47f110812e898 started=2026-10-20T12:52:54.823361335Z -> SAME
+  postgres                       sha256:760ea41aae126965bedd587d35a23de37447bb13a6ac4444bef6ff73b8b72234 started=2026-10-20T12:52:54.82635656Z -> SAME
+  mock-imds                      sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 started=2026-10-20T12:52:54.826215371Z -> SAME
+### ② 다른 4개 StartedAt = Step 0
+  caldera                        2026-10-20T08:21:29.898927746Z -> SAME
+  target-web                     2026-10-20T08:21:29.808661429Z -> SAME
+  backend                        2026-10-20T08:21:29.809956225Z -> SAME
+  react-dashboard                2026-10-20T08:21:29.814149846Z -> SAME
+### ③ 전체 상태
+$ docker ps --format '{{.Names}} {{.Status}}'
+backend Up 5 hours
+caldera Up 5 hours
+mock-imds Up About a minute
+postgres Up About a minute (healthy)
+react-dashboard Up 5 hours
+security-lab-wazuh.agent-1 Up About a minute
+security-lab-wazuh.indexer-1 Up About a minute
+security-lab-wazuh.manager-1 Up About a minute
+suricata Up About a minute
+target-web Up 5 hours
+### ④ target-web actuator health (status 값만)
+$ curl -s http://127.0.0.1:8080/actuator/health | (status 만)
+  status= UP
+### ⑤ wazuh agent
+$ docker exec security-lab-wazuh.manager-1 /var/ossec/bin/agent_control -l
+  
+  Wazuh agent_control. List of available agents:
+     ID: 000, Name: wazuh.manager (server), IP: 127.0.0.1, Active/Local
+     ID: 004, Name: wazuh.agent, IP: any, Active
+  
+  List of agentless devices:
+  
+### ⑥ suricata eve.json 최신 timestamp (재생성 T_up=2026-10-20T12:52:41Z 이후여야 함)
+  last eve timestamp=2026-10-20T12:54:14.662350+0000
+  -> AFTER
+### ⑦ mock-imds IP
+  security-lab_imds_net=169.254.169.254 
+
+## (3-0) 스모크 전 확인 2026-10-20T21:59:00+09:00 HEAD=417eb4b porcelain=2(compose 수정·증거 로그 미커밋 → git_dirty=true 로 기록될 것)
+### Caldera agents (RUNBOOK-S4-1b (0) 방식, 키는 curl -H @- 로만 전달·미출력)
+  mcukpa	red	false	2026-10-16T18:23:26Z
+  jznjpj	red	false	2026-10-18T10:10:09Z
+  oeintf	red	true	2026-10-20T12:58:52Z
+  now=2026-10-20T12:59:00Z
+### label S4-STACK-1a-SMOKE 기존 run 수
+  0
+### wazuh agent ID 연속성 (alerts.json agent.id·agent.name·timestamp 만, 000 제외)
+  last before recreate : ('2026-10-20T11:22:50.401+0000', '004', 'wazuh.agent')
+  first after recreate : ('2026-10-20T12:53:18.457+0000', '004', 'wazuh.agent')
+  distinct (id,name) after: [('004', 'wazuh.agent')]
+    ID: 000, Name: wazuh.manager (server), IP: 127.0.0.1, Active/Local
+    ID: 004, Name: wazuh.agent, IP: any, Active
+  판정: red agent oeintf trusted=true·1분 이내 비콘, agent 004/wazuh.agent 재생성 전후 동일 → 스모크 실행
+## (3-1) 스모크 run 실행 (RUNBOOK-S4-1b (2), 라벨만 변경) 2026-10-20T22:04:16+09:00
+$ RUN_CALDERA_MEASURE=1 MEASURE_N=1 MEASURE_LABEL='S4-STACK-1a-SMOKE' APP_CALDERA_APIKEY=… INDEXER_USERNAME=… INDEXER_PASSWORD=… POSTGRES_DB=… VALIDATION_DB_PASSWORD=… ./gradlew cleanTest test --tests 'com.capstone.vuln.measure.CampaignRunnerIT' -i | grep -E '<RUNBOOK 필터>'   (값은 docker/.env 에서 env 로만 주입, 미출력)
+  start=2026-10-20T12:59:15Z
+  CampaignRunnerIT STANDARD_OUT
+      2026-10-20T21:59:29.330+09:00  INFO 128710 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Starting CampaignRunnerIT using Java 17.0.20.1 with PID 128710 (started by hyeonseong in /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2)
+      2026-10-20T21:59:29.333+09:00 DEBUG 128710 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Running with Spring Boot v3.5.13, Spring v6.2.17
+      2026-10-20T21:59:29.335+09:00  INFO 128710 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : No active profile set, falling back to 1 default profile: "default"
+      2026-10-20T21:59:30.854+09:00  INFO 128710 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Started CampaignRunnerIT in 2.199 seconds (process running for 4.139)
+  CampaignRunnerIT > measure() STANDARD_OUT
+      MEASURE>> starting campaign run label=S4-STACK-1a-SMOKE n=1 truncate=false
+      PER-RUN op=dfdce3ab-a242-4496-825b-6202c5f1009e rows=8
+        [SQLI/SINGLE] rid=6d20b548-5275-465a-84a0-50385bbc6617 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_MISSED conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [SSRF/SINGLE] rid=bb488dbe-99e6-4ca4-918d-c162f37c150c gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=713
+        [SSRF/SINGLE] rid=2b91863f-6ab2-4101-85a2-1a507cc62f60 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=193
+        [SSRF/SINGLE] rid=c9125fae-f253-4518-a749-733b2afeb8af gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [PATH_TRAVERSAL/SINGLE] rid=f4fdb2fc-fd5d-4491-ac54-c50116b90f26 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1769
+        [PATH_TRAVERSAL/SINGLE] rid=121ad714-9b99-4b1b-bbde-a5fabbea3d7b gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1605
+        [PATH_TRAVERSAL/SINGLE] rid=476f664a-b453-4824-9982-0534fadc1bc1 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1589
+        [BRUTE_FORCE/BF_SEQUENCE] rid=0188ccb2-b24d-4e3f-9d2f-d6df35a6ea14 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=2615
+      GATE overall=INCONCLUSIVE totalSamples=7 totalUncertain=0 report=detections/measurements/gate-report-2026-10-20T13-03-18-418Z.md
+      RUN run_id=eeb2196c-a937-45bc-9afe-a42ac14a5e34 R10=VALID
+      MEASURE>> done overall=INCONCLUSIVE totalSamples=7
+  BUILD SUCCESSFUL in 4m 2s
+  end=2026-10-20T13:03:19Z
+## (3-2) DB 확인 (validation_rw SELECT) 2026-10-20T22:04:16+09:00
+       label       |  kind  | status | expected_attempts | expected_controls | actual_attack | actual_control | r10_status | r10_reason 
+-------------------+--------+--------+-------------------+-------------------+---------------+----------------+------------+------------
+ S4-1b-SMOKE       | ATTACK | CLOSED |                 7 |                 1 |             7 |              1 | VALID      | 
+ S4-STACK-1a-SMOKE | ATTACK | CLOSED |                 7 |                 1 |             7 |              1 | VALID      | 
+(2 rows)
+
+       label       |                git_commit                | git_dirty |         started_at         |          ended_at          
+-------------------+------------------------------------------+-----------+----------------------------+----------------------------
+ S4-1b-SMOKE       | 21885c250077ee8f6551b391859542942a210f51 | f         | 2026-10-18 10:03:17.081+00 | 2026-10-18 10:06:51.136+00
+ S4-STACK-1a-SMOKE | 417eb4b81bffdf5ced2f06d2f424a363c8e9b4de | t         | 2026-10-20 12:59:31.694+00 | 2026-10-20 13:03:18.413+00
+(2 rows)
+
+       label       | attempt_role | gt_outcome | count 
+-------------------+--------------+------------+-------
+ S4-1b-SMOKE       | ATTACK       | SUCCEEDED  |     7
+ S4-1b-SMOKE       | CONTROL      | FAILED     |     1
+ S4-STACK-1a-SMOKE | ATTACK       | SUCCEEDED  |     7
+ S4-STACK-1a-SMOKE | CONTROL      | FAILED     |     1
+(4 rows)
+
+    scenario    |  role   | k |   gt_1b   |   gt_1a   |     verdict_1b     |     verdict_1a     |  atk_1b   |  atk_1a   | ovr_1b | ovr_1a | cmp  
+----------------+---------+---+-----------+-----------+--------------------+--------------------+-----------+-----------+--------+--------+------
+ BRUTE_FORCE    | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | same
+ PATH_TRAVERSAL | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | same
+ PATH_TRAVERSAL | ATTACK  | 2 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | same
+ PATH_TRAVERSAL | ATTACK  | 3 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | same
+ SQLI           | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED | SUCCEEDED | f      | f      | same
+ SSRF           | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | same
+ SSRF           | ATTACK  | 2 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | same
+ SSRF           | CONTROL | 1 | FAILED    | FAILED    | FAILED_UNSEEN      | FAILED_UNSEEN      | SUCCEEDED | SUCCEEDED | t      | t      | same
+(8 rows)
+
+(비교 방식: 시나리오·attempt_role 안에서 verdict·id 순 k번째끼리 짝지음. 비교 컬럼 gt_outcome·verdict·initial_verdict·attacker_verdict·overestimate·detection_status)
+## (3-J) D5 판정 2026-10-20T22:04:16+09:00
+- R10: VALID (expected 7/1 = actual 7/1) → 충족
+- GT: ATTACK 7 SUCCEEDED, CONTROL 1 FAILED (S4-1b-SMOKE와 동일) → 충족
+- verdict 비교: 8행 모두 same, DIFF 0 (SQLI SUCCEEDED_MISSED·SSRF CONTROL attacker=SUCCEEDED/overestimate=true 도 S4-1b와 동일)
+- 기록 사항: run git_commit=417eb4b, git_dirty=true (compose 수정·증거 로그 미커밋 상태에서 측정)
+- 하네스가 detections/measurements/gate-report-2026-10-20T13-03-18-418Z.{md,json} 생성(미추적, 커밋 대상 결정 필요)
+

@@ -1,0 +1,125 @@
+## S4-5-LOGIN clean build (Testcontainers/Docker) — login 외부 전송 run 코드
+date: 2026-10-21T20:28:41Z
+commits: 23d0a22 (ADR-S4-01 v2.0), b0e2957 (V9·ExternalSendIngest·BACKEND_CORR rid·login corpus)
+scope: login code/tests/migration only. 운영 DB·운영 스택 미변경(측정은 별도).
+
+---- gradle summary ----
+BUILD SUCCESSFUL in 11m 49s
+8 actionable tasks: 8 executed
+
+---- key test classes (new, from commit b0e2957) ----
+BenignLoginLinkTest(4) ExternalSendIngestTest(5) V9MigrationTest(1) BenignLoginRunIT(@EnabledIf RUN_BENIGN_LOGIN, 기본 미실행)
+migration count assertion V8->V9 updated: ValidationMigrateEntryTest after()=[1..9]
+
+## ===== (측정) S4-5-BENIGN-LOGIN run 2026-10-21T21:14:26Z =====
+run_id=7fc9767f-e37e-4d0d-be50-c6b38cb7d9eb, 전송 300건(200×287, 401×13 TYPO)
+## S4-5-LOGIN clean build (Testcontainers/Docker) — login 외부 전송 run 코드
+date: 2026-10-21T20:28:41Z
+commits: 23d0a22 (ADR-S4-01 v2.0), b0e2957 (V9·ExternalSendIngest·BACKEND_CORR rid·login corpus)
+scope: login code/tests/migration only. 운영 DB·운영 스택 미변경(측정은 별도).
+
+---- gradle summary ----
+BUILD SUCCESSFUL in 11m 49s
+8 actionable tasks: 8 executed
+
+---- key test classes (new, from commit b0e2957) ----
+BenignLoginLinkTest(4) ExternalSendIngestTest(5) V9MigrationTest(1) BenignLoginRunIT(@EnabledIf RUN_BENIGN_LOGIN, 기본 미실행)
+migration count assertion V8->V9 updated: ValidationMigrateEntryTest after()=[1..9]
+-rw-rw-r-- 1 hyeonseong hyeonseong 1047184 Oct 22 05:31 /home/hyeonseong/capstone-backups/2026-10-22_validation_pre-v9.sql
+## (0-login) 2026-10-21T20:31:33Z
+3344d54 chore(evidence): S4-5 login build SUCCESSFUL (322 tests, V9 applied in test)
+git_dirty=1
+BEGIN
+ installed_rank | version | success 
+----------------+---------+---------
+              8 | 8       | t
+              7 | 7       | t
+              6 | 6       | t
+(3 rows)
+
+ endpoints 
+-----------
+         3
+(1 row)
+
+             r10_md5              | runs 
+----------------------------------+------
+ d6a045f6cc9f0e8ed46027260a542006 |   15
+(1 row)
+
+ snapshot_rows 
+---------------
+           190
+(1 row)
+
+COMMIT
+BEGIN
+ installed_rank | version | success 
+----------------+---------+---------
+              9 | 9       | t
+              8 | 8       | t
+(2 rows)
+
+       endpoint       |    scenario    |  param   
+----------------------+----------------+----------
+ /api/auth/login      | BRUTE_FORCE    | username
+ /api/files/download  | PATH_TRAVERSAL | filename
+ /api/preview         | SSRF           | url
+ /api/products/search | SQLI           | keyword
+(4 rows)
+
+ definition_version 
+--------------------
+ ADR-S4-01 v2.0
+(1 row)
+
+             r10_md5              | runs 
+----------------------------------+------
+ d6a045f6cc9f0e8ed46027260a542006 |   15
+(1 row)
+
+ snapshot_rows 
+---------------
+           190
+(1 row)
+
+COMMIT
+BenignLoginRunIT > run() STANDARD_OUT
+    BENIGN>> external open label=S4-5-BENIGN-LOGIN run_id=7fc9767f-e37e-4d0d-be50-c6b38cb7d9eb endpoint=/api/auth/login expected=300
+    BENIGN>> login run_id=7fc9767f-e37e-4d0d-be50-c6b38cb7d9eb
+BUILD SUCCESSFUL in 2s
+## (4-L 해석) NIDS FP 76/300 원인
+BACKEND_CORR fp=0/300 (앱로그 BF 상관, 실패10+성공 — 정상 로그인에 미반응)
+NIDS fp=76/300: sid 1000032×60, 1000031×26 (ANALYTIC). 1000030×300 recorded(TELEMETRY)
+원인: sid 1000031(10회/60s)·1000032(5회/180s)는 threshold by_src 로 로그인 POST 빈도만 봄(성공/실패 미구분).
+      단일 IP(127.0.0.1)·1초 간격 → 60초에 약 60요청 → 임계 초과. 분포 균등(구간당 6~9건), total_links 86.
+해석: 측정 조건(단일 IP·압축 시간, ADR R18 j 보수적 조건)에서의 상한. 룰은 수정 안 함(baseline). S5 개선 후보.
+대조: BACKEND_CORR(앱로그 상관) 0 vs NIDS(네트워크 빈도) 76 — 계층별 정밀도 차이.
+BEGIN
+              set_config              
+--------------------------------------
+ 7fc9767f-e37e-4d0d-be50-c6b38cb7d9eb
+(1 row)
+
+DO
+ inserted 
+----------
+        6
+(1 row)
+
+     metric_id     | scope_kind |  scope_key  | numerator | denominator |   p    | wilson_hi |     status     | definition_version | snapshot_rule_version 
+-------------------+------------+-------------+-----------+-------------+--------+-----------+----------------+--------------------+-----------------------
+ M14a_APP_RULE     | SCENARIO   | BRUTE_FORCE |           |         300 |        |           | NOT_APPLICABLE | ADR-S4-01 v2.0     | ADR-S4-01 v1.8
+ M14a_BACKEND_CORR | SCENARIO   | BRUTE_FORCE |         0 |         300 | 0.0000 |    0.0126 | OK             | ADR-S4-01 v2.0     | ADR-S4-01 v1.8
+ M14a_NIDS         | SCENARIO   | BRUTE_FORCE |        76 |         300 | 0.2533 |    0.3055 | OK             | ADR-S4-01 v2.0     | ADR-S4-01 v1.8
+ M14b_APP_RULE     | ALL        | ALL         |           |             |        |           | NOT_APPLICABLE | ADR-S4-01 v2.0     | ADR-S4-01 v1.8
+ M14b_BACKEND_CORR | ALL        | ALL         |         0 |         260 | 0.0000 |    0.0146 | OK             | ADR-S4-01 v2.0     | ADR-S4-01 v1.8
+ M14b_NIDS         | ALL        | ALL         |           |             |        |           | NOT_COLLECTED  | ADR-S4-01 v2.0     | ADR-S4-01 v1.8
+(6 rows)
+
+ run_rows | total_after 
+----------+-------------
+        6 |         196
+(1 row)
+
+COMMIT

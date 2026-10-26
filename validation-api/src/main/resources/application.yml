@@ -1,0 +1,79 @@
+spring:
+  application:
+    name: validation-api
+  # ADR-S4-02 D2: validation_ro 읽기 전용. 풀 최댓값 5(→ role CONNECTION LIMIT 6).
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:vulndb}
+    username: ${DB_USER:validation_ro}
+    password: ${VALIDATION_RO_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      read-only: true
+      auto-commit: false
+      pool-name: validation-ro-pool
+      connection-init-sql: "SET default_transaction_read_only = on"
+  # D4: RFC 9457 Problem Details 명시(Boot 기본값에 의존하지 않음)
+  mvc:
+    problemdetails:
+      enabled: true
+  # 응답 필드 snake_case (ADR-S4-02 D4: x,n,p,lo,hi,status,definition_version)
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+  # D5: HTTPS 전용 — SSL 번들(PEM). 개별 keystore 속성과 섞지 않음.
+  ssl:
+    bundle:
+      pem:
+        validationapi:
+          keystore:
+            certificate: "${TLS_CERT_PATH:/etc/validation-api/tls/cert.pem}"
+            private-key: "${TLS_KEY_PATH:/etc/validation-api/tls/key.pem}"
+          # 번들 사용 시 server.ssl.ciphers·enabled-protocols 는 무시 → options 로 지정
+          options:
+            enabled-protocols: [ "TLSv1.3", "TLSv1.2" ]
+
+server:
+  port: 8090
+  ssl:
+    bundle: validationapi
+  # D6: 세션 쿠키 HttpOnly·Secure·SameSite=Strict
+  servlet:
+    session:
+      cookie:
+        same-site: strict
+        secure: true
+        http-only: true
+      timeout: 30m
+
+# D6: actuator 는 health 만 노출
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+# Whitelabel 대신 ApiErrorController(/error) 사용
+server.error.whitelabel.enabled: false
+
+# 앱 설정
+validationapi:
+  # D6: smoke·capture 용 Bearer 토큰(쉼표 구분). 사람 브라우저 경로엔 쓰지 않음.
+  bearer-tokens: "${VALIDATION_API_BEARER_TOKENS:}"
+  # 목록 상한(D4): 기본 500, 최대 run 시도 수(160) 여유. 설정값.
+  max-limit: 500
+  default-limit: 200
+  # D6: 대시보드 로그인 사용자(비밀번호는 bcrypt 해시로 .env 주입 — 평문 저장 안 함)
+  ui:
+    username: "${UI_USERNAME:viewer}"
+    password-bcrypt: "${UI_PASSWORD_BCRYPT:}"
+
+logging:
+  level:
+    root: INFO
+    # CSRF/세션 원인 구분용 1회 확인: 컨테이너 env SECURITY_LOG_LEVEL=DEBUG
+    org.springframework.security: "${SECURITY_LOG_LEVEL:INFO}"

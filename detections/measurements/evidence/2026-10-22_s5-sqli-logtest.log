@@ -1,0 +1,91 @@
+operational_manager=security-lab-wazuh.manager-1 image=sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
+throwaway_image=sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
+waiting manager init...
+rule load OK (no CRITICAL/Syntax error)
+## 첫 샘플(')의 wazuh-logtest 원출력 ↓↓↓
+Starting wazuh-logtest v4.14.9
+Type one log per line
+
+
+
+** Wazuh-Logtest: WARNING: (7612): Rule ID '100001' is duplicated. Only the first occurrence will be considered.
+
+**Phase 1: Completed pre-decoding.
+	full event: '{"time":1792526840652,"metadata":{"version":"1.9.0","log_name":"attack_http_activity"},"class_uid":4002,"class_name":"HTTP Activity","activity_id":3,"rid":"t","src_endpoint":{"ip":"172.20.0.1"},"http_request":{"http_method":"GET","url":{"path":"/api/products/search"},"user_agent":"Mozilla/5.0","args":"keyword='"},"http_response":{"code":200,"latency_ms":10,"body_length":5},"validation":{"outcome":"SUCCEEDED","evidence":[],"validator_version":"v1","technique_id":"T1190"},"correlation":{"op_id":null,"ability_id":null,"source":"NONE"}}'
+
+**Phase 2: Completed decoding.
+	name: 'json'
+	activity_id: '3'
+	class_name: 'HTTP Activity'
+	class_uid: '4002'
+	correlation.ability_id: 'null'
+	correlation.op_id: 'null'
+	correlation.source: 'NONE'
+	http_request.args: 'keyword=''
+	http_request.http_method: 'GET'
+	http_request.url.path: '/api/products/search'
+	http_request.user_agent: 'Mozilla/5.0'
+	http_response.body_length: '5'
+	http_response.code: '200'
+	http_response.latency_ms: '10'
+	metadata.log_name: 'attack_http_activity'
+	metadata.version: '1.9.0'
+	rid: 't'
+	src_endpoint.ip: '172.20.0.1'
+	time: '1792526840652.000000'
+	validation.evidence: '[]'
+	validation.outcome: 'SUCCEEDED'
+	validation.technique_id: 'T1190'
+	validation.validator_version: 'v1'
+
+**Phase 3: Completed filtering (rules).
+	id: '100211'
+	level: '10'
+	description: 'SQLi: injection syntax signal in product search request (JSON, request-signal, DET0080 request content) - S5 Gap #7'
+	groups: '['vuln-webapp', 'attack-http-activity', 'sql_injection', 'request_signal']'
+	firedtimes: '1'
+	mail: 'False'
+	mitre.id: '['T1190']'
+	mitre.tactic: '['Initial Access']'
+	mitre.technique: '['Exploit Public-Facing Application']'
+**Alert to be generated.
+## ↑↑↑ 원출력 끝
+## POSITIVE (triggered 100210 또는 100211)
+POS        keyword='                        triggered_rule=100211
+POS        keyword="                        triggered_rule=100211
+POS        keyword=')                       triggered_rule=100211
+POS        keyword=' OR '1'='1              triggered_rule=100211
+POS        keyword=' OR 1=1--               triggered_rule=100210
+POS        keyword=1;--                     triggered_rule=100211
+POS        keyword=admin'#                  triggered_rule=100211
+POS        keyword=' UNION SELECT NULL--    triggered_rule=100210
+POS        keyword='/*                      triggered_rule=100211
+POS        keyword=' AND SLEEP(1)--         triggered_rule=100210
+## NEGATIVE (triggered none)
+NEG        keyword=laptop--pro              triggered_rule=100200
+NEG        keyword=report.pdf               triggered_rule=100200
+NEG        keyword=galaxy s24               triggered_rule=100200
+NEG        keyword=wireless mouse           triggered_rule=100200
+NEG        keyword=keyboard                 triggered_rule=100200
+## RECORD-ONLY (100211 가능, 가드레일 측정)
+REC        keyword=O'Reilly                 triggered_rule=100211
+REC        keyword=it's                     triggered_rule=100211
+## 요약
+POS|'|100211
+POS|"|100211
+POS|')|100211
+POS|' OR '1'='1|100211
+POS|' OR 1=1--|100210
+POS|1;--|100211
+POS|admin'#|100211
+POS|' UNION SELECT NULL--|100210
+POS|'/*|100211
+POS|' AND SLEEP(1)--|100210
+NEG|laptop--pro|100200
+NEG|report.pdf|100200
+NEG|galaxy s24|100200
+NEG|wireless mouse|100200
+NEG|keyboard|100200
+REC|O'Reilly|100211
+REC|it's|100211
+## done 2026-10-21T22:16:11Z

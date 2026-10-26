@@ -1,0 +1,8 @@
+id: adv-subtype-variants-002
+name: '[B] Subtype Variants - 서브타입 변형'
+description: Password Spraying, Time-based Blind SQLi, Boolean-based Blind SQLi 3종. 각각 기존 Attack Path 룰로는 탐지가 어려운 변형 기법을 검증한다. ⚠️ pg_sleep(5) connection 점유로 인해 sequential planner 필수.
+atomic_ordering:
+- 11a2b3c4-5d6e-4789-8abc-def012345001
+- 22b3c4d5-6e7f-4890-9bcd-ef0123456002
+- 33c4d5e6-7f8a-4901-acde-f01234567003
+objective: 495a9828-cab1-44dd-a0ca-66e58177d8cc

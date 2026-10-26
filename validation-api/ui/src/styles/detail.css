@@ -1,0 +1,41 @@
+/* Q3 공격 검증 상세 */
+[data-testid="screen-detail"] {
+  gap: 23px;
+
+  .back { color: var(--accent); font-weight: 700; font-size: 11px; }
+  .eyebrow { color: var(--accent); font-size: 11px; font-weight: 650; }
+  .heading h1 { font-size: 24px; font-weight: 600; line-height: 36px; margin: 8px 0; }
+  .heading p { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0; }
+  .banner { display: flex; justify-content: space-between; gap: 20px; align-items: center; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 26px; flex-wrap: wrap; }
+  .banner h2 { font-size: 21px; margin: 7px 0; }
+  .banner p { color: var(--muted); margin: 0; font-size: 11px; }
+  .pair { display: flex; gap: 20px; }
+  .pair div { display: flex; flex-direction: column; align-items: start; gap: 8px; }
+  .pair small { color: var(--soft); font-size: 10px; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 24px; min-width: 0; }
+  .ph { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 18px; }
+  .ctx { color: var(--accent); font-size: 11px; font-weight: 750; }
+  .ph h2 { margin: 6px 0 0; font-size: 16px; letter-spacing: -.025em; }
+  .link { color: var(--accent); font-weight: 700; font-size: 11px; white-space: nowrap; }
+  dl { margin: 0; }
+  .dl div { display: flex; justify-content: space-between; gap: 15px; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
+  .dl div:last-child { border-bottom: 0; }
+  .dl dt { color: var(--soft); }
+  .dl dd { color: var(--text); margin: 0; text-align: right; }
+  .inline { color: var(--muted); background: var(--accentbg); border-left: 2px solid var(--accent); font-size: 11px; line-height: 1.6; padding: 12px 14px; border-radius: 0 6px 6px 0; margin: 18px 0 0; }
+  .badge { display: inline-flex; border-radius: 6px; font-size: 10px; font-weight: 750; white-space: nowrap; padding: 6px 8px; }
+  .b-ok { background: var(--detbg); color: var(--det); }
+  .b-dg { background: var(--dangerbg); color: var(--danger); }
+  .b-at { background: var(--attackbg); color: var(--attack); }
+  .b-nu { background: var(--alt); color: var(--muted); }
+  .tw { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; }
+  th { color: var(--soft); font-size: 12px; font-weight: 400; border-bottom: 1px solid var(--border); padding: 8px 12px; height: 40px; white-space: nowrap; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 12px; height: 44px; vertical-align: middle; color: var(--muted); }
+  tr:last-child td { border-bottom: 0; }
+  .pc { color: var(--text); font-weight: 650; }
+  .reval { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; background: var(--attackbg); border: 1px solid #b899eb40; border-radius: 12px; padding: 18px 22px; font-size: 12px; color: var(--muted); }
+  .reval b { color: var(--text); font-size: 13px; display: block; margin-bottom: 4px; }
+  .pb { border-radius: 8px; min-height: 36px; padding: 8px 13px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; background: #e6f1fd; color: #1c1c1c; }
+}

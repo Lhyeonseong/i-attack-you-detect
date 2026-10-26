@@ -1,0 +1,9 @@
+id: adv-defense-evasion-003
+name: '[C] Defense Evasion - 우회율 정량 측정 (확장)'
+description: SQLi 우회 8종 + Path Traversal 우회 8종 = 총 16종. 기본 4종(Comment/Case/이중인코딩/공백주석 + 단일인코딩/이중인코딩/Mixed slash/Unicode) + 고급 4종(Tab/Newline/HPP/Concat + Null byte/Overlong UTF-8/Double dot/Backslash mix).
+atomic_ordering:
+- 44d5e6f7-8a9b-4012-bdef-012345678004
+- 44d5e6f7-8a9b-4012-bdef-012345678104
+- 55e6f7a8-9b0c-4123-cef0-123456789005
+- 55e6f7a8-9b0c-4123-cef0-123456789105
+objective: 495a9828-cab1-44dd-a0ca-66e58177d8cc

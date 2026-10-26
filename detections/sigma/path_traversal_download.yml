@@ -1,0 +1,23 @@
+# Source of truth. Wazuh rule 100220 is the hand-converted deployment of this.
+title: Path Traversal Pattern in File Download Request
+id: f671caf0-74c3-4c4d-a381-405cc1287559
+status: experimental
+description: |
+    Detects path traversal patterns in the args of /api/files/download requests,
+    based on the OCSF HTTP Activity JSON log (attack.json.log).
+    Uses request fields only (http_request.*); app-side validation.* / correlation.* are not referenced.
+author: capstone
+date: 2026-10-10
+tags:
+    - attack.t1190
+logsource:
+    product: target-web
+    service: attack_http_activity
+detection:
+    selection:
+        http_request.url.path: /api/files/download
+        http_request.args|re: '(?i)(\.\./|\.\.%2f|%2e%2e|/etc/passwd|/etc/shadow|\.\.\\)'
+    condition: selection
+falsepositives:
+    - Rare; legitimate filenames do not contain '../' or system file paths
+level: high

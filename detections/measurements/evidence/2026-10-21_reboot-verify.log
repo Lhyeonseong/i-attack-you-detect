@@ -1,0 +1,178 @@
+# 재부팅 검증 (슬라이스 7.1, 읽기 전용) — 스택 업그레이드 전체의 VM 재부팅 내구성 (ADR-S4-03 7.1)
+# 배경: da7b41b 까지 Suricata 8.0.7·Wazuh 4.14.9·PG 16.15·Boot 4.1.1·digest 고정·IFN·bootstrap 제거. 2026-10-21 18:4x KST sudo shutdown -r (현성)
+
+## (1) 호스트·컨테이너 2026-10-21T09:47:40Z HEAD=da7b41b porcelain=1
+  uptime -s: 2026-10-21 18:42:00 / who -b: system boot  2026-10-21 18:42
+  docker ps -a:
+caldera	Up 5 minutes
+keen_brahmagupta	Exited (0) 6 months ago
+mock-imds	Up 5 minutes
+postgres	Up 5 minutes (healthy)
+security-lab-wazuh.agent-1	Up 5 minutes
+security-lab-wazuh.indexer-1	Up 5 minutes
+security-lab-wazuh.manager-1	Up 5 minutes
+suricata	Up 5 minutes
+target-web	Up 5 minutes
+  /caldera started=2026-10-21T09:42:15.436189338Z restarts=0 status=running image=sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7 Config.Image=ghcr.io/mitre/caldera:5.2.0@sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7
+  /keen_brahmagupta started=2026-04-22T08:14:27.85067088Z restarts=0 status=exited image=sha256:f9078146db2e05e794366b1bfe584a14ea6317f44027d10ef7dad65279026885 Config.Image=hello-world
+  /mock-imds started=2026-10-21T09:42:15.262264482Z restarts=0 status=running image=sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 Config.Image=python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+  /postgres started=2026-10-21T09:42:15.318843146Z restarts=0 status=running image=sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d Config.Image=postgres:16.15-trixie@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+  /security-lab-wazuh.agent-1 started=2026-10-21T09:42:15.282952507Z restarts=0 status=running image=sha256:db274c1e2c56106f108fa1469f7ee99995ad3cac41003e8ca7a975cda2af20d8 Config.Image=wazuh/wazuh-agent:4.14.9@sha256:db274c1e2c56106f108fa1469f7ee99995ad3cac41003e8ca7a975cda2af20d8
+  /security-lab-wazuh.indexer-1 started=2026-10-21T09:42:15.338171411Z restarts=0 status=running image=sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6 Config.Image=wazuh/wazuh-indexer:4.14.9@sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6
+  /security-lab-wazuh.manager-1 started=2026-10-21T09:42:15.326652311Z restarts=0 status=running image=sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b Config.Image=wazuh/wazuh-manager:4.14.9@sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
+  /suricata started=2026-10-21T09:42:20.497491763Z restarts=0 status=running image=sha256:bf4bea5b45d9c10265a3ee6628e2ec8930b9d1fb7caf9d1afb63af413b9cbb26 Config.Image=jasonish/suricata:8.0.7@sha256:bf4bea5b45d9c10265a3ee6628e2ec8930b9d1fb7caf9d1afb63af413b9cbb26
+  /target-web started=2026-10-21T09:42:15.260680936Z restarts=0 status=running image=sha256:29369098bfa0b0512b4e74ff3f57fdbc709e831f0e3ba922af03f8e4b6e892d5 Config.Image=security-lab-target-web
+  compose 고정 이미지 (docker compose config --format json → services.*.image, 비밀 미포함):
+    caldera image=ghcr.io/mitre/caldera:5.2.0@sha256:97a8f9fd052aaabdee76e8367d1ec985b3e44e6add0b27a28d8fee9cafe426c7 container_name=caldera
+    mock-imds image=python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 container_name=mock-imds
+    postgres image=postgres:16.15-trixie@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d container_name=postgres
+    suricata image=jasonish/suricata:8.0.7@sha256:bf4bea5b45d9c10265a3ee6628e2ec8930b9d1fb7caf9d1afb63af413b9cbb26 container_name=suricata
+    target-web image=(build) container_name=target-web
+    wazuh.agent image=wazuh/wazuh-agent:4.14.9@sha256:db274c1e2c56106f108fa1469f7ee99995ad3cac41003e8ca7a975cda2af20d8 container_name=-
+    wazuh.indexer image=wazuh/wazuh-indexer:4.14.9@sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6 container_name=-
+    wazuh.manager image=wazuh/wazuh-manager:4.14.9@sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b container_name=-
+  (porcelain 1 = 이 증거 로그 자신. keen_brahmagupta = hello-world, 2026-04-22 Exited — 스택 밖 옛 컨테이너, 기록만)
+  → (1) 통과: 스택 8개 모두 부팅(09:42:00Z) 직후 09:42:15~20Z 시작, restarts=0, 이미지 = compose digest (target-web = 29369098bfa0…)
+
+## (2) RUNBOOK (0-c) 2026-10-21T09:48:01Z
+app0 172.20.0.3/16
+atk0 172.18.0.2/16
+imds0 169.254.169.2/24
+sec0 172.19.0.5/16
+eth_count=0
+security-lab_app_net 172.20.0.0/16
+security-lab_attack_net 172.18.0.0/16
+security-lab_imds_net 169.254.169.0/24
+security-lab_security_net 172.19.0.0/16
+["-i","app0","-i","atk0","-i","imds0","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.5.stats.enabled=no","--set","outputs.1.eve-log.types.32.stats.enabled=no"]
+NM_OK
+
+## (3) RUNBOOK (0-d)
+outputs.5 stats enabled=no
+eve-log.types.0 alert enabled=yes(미지정)
+eve-log.types.3 http enabled=yes(미지정)
+eve-log.types.7 files enabled=yes(미지정)
+eve-log.types.32 stats enabled=no
+eve-log.types.33 flow enabled=yes(미지정)
+
+## (3)·(4) suricata.log (파일 /var/log/suricata/suricata.log, 이번 기동 09:42Z 이후 줄)
+  이번 기동 줄 수 20
+  4109:[1 - Suricata-Main] 2026-10-21 09:42:21 Notice: suricata: This is Suricata version 8.0.7 RELEASE running in SYSTEM mode
+  4122:[1 - Suricata-Main] 2026-10-21 09:42:22 Info: runmodes: app0: creating 4 threads
+  4123:[1 - Suricata-Main] 2026-10-21 09:42:22 Info: runmodes: atk0: creating 4 threads
+  4124:[1 - Suricata-Main] 2026-10-21 09:42:22 Info: runmodes: imds0: creating 4 threads
+  4128:[1 - Suricata-Main] 2026-10-21 09:42:23 Notice: threads: Threads created -> W: 12 FM: 1 FR: 1   Engine started.
+  Error/Warning 줄 수: 0
+  → (2) 통과: app0 172.20.0.3·atk0 172.18.0.2·imds0 169.254.169.2·sec0 172.19.0.5 모두 짝 서브넷 안, eth_count=0, -i app0/atk0/imds0, NM_OK
+     기록: atk0 주소가 재부팅 전(2026-10-21_s3-boot-4.1.log (5-0)·(4-2) 172.18.0.3) → 172.18.0.2 로 바뀜. attack_net 배정 현황:
+       caldera 172.18.0.3/16
+       target-web 172.18.0.2/16
+       app_net: postgres=172.20.0.2/16 target-web=172.20.0.3/16 
+       imds_net: mock-imds=169.254.169.254/24 target-web=169.254.169.2/24 
+     측정 영향 근거(사실): Caldera source target.url=127.0.0.1:8080(application.yaml source-id 주석), RUNBOOK (3-d) 판정은 app_net 앱 IP(172.20.0.3, 불변) 기준
+  → (3) 통과: (0-d) stats no 2줄·alert/http/files/flow 4줄, MEASURE_FAIL 0. suricata.log 'This is Suricata version 8.0.7', 'Engine started.' 09:42:23, Error/Warning 0
+  → (4) 통과: suricata.log(파일) 'runmodes: app0/atk0/imds0: creating 4 threads', 'Threads created -> W: 12 FM: 1 FR: 1'
+
+## (5) target-web 2026-10-21T09:48:34Z
+   :: Spring Boot ::                (v4.1.1)
+  2026-10-21T08:48:21.495Z DEBUG 1 --- [           main] com.capstone.vuln.VulnApplication        : Running with Spring Boot v4.1.1, Spring v7.0.9
+  2026-10-21T08:48:25.219Z  INFO 1 --- [           main] com.capstone.vuln.VulnApplication        : Started VulnApplication in 4.918 seconds (process running for 5.9)
+   :: Spring Boot ::                (v4.1.1)
+  2026-10-21T09:42:30.582Z DEBUG 1 --- [           main] com.capstone.vuln.VulnApplication        : Running with Spring Boot v4.1.1, Spring v7.0.9
+  2026-10-21T09:42:51.872Z  INFO 1 --- [           main] com.capstone.vuln.VulnApplication        : Started VulnApplication in 25.194 seconds (process running for 30.936)
+  docker logs 125줄, ' ERROR '/Exception/Caused by 0줄, ' WARN ' 0줄
+  GET http://127.0.0.1:8080/actuator/health → HTTP 200
+  attack.json.log 줄 수 1097 (재부팅 전 마지막 기록 1097 이후 스모크·정상요청 포함 — 기록만)
+
+## (6) Wazuh
+  agent_control:    ID: 004, Name: wazuh.agent, IP: any, Active
+  application.yaml 인덱서 설정 줄: 
+    63:    indexer:
+    64:      url: ${APP_MEASURE_INDEXER_URL:https://127.0.0.1:9200}
+  (정정) attack.json.log 1097 = 정상요청 후 1077 + 3-SMOKE 20 → 재부팅 후 새 줄 0
+  → (5) 통과: 이번 기동 09:42:30Z 'Running with Spring Boot v4.1.1, Spring v7.0.9', 09:42:51Z 'Started VulnApplication in 25.194 seconds', ERROR·WARN 0, health HTTP 200
+     (docker logs 는 같은 컨테이너의 08:48Z 기동분 포함. conf/agents.yml 은 caldera 쪽 파일이라 (8)에서 확인)
+--- indexer (https://127.0.0.1:9200, 인증은 curl --config stdin, 미출력)
+  _cluster/health: {"cluster_name":"wazuh-cluster","status":"green","number_of_nodes":1,"active_shards":104,"unassigned_shards":0,"active_shards_percent_as_number":100.0}
+  _cat/indices wazuh-alerts-* (index, health, docs.count):
+    wazuh-alerts-4.x-2026.10.18 green  151
+    wazuh-alerts-4.x-2026.10.19 green    5
+    wazuh-alerts-4.x-2026.10.20 green 1895
+    wazuh-alerts-4.x-2026.10.21 green  149
+  alerts 총 문서 수: 7778, 재부팅 후(timestamp ≥ 09:42Z) 문서 수: null
+--- filebeat (manager 안)
+    parse url... OK
+    connection...
+      parse host... OK
+      dns lookup... OK
+      dial up... OK
+    TLS...
+      handshake... OK
+      TLS version: TLSv1.2
+      dial up... OK
+    talk to server... OK
+    version: 7.10.2
+  wazuh-modulesd is running...
+  wazuh-monitord is running...
+  wazuh-logcollector is running...
+  wazuh-remoted is running...
+  wazuh-analysisd is running...
+  wazuh-db is running...
+  (정정) 위 '재부팅 후 문서 수: null' = 내 URL q 질의 문법 오류(측정 실패, 값으로 쓰지 않음). range 본문으로 재조회 원문: {"count":2,"_shards":{"total":87,"successful":87,"skipped":0,"failed":0}}
+  재부팅 후(timestamp ≥ 09:42:00Z) wazuh-alerts 문서 수: 2
+  → (6) 통과: agent 004 'Active', indexer cluster green·node 1·active_shards 104·unassigned 0, wazuh-alerts-4.x-* 인덱스 green(총 7778 문서),
+     filebeat test output 'talk to server... OK'(TLSv1.2), manager 데몬 6개 running
+  재부팅 후 alert: 2026-10-21T09:42:49.216+0000 rule.id=503 level=3 agent=wazuh.agent location=wazuh-agent desc=Wazuh agent started.
+  재부팅 후 alert: 2026-10-21T09:42:54.707+0000 rule.id=502 level=3 agent=wazuh.manager location=wazuh-monitord desc=Wazuh server started.
+
+## (7) Caldera 2026-10-21T09:49:40Z
+  'All systems ready' 줄: 2 (마지막:  INFO All systems ready. server.py:104)
+  이번 기동(09:42Z 이후) 로그 241줄, All systems ready 1, ERROR 9, Traceback 1
+  ERROR 요지(이번 기동):
+          2 Ability=44d5e6f7-8a9b-4012-bdef-012
+          2 Ability=55e6f7a8-9b0c-4123-cef0-123
+          1 Ability=c4e8f2b1-9d5a-4f7e-b3c6-8a2
+          1 Ability=d5f9a3c2-0e6b-4a8f-b4d7-9b3
+          1 Ability=e2a3b4c5-d6e7-f8a9-b0c1-d2e
+          2 plugin=builder
+  (0-b) total=46
+  finished=46
+  재부팅 후 alert 2건 = rule 503 'Wazuh agent started.'(09:42:49Z) · 502 'Wazuh server started.'(09:42:54Z) → 재부팅 후 manager→indexer 색인 경로 동작
+  이번 기동 Traceback 1 = 'WARNING Unable to build docs: … ModuleNotFoundError: No module named 'distutils'' (fieldmanual sphinx, ERROR 아님). 재부팅 전 09:32Z 기동(docker logs 217행)에도 같은 위치에 있음
+  이번 기동 ERROR 9 = builder 2·wrong tactic 7 (44d5e6f7×2, 55e6f7a8×2, c4e8f2b1, d5f9a3c2, e2a3b4c5) — BOOT-ABIL (3-2) 에서 DRI 수용한 9줄과 같은 구성
+  → (7) 통과: 'All systems ready.' (이번 기동 1회), (0-b) total=46 finished=46, running/paused 0
+  [기준 밖 관찰 — 재부팅 직전 종료 로그] docker logs (같은 컨테이너 09:32Z 실행분) 의 종료 시각 ERROR:
+    249:2026-10-21 09:41:42 ERROR Error saving operation report c_operation.py:348
+    250- (S2-SSRF-validation-01) 
+    320:2026-10-21 09:41:44 ERROR Error saving operation report c_operation.py:348
+    321- (S3-INFRA2-BF-user1-01) 
+    391:2026-10-21 09:41:45 ERROR Error saving operation report c_operation.py:348
+    392- (S3-INFRA2-BF-user1-02) 
+    각 건 원인 줄:       2 KeyError: 'cdqyzu'       1 KeyError: 'djlycn' 
+    맥락(사실): 'KeyboardInterrupt' 처리 중(server.py:106 run_forever) → app/objects/c_operation.py:343 report 에서 KeyError(paw) → c_operation.py:348 'Error saving operation report'
+    재부팅 후 상태: operations total 46 finished 46 (스모크 op ecd61cb6 포함), agents 기록 유지 → data 저장(save_state)은 반영된 것으로 보임(추정)
+
+## (8) bootstrap 제거 유지
+  -rw-r--r-- 1 root   root   275 Oct 21 09:42 /usr/src/app/conf/agents.yml
+  -rw-rw-r-- 1 ubuntu ubuntu 275 Oct 21 09:28 /usr/src/app/conf/agents.yml.template
+  cmp: agents.yml == template
+  bootstrap_abilities: []
+  API config/agents: bootstrap_abilities length=0 type=array, deadman_abilities=null
+  agents (재부팅 후):
+    dmceil trusted=false created=2026-10-21T08:59:46Z last_seen=2026-10-21T09:35:44Z links=1
+    qvfnuu trusted=false created=2026-10-21T09:36:49Z last_seen=2026-10-21T09:40:46Z links=0
+
+## (9) 호스트 ~/.bash_history (크기·mtime만, 내용 미출력)
+  now: 242 bytes mtime=2026-10-21 18:41:39.393807624 +0900  (BOOT-ABIL (3-3): 101 bytes mtime 18:36:27 KST, 부팅 18:42:00 KST)
+  → (8) 통과: 재부팅 후 기동(09:42Z)에서 entrypoint 가 다시 복사 — conf/agents.yml mtime 09:42, cmp == template, 'bootstrap_abilities: []', API length=0
+  → (9) 통과: 242 bytes(> 0, 비워지지 않음), mtime 18:41:39 KST = 부팅(18:42:00 KST) 전 — 종료 때 셸 기록이 쓰인 것으로 보임(추정)
+     주: 재부팅 후 sandcat 미기동(최신 agent qvfnuu last_seen 09:40:46Z trusted=false) → 재부팅 후 새 agent 등록은 없었음.
+         '재부팅 후에도 Avoid logs 안 돎' 의 근거는 (8) 설정 유지(bootstrap []), 새 agent 등록으로 확인한 것은 아님
+
+## (J) 판정 요청: 항목 (1)~(9) 전부 통과 → "재부팅 내구성 확인" 판정 요청 (최종 판정은 DRI)
+  기록 사항(판정 기준 밖):
+    - atk0 172.18.0.3 → 172.18.0.2 (caldera 와 attack_net 배정 순서 바뀜, 서브넷 안, 측정 기준 IP 아님)
+    - target-web 기동 25.2초(재생성 직후 4.9초) — 부팅 직후 부하로 보임(추정)
+    - Caldera 재부팅 직전 종료 때 'Error saving operation report' 3건(S2-SSRF-validation-01, S3-INFRA2-BF-user1-01/-02, KeyError paw cdqyzu×2·djlycn) — 종료 시 보고서 작성 단계, 재부팅 후 operations 46·agents 유지
+    - Caldera 기동 ERROR 9(BOOT-ABIL 수용분과 동일)·fieldmanual docs WARNING(distutils) 은 재부팅 전과 같은 구성
+    - keen_brahmagupta(hello-world, 2026-04 Exited) 스택 밖 컨테이너

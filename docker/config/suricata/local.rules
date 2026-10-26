@@ -1,0 +1,264 @@
+# =============================================================================
+# Suricata Local Rules — Caldera + MITRE ATT&CK 취약 웹앱 탐지
+# =============================================================================
+# SID 범위
+#   1000001–1000009 : Caldera 식별 (UA / 헤더)
+#   1000010–1000019 : SQL Injection
+#   1000020–1000029 : Path Traversal
+#   1000030–1000039 : Brute Force
+#   1000040–1000049 : 피드백 개선 룰 (Phase 2)
+#   1000050–1000059 : XSS (Cross-Site Scripting)
+#   1000060–1000069 : SSRF (Server-Side Request Forgery)
+#   1000070–1000079 : RCE (Command Injection)
+#
+# 주의: Suricata는 룰을 단일 라인으로 파싱한다. 멀티라인은 백슬래시(\) 연속
+#       또는 단일 라인으로 작성해야 함. 가독성보다 파서 호환을 우선.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# [1] Caldera 식별 — 상관관계 매칭용
+# -----------------------------------------------------------------------------
+
+# UA Fallback: Caldera/{opId}/{techId}/{abilityId}
+alert http any any -> any 8080 (msg:"[CALDERA] Agent detected via User-Agent"; flow:to_server,established; http.user_agent; content:"Caldera/"; startswith; classtype:policy-violation; sid:1000001; rev:1;)
+
+# Primary Header: X-Caldera-Op-Id
+alert http any any -> any 8080 (msg:"[CALDERA] Operation header detected - X-Caldera-Op-Id"; flow:to_server,established; http.request_header; content:"X-Caldera-Op-Id"; classtype:policy-violation; sid:1000002; rev:1;)
+
+# Primary Header: X-Caldera-Technique
+alert http any any -> any 8080 (msg:"[CALDERA] Technique header detected - X-Caldera-Technique"; flow:to_server,established; http.request_header; content:"X-Caldera-Technique"; classtype:policy-violation; sid:1000003; rev:1;)
+
+# Primary Header: X-Caldera-Ability
+alert http any any -> any 8080 (msg:"[CALDERA] Ability header detected - X-Caldera-Ability"; flow:to_server,established; http.request_header; content:"X-Caldera-Ability"; classtype:policy-violation; sid:1000004; rev:1;)
+
+
+# -----------------------------------------------------------------------------
+# [2] SQL Injection — T1190
+# -----------------------------------------------------------------------------
+
+# UNION SELECT 데이터 추출 (sqli_union_extract)
+alert http any any -> any 8080 (msg:"[SQLI] UNION SELECT detected in URI - T1190"; flow:to_server,established; http.uri; content:"UNION"; nocase; content:"SELECT"; nocase; within:100; classtype:web-application-attack; sid:1000010; rev:1;)
+
+# ORDER BY 컬럼 수 탐색 (sqli_column_enum) — space-encoded
+alert http any any -> any 8080 (msg:"[SQLI] ORDER BY probe detected in URI - T1190"; flow:to_server,established; http.uri; content:"ORDER%20BY"; nocase; classtype:web-application-attack; sid:1000011; rev:1;)
+
+# ORDER BY 컬럼 수 탐색 — plus-encoded + SQL comment(--) 필수로 FP 저감
+alert http any any -> any 8080 (msg:"[SQLI] ORDER BY probe detected in URI (plus-encoded) - T1190"; flow:to_server,established; http.uri; content:"ORDER+BY"; nocase; content:"--"; distance:0; within:30; classtype:web-application-attack; sid:1000012; rev:2;)
+
+# 싱글쿼트 에러 유발 (sqli_error_probe)
+alert http any any -> any 8080 (msg:"[SQLI] Single quote error probe in URI - T1190"; flow:to_server,established; http.uri.raw; content:"/api/products/search"; content:"%27"; distance:0; classtype:web-application-attack; sid:1000013; rev:2;)
+
+# Time-based Blind SQLi - pg_sleep 키워드 탐지 (sqli_blind_time_based)
+alert http any any -> any 8080 (msg:"[SQLI] pg_sleep injection detected - time-based blind SQLi - T1190"; flow:to_server,established; http.uri; content:"pg_sleep"; nocase; classtype:web-application-attack; sid:1000014; rev:1;)
+
+
+# -----------------------------------------------------------------------------
+# [3] Path Traversal — T1083
+# -----------------------------------------------------------------------------
+
+# ../../ 연속 경로 조작 패턴 — 단일 ../ 는 정상 경로에도 존재할 수 있으므로
+# 연속 2단계 이상(../../)을 요구하여 FP 저감
+alert http any any -> any 8080 (msg:"[PATH_TRAVERSAL] Directory traversal pattern in URI - T1083"; flow:to_server,established; http.uri; content:"../../"; classtype:web-application-attack; sid:1000020; rev:2;)
+
+# URL 인코딩된 traversal (%2e%2e/)
+alert http any any -> any 8080 (msg:"[PATH_TRAVERSAL] URL-encoded traversal pattern in URI - T1083"; flow:to_server,established; http.uri; content:"%2e%2e%2f"; nocase; classtype:web-application-attack; sid:1000021; rev:1;)
+
+# /etc/passwd 접근 시도 (Tier 1)
+alert http any any -> any 8080 (msg:"[PATH_TRAVERSAL] /etc/passwd access attempt - T1083 Tier1"; flow:to_server,established; http.uri; content:"etc%2Fpasswd"; nocase; classtype:web-application-attack; sid:1000022; rev:1;)
+
+# /etc/shadow 접근 시도 (Tier 1)
+alert http any any -> any 8080 (msg:"[PATH_TRAVERSAL] /etc/shadow access attempt - T1083 Tier1"; flow:to_server,established; http.uri; content:"etc%2Fshadow"; nocase; classtype:web-application-attack; sid:1000023; rev:1;)
+
+# 바이너리 파일 접근 시도 (Tier 2)
+alert http any any -> any 8080 (msg:"[PATH_TRAVERSAL] Binary file access attempt - T1083 Tier2"; flow:to_server,established; http.uri; content:"/api/files/download"; content:"usr%2Fbin"; nocase; distance:0; classtype:web-application-attack; sid:1000024; rev:1;)
+
+
+# -----------------------------------------------------------------------------
+# [4] Brute Force — T1110
+# -----------------------------------------------------------------------------
+
+# 단건 로그인 시도
+alert http any any -> any 8080 (msg:"[BRUTE_FORCE] Login attempt to /api/auth/login - T1110"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"/api/auth/login"; startswith; classtype:attempted-user; sid:1000030; rev:1;)
+
+# 로그인 요청 흐름 표시 — 1000031/1000032가 응답 401만 누적하도록 사용
+alert http any any -> any 8080 (msg:"[BRUTE_FORCE] Login flow marker"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"/api/auth/login"; startswith; flowbits:set,bf_login_flow; noalert; sid:1000033; rev:1;)
+
+# 반복 로그인 시도 탐지 (10회/60초 초과 시 알럿)
+alert http any 8080 -> any any (msg:"[BRUTE_FORCE] Multiple failed login attempts detected - T1110"; flow:to_client,established; flowbits:isset,bf_login_flow; http.stat_code; content:"401"; threshold:type threshold, track by_dst, count 10, seconds 60; classtype:attempted-user; sid:1000031; rev:2;)
+
+
+# =============================================================================
+# [5] 피드백 개선 룰 (Phase 2) — 1차 테스트에서 발견된 미탐 보완
+# =============================================================================
+# 아래 룰들은 Phase 1 테스트의 우회 성공 케이스를 분석하여 추가한 룰이다.
+# 개선 전/후 우회율 비교를 통해 피드백 루프 효과를 정량 측정한다.
+
+# -----------------------------------------------------------------------------
+# [5-1] Path Traversal 미탐 보완
+# -----------------------------------------------------------------------------
+
+# Mixed slash (백슬래시) 탐지 — Phase 1에서 우회 성공
+# http.uri는 %5C를 \로 디코딩하므로 디코딩된 백슬래시(\)를 매칭
+alert http any any -> any 8080 (msg:"[PATH_TRAVERSAL] Mixed backslash traversal in URI - T1083 (Feedback)"; flow:to_server,established; http.uri; content:".."; content:"|5C|"; distance:0; classtype:web-application-attack; sid:1000025; rev:2;)
+
+# 16-bit Unicode 인코딩 탐지 — Phase 1에서 우회 성공
+alert http any any -> any 8080 (msg:"[PATH_TRAVERSAL] Unicode-encoded traversal in URI - T1083 (Feedback)"; flow:to_server,established; http.uri.raw; content:"%u002e"; nocase; classtype:web-application-attack; sid:1000026; rev:1;)
+
+# Null byte injection 탐지 — http.uri.raw로 인코딩된 %00 매칭
+alert http any any -> any 8080 (msg:"[PATH_TRAVERSAL] Null byte injection in URI - T1083 (Feedback)"; flow:to_server,established; http.uri.raw; content:"%00"; classtype:web-application-attack; sid:1000027; rev:2;)
+
+# Overlong UTF-8 인코딩 탐지 (%c0%ae = '.')
+alert http any any -> any 8080 (msg:"[PATH_TRAVERSAL] Overlong UTF-8 traversal in URI - T1083 (Feedback)"; flow:to_server,established; http.uri.raw; content:"%c0%ae"; nocase; classtype:web-application-attack; sid:1000028; rev:1;)
+
+# Double dot segments (..././) 탐지
+alert http any any -> any 8080 (msg:"[PATH_TRAVERSAL] Double dot segment traversal in URI - T1083 (Feedback)"; flow:to_server,established; http.uri; content:"..././"; classtype:web-application-attack; sid:1000029; rev:1;)
+
+# -----------------------------------------------------------------------------
+# [5-2] SQL Injection 미탐 보완
+# -----------------------------------------------------------------------------
+
+# 싱글쿼트 + SQL 키워드 조합 탐지 — 단독 '는 정상 텍스트일 수 있으므로
+# SQL comment(--)를 추가 조건으로 FP 저감 (it's, don't 같은 정상 텍스트 제외)
+alert http any any -> any 8080 (msg:"[SQLI] Decoded single quote with SQL comment in search URI - T1190 (Feedback)"; flow:to_server,established; http.uri; content:"/api/products/search"; content:"'"; distance:0; content:"--"; distance:0; classtype:web-application-attack; sid:1000015; rev:2;)
+
+# Boolean-based Blind SQLi (OR 1=1 패턴) — search 엔드포인트 + 싱글쿼트 필수로 FP 저감
+alert http any any -> any 8080 (msg:"[SQLI] Boolean-based blind SQLi pattern - OR 1=1 - T1190 (Feedback)"; flow:to_server,established; http.uri; content:"/api/products/search"; content:"OR"; nocase; distance:0; content:"1=1"; distance:0; within:20; classtype:web-application-attack; sid:1000016; rev:2;)
+
+# Tab 문자 공백 대체 SQLi 탐지
+alert http any any -> any 8080 (msg:"[SQLI] Tab-separated UNION SELECT in URI - T1190 (Feedback)"; flow:to_server,established; http.uri; content:"UNION"; nocase; content:"SELECT"; nocase; within:100; classtype:web-application-attack; sid:1000017; rev:1;)
+
+# HTTP Parameter Pollution — 이중 keyword 파라미터 탐지
+alert http any any -> any 8080 (msg:"[SQLI] Duplicate keyword parameter (HPP) in URI - T1190 (Feedback)"; flow:to_server,established; http.uri; content:"keyword="; content:"keyword="; distance:0; classtype:web-application-attack; sid:1000018; rev:1;)
+
+# CHR() 함수 사용 난독화 탐지
+alert http any any -> any 8080 (msg:"[SQLI] CHR() function obfuscation in URI - T1190 (Feedback)"; flow:to_server,established; http.uri; content:"CHR("; nocase; classtype:web-application-attack; sid:1000019; rev:1;)
+
+# -----------------------------------------------------------------------------
+# [5-3] Brute Force 저속 공격 대응 — 확장 윈도우
+# -----------------------------------------------------------------------------
+
+# 확장 윈도우 threshold (5회/180초) — slow brute force 탐지용
+alert http any 8080 -> any any (msg:"[BRUTE_FORCE] Slow failed brute force detected (5/180s) - T1110 (Feedback)"; flow:to_client,established; flowbits:isset,bf_login_flow; http.stat_code; content:"401"; threshold:type threshold, track by_dst, count 5, seconds 180; classtype:attempted-user; sid:1000032; rev:2;)
+
+# SSH 키 접근 시도 탐지
+alert http any any -> any 8080 (msg:"[PATH_TRAVERSAL] SSH key access attempt - T1083 (Feedback)"; flow:to_server,established; http.uri; content:".ssh"; content:"id_rsa"; distance:0; within:20; classtype:web-application-attack; sid:1000040; rev:1;)
+
+# 설정 파일 접근 시도 (database.yml, config 등)
+alert http any any -> any 8080 (msg:"[PATH_TRAVERSAL] Config file access attempt - T1083 (Feedback)"; flow:to_server,established; http.uri; content:"/api/files/download"; content:"config"; distance:0; nocase; classtype:web-application-attack; sid:1000041; rev:1;)
+
+
+# =============================================================================
+# [6] XSS (Cross-Site Scripting) — T1059.007
+# =============================================================================
+
+# <script> 태그 탐지 (Reflected/Stored 공통)
+alert http any any -> any 8080 (msg:"[XSS] Script tag detected in URI - T1059.007"; flow:to_server,established; http.uri; content:"<script"; nocase; classtype:web-application-attack; sid:1000050; rev:1;)
+
+# <script> 태그 탐지 (POST 본문 — Stored XSS)
+alert http any any -> any 8080 (msg:"[XSS] Script tag detected in POST body - T1059.007"; flow:to_server,established; http.method; content:"POST"; http.request_body; content:"<script"; nocase; classtype:web-application-attack; sid:1000051; rev:1;)
+
+# onerror/onload/ontoggle 이벤트 핸들러 탐지 (URI)
+alert http any any -> any 8080 (msg:"[XSS] Event handler attribute in URI - T1059.007"; flow:to_server,established; http.uri; pcre:"/on(error|load|toggle|mouseover|click)\s*=/i"; classtype:web-application-attack; sid:1000052; rev:1;)
+
+# onerror/onload 이벤트 핸들러 탐지 (POST 본문)
+alert http any any -> any 8080 (msg:"[XSS] Event handler attribute in POST body - T1059.007"; flow:to_server,established; http.method; content:"POST"; http.request_body; pcre:"/on(error|load|toggle|mouseover|click)\s*=/i"; classtype:web-application-attack; sid:1000053; rev:1;)
+
+# javascript: 프로토콜 탐지
+alert http any any -> any 8080 (msg:"[XSS] javascript: protocol detected in URI - T1059.007"; flow:to_server,established; http.uri; content:"javascript:"; nocase; classtype:web-application-attack; sid:1000054; rev:1;)
+
+# SVG onload XSS 패턴
+alert http any any -> any 8080 (msg:"[XSS] SVG onload pattern detected - T1059.007"; flow:to_server,established; http.request_body; content:"<svg"; nocase; content:"onload"; nocase; distance:0; within:50; classtype:web-application-attack; sid:1000055; rev:1;)
+
+# URL-encoded <script> 탐지 (%3Cscript 또는 %3cscript)
+alert http any any -> any 8080 (msg:"[XSS] URL-encoded script tag in URI - T1059.007"; flow:to_server,established; http.uri.raw; content:"%3cscript"; nocase; classtype:web-application-attack; sid:1000056; rev:1;)
+
+# document.cookie 접근 탐지 (쿠키 탈취 시도)
+alert http any any -> any 8080 (msg:"[XSS] document.cookie exfiltration pattern - T1059.007"; flow:to_server,established; http.uri; content:"document.cookie"; nocase; classtype:web-application-attack; sid:1000057; rev:1;)
+
+# alert() / confirm() / prompt() 함수 탐지
+alert http any any -> any 8080 (msg:"[XSS] JavaScript alert/confirm/prompt in URI - T1059.007"; flow:to_server,established; http.uri; pcre:"/\b(alert|confirm|prompt)\s*\(/i"; classtype:web-application-attack; sid:1000058; rev:1;)
+
+
+# =============================================================================
+# [7] SSRF (Server-Side Request Forgery) — T1090 / T1046
+# =============================================================================
+
+# 클라우드 메타데이터 IP 탐지 (169.254.169.254)
+alert http any any -> any 8080 (msg:"[SSRF] Cloud metadata IP (169.254.169.254) in URI - T1090"; flow:to_server,established; http.uri; content:"169.254.169.254"; classtype:web-application-attack; sid:1000060; rev:1;)
+
+# localhost / 127.0.0.1 접근 탐지 (URL 파라미터에서)
+alert http any any -> any 8080 (msg:"[SSRF] Localhost access attempt in URL parameter - T1090"; flow:to_server,established; http.uri; content:"url="; content:"127.0.0.1"; distance:0; within:50; classtype:web-application-attack; sid:1000061; rev:1;)
+
+# localhost 문자열 접근 탐지
+alert http any any -> any 8080 (msg:"[SSRF] Localhost string in URL parameter - T1090"; flow:to_server,established; http.uri; content:"url="; content:"localhost"; nocase; distance:0; within:50; classtype:web-application-attack; sid:1000062; rev:1;)
+
+# 내부 IP 대역 탐지 (10.x.x.x)
+alert http any any -> any 8080 (msg:"[SSRF] Internal IP (10.x) in URL parameter - T1090"; flow:to_server,established; http.uri; content:"url="; pcre:"/url=.*https?:\/\/10\.\d+\.\d+\.\d+/i"; classtype:web-application-attack; sid:1000063; rev:1;)
+
+# 내부 IP 대역 탐지 (192.168.x.x)
+alert http any any -> any 8080 (msg:"[SSRF] Internal IP (192.168.x) in URL parameter - T1090"; flow:to_server,established; http.uri; content:"url="; pcre:"/url=.*https?:\/\/192\.168\.\d+\.\d+/i"; classtype:web-application-attack; sid:1000064; rev:1;)
+
+# GCP 메타데이터 도메인 탐지
+alert http any any -> any 8080 (msg:"[SSRF] GCP metadata endpoint in URL parameter - T1090"; flow:to_server,established; http.uri; content:"metadata.google.internal"; nocase; classtype:web-application-attack; sid:1000065; rev:1;)
+
+# IPv6 루프백 탐지 ([::1])
+alert http any any -> any 8080 (msg:"[SSRF] IPv6 loopback [::1] in URL parameter - T1090"; flow:to_server,established; http.uri; content:"[::1]"; classtype:web-application-attack; sid:1000066; rev:1;)
+
+# Decimal IP 변환 탐지 (2130706433 = 127.0.0.1)
+alert http any any -> any 8080 (msg:"[SSRF] Decimal IP bypass (2130706433) in URL parameter - T1090"; flow:to_server,established; http.uri; content:"2130706433"; classtype:web-application-attack; sid:1000067; rev:1;)
+
+# Hex IP 변환 탐지 (0x7f000001)
+alert http any any -> any 8080 (msg:"[SSRF] Hex IP bypass (0x7f) in URL parameter - T1090"; flow:to_server,established; http.uri; content:"0x7f"; nocase; classtype:web-application-attack; sid:1000068; rev:1;)
+
+# preview 엔드포인트 + 위험 스킴(file/gopher/dict/ftp/ldap 등)
+# rev:2 — Phase 3 테스트에서 'http' 단독 매칭이 https://*에서 FP 10건 발생 →
+#         http(s) catch-all 제거. 내부 IP/메타데이터는 1000060~1000068이 담당.
+#         본 룰은 SSRF 페이로드 중 HTTP 외 스킴(file://, gopher:// 등) 진입점만 잡는다.
+alert http any any -> any 8080 (msg:"[SSRF] URL preview endpoint with dangerous scheme (file/gopher/dict/ftp/ldap) - T1090"; flow:to_server,established; http.uri; content:"/api/preview"; content:"url="; distance:0; pcre:"/url=(?:file|gopher|dict|ftp|ldap|jar)(?::|%3[Aa])/i"; classtype:web-application-attack; sid:1000069; rev:2;)
+
+# 단축 IPv4 표기 (127.1, 127.0.1, 0.0.0.0 등) — rev:1의 1000069 catch-all에서 잡히던 케이스를 명시 룰로 분리
+# 호스트 옥텟 1~3 자릿수 단축 표기. 127.x.y / 0.0.0.0 형태에 한정하여 FP 최소화.
+alert http any any -> any 8080 (msg:"[SSRF] Short-form IPv4 loopback notation (127.x / 0.0.0.0) - T1090"; flow:to_server,established; http.uri; content:"url="; pcre:"/url=(?:http|https)?(?::|%3[Aa])(?:\/\/|%2[Ff]%2[Ff])(?:127\.(?:\d{1,3}\.\d{1,3}|\d{1,3})|0\.0\.0\.0)(?:[\/:%]|$)/i"; classtype:web-application-attack; sid:1000087; rev:1;)
+
+
+# =============================================================================
+# [8] RCE (Command Injection) — T1059.004
+# =============================================================================
+
+# 세미콜론 명령 체이닝 탐지 (;)
+# rev:2 — http.uri는 디코딩된 URI를 보유 → '%3B'는 ';'로 정규화되어 미매칭이었다.
+#         http.uri.raw(인코딩 그대로) + http.uri(디코딩된 메타문자) 양쪽 룰을 둔다.
+alert http any any -> any 8080 (msg:"[CMDI] Semicolon command chaining (encoded) in URI - T1059.004"; flow:to_server,established; http.uri.raw; content:"/api/admin/ping"; content:"%3B"; nocase; distance:0; classtype:web-application-attack; sid:1000070; rev:2;)
+alert http any any -> any 8080 (msg:"[CMDI] Semicolon command chaining (decoded) in URI - T1059.004"; flow:to_server,established; http.uri; content:"/api/admin/ping"; content:"|3B|"; distance:0; classtype:web-application-attack; sid:1000170; rev:1;)
+
+# 파이프 명령 체이닝 탐지 (|)
+alert http any any -> any 8080 (msg:"[CMDI] Pipe command chaining (encoded) in URI - T1059.004"; flow:to_server,established; http.uri.raw; content:"/api/admin/ping"; content:"%7C"; nocase; distance:0; classtype:web-application-attack; sid:1000071; rev:2;)
+alert http any any -> any 8080 (msg:"[CMDI] Pipe command chaining (decoded) in URI - T1059.004"; flow:to_server,established; http.uri; content:"/api/admin/ping"; content:"|7C|"; distance:0; classtype:web-application-attack; sid:1000171; rev:1;)
+
+# AND 명령 체이닝 탐지 (&&)
+alert http any any -> any 8080 (msg:"[CMDI] AND command chaining (encoded) in URI - T1059.004"; flow:to_server,established; http.uri.raw; content:"/api/admin/ping"; content:"%26%26"; nocase; distance:0; classtype:web-application-attack; sid:1000072; rev:2;)
+alert http any any -> any 8080 (msg:"[CMDI] AND command chaining (decoded) in URI - T1059.004"; flow:to_server,established; http.uri; content:"/api/admin/ping"; content:"&&"; distance:0; classtype:web-application-attack; sid:1000172; rev:1;)
+
+# 백틱 명령 치환 탐지 (`cmd`)
+alert http any any -> any 8080 (msg:"[CMDI] Backtick command substitution (encoded) in URI - T1059.004"; flow:to_server,established; http.uri.raw; content:"/api/admin/ping"; content:"%60"; nocase; distance:0; classtype:web-application-attack; sid:1000073; rev:2;)
+alert http any any -> any 8080 (msg:"[CMDI] Backtick command substitution (decoded) in URI - T1059.004"; flow:to_server,established; http.uri; content:"/api/admin/ping"; content:"`"; distance:0; classtype:web-application-attack; sid:1000173; rev:1;)
+
+# $() 명령 치환 탐지
+alert http any any -> any 8080 (msg:"[CMDI] Dollar-paren command substitution (encoded) in URI - T1059.004"; flow:to_server,established; http.uri.raw; content:"/api/admin/ping"; content:"%24%28"; nocase; distance:0; classtype:web-application-attack; sid:1000074; rev:2;)
+alert http any any -> any 8080 (msg:"[CMDI] Dollar-paren command substitution (decoded) in URI - T1059.004"; flow:to_server,established; http.uri; content:"/api/admin/ping"; content:"$("; distance:0; classtype:web-application-attack; sid:1000174; rev:1;)
+
+# sleep 명령 탐지 (Blind CMDi)
+alert http any any -> any 8080 (msg:"[CMDI] sleep command detected in URI (blind CMDi) - T1059.004"; flow:to_server,established; http.uri; content:"sleep"; nocase; classtype:web-application-attack; sid:1000075; rev:1;)
+
+# /etc/passwd 출력 시도 (CMDi를 통한 파일 읽기)
+alert http any any -> any 8080 (msg:"[CMDI] /etc/passwd read attempt via command injection - T1059.004"; flow:to_server,established; http.uri; content:"/api/admin/ping"; content:"etc"; distance:0; content:"passwd"; distance:0; within:30; classtype:web-application-attack; sid:1000076; rev:1;)
+
+# whoami / id 명령 탐지 (RCE 확인 시도)
+alert http any any -> any 8080 (msg:"[CMDI] whoami/id command in URI - T1059.004"; flow:to_server,established; http.uri; content:"/api/admin/ping"; pcre:"/\b(whoami|%20id|%3Bid)\b/i"; classtype:web-application-attack; sid:1000077; rev:1;)
+
+# Newline injection 탐지 (%0a)
+alert http any any -> any 8080 (msg:"[CMDI] Newline injection in URI - T1059.004"; flow:to_server,established; http.uri.raw; content:"/api/admin/ping"; content:"%0a"; nocase; distance:0; classtype:web-application-attack; sid:1000078; rev:1;)
+
+# $IFS 공백 우회 탐지
+alert http any any -> any 8080 (msg:"[CMDI] IFS space bypass detected in URI - T1059.004"; flow:to_server,established; http.uri; content:"${IFS}"; nocase; classtype:web-application-attack; sid:1000079; rev:1;)

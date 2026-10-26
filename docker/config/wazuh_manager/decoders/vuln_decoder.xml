@@ -1,0 +1,85 @@
+<!-- =============================================================================
+     Wazuh Decoder — Spring AttackLogger 로그 파싱
+     =============================================================================
+     대상 로그 형식 (Spring SLF4J / Logback 기본 출력):
+
+     ATTACK_REQUEST | rid=<uuid> | endpoint=<path> | method=<METHOD>
+       | opId=<id> | tech=<T1xxx> | ability=<uuid> | source=<HEADER|UA_FALLBACK|NONE>
+       | ip=<ip> | ua=<ua> | username=<name> | params=<params>
+
+     ATTACK_RESPONSE | rid=<uuid> | endpoint=<path> | opId=<id>
+       | status=<code> | result_type=<TYPE> | detail=<detail>
+
+     필드 매핑:
+       rid         → id           (REQUEST ↔ RESPONSE 연결 키)
+       endpoint    → url
+       opId        → data         (Caldera Operation 식별자, Suricata EVE UA와 JOIN 키)
+       ip          → srcip
+       username    → user
+       result_type → result_type  (커스텀 필드 — Wazuh 예약어 'action' 회피)
+       status      → status
+     ============================================================================= -->
+
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<!-- Nginx access.log 디코더 (AttackLogger 미탑재 환경 보조)                -->
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<!-- 대상 로그 형식 (Nginx default combined log):
+     192.168.1.10 - - [07/May/2026:14:23:01 +0900] "GET /api/products/search?keyword=test HTTP/1.1" 200 1234 "-" "Mozilla/5.0"
+
+     필드 매핑:
+       srcip, url, status, extra_data(response_size), user_agent
+-->
+
+<!-- 1단계: Nginx access log prematch -->
+<decoder name="vuln-nginx-access">
+    <prematch>\d+.\d+.\d+.\d+ - </prematch>
+</decoder>
+
+<!-- 2단계: 핵심 필드 추출 -->
+<decoder name="vuln-nginx-access-fields">
+    <parent>vuln-nginx-access</parent>
+    <regex type="pcre2">^(\S+) - \S+ \[\S+ \S+\] "(\S+) (\S+) \S+" (\d+) (\d+) "\S+" "(.+)"$</regex>
+    <order>srcip, protocol, url, status, extra_data, user_agent</order>
+</decoder>
+
+
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<!-- ATTACK_REQUEST 디코더                                                  -->
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+
+<!-- 1단계: prematch로 ATTACK_REQUEST 라인 식별 -->
+<decoder name="vuln-attack-request">
+    <prematch>ATTACK_REQUEST \|</prematch>
+</decoder>
+
+<!-- 2단계: 핵심 필드 추출 (rid, endpoint, opId, ip)
+     주의: OSSEC regex에서 \. 는 리터럴 점이므로 \S+ (공백 아닌 모든 문자) 사용 -->
+<decoder name="vuln-attack-request-fields">
+    <parent>vuln-attack-request</parent>
+    <regex>rid=(\S+) \| endpoint=(\S+) \| method=\S+ \| opId=(\S+) \| tech=\S+ \| ability=\S+ \| source=\S+ \| ip=(\S+)</regex>
+    <order>id, url, data, srcip</order>
+</decoder>
+
+<!-- 3단계: username 추출 -->
+<decoder name="vuln-attack-request-user">
+    <parent>vuln-attack-request</parent>
+    <regex>username=(\S+) \|</regex>
+    <order>user</order>
+</decoder>
+
+
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<!-- ATTACK_RESPONSE 디코더                                                 -->
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+
+<!-- 1단계: prematch로 ATTACK_RESPONSE 라인 식별 -->
+<decoder name="vuln-attack-response">
+    <prematch>ATTACK_RESPONSE \|</prematch>
+</decoder>
+
+<!-- 2단계: 핵심 필드 추출 (rid, endpoint, opId, status, result_type) -->
+<decoder name="vuln-attack-response-fields">
+    <parent>vuln-attack-response</parent>
+    <regex>rid=(\S+) \| endpoint=(\S+) \| opId=(\S+) \| status=(\d+) \| result_type=(\w+)</regex>
+    <order>id, url, data, status, result_type</order>
+</decoder>

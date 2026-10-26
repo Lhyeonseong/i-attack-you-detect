@@ -1,0 +1,44 @@
+## Gap #4 실관측 검증 2026-10-20T02:25:26+09:00 HEAD=166f0a8
+### target-web 네트워크
+security-lab_app_net ip=172.20.0.5
+security-lab_attack_net ip=172.18.0.3
+security-lab_imds_net ip=169.254.169.2
+security-lab_security_net ip=172.19.0.6
+
+### Suricata 캡처 옵션
+["-i","eth0","-i","eth1","-i","eth2","-k","none","-l","/var/log/suricata","-S","/var/lib/suricata/rules/local.rules","--set","outputs.7.stats.enabled=no","--set","outputs.1.eve-log.types.26.stats.enabled=no"]
+### eve.json 범위·10-16 집계
+가장 이른 timestamp:
+"timestamp":"2026-06-01T15:34:28
+10-16 전체 이벤트:
+7321
+10-16 17~18시 http dest_ip:
+     10 "dest_ip":"104.20.23.154"
+     40 "dest_ip":"169.254.169.254"
+    400 "dest_ip":"172.20.0.5"
+     10 "dest_ip":"172.66.147.243"
+10-16 17~18시 alert sid:
+    400 "signature_id":1000001
+    400 "signature_id":1000002
+    400 "signature_id":1000003
+    400 "signature_id":1000004
+     60 "signature_id":1000020
+    260 "signature_id":1000030
+     20 "signature_id":1000031
+     43 "signature_id":1000032
+     40 "signature_id":1000060
+### 발동 sid 대응 (local.rules)
+1000001 msg:"[CALDERA] Agent detected via User-Agent"
+1000002 msg:"[CALDERA] Operation header detected - X-Caldera-Op-Id"
+1000003 msg:"[CALDERA] Technique header detected - X-Caldera-Technique"
+1000004 msg:"[CALDERA] Ability header detected - X-Caldera-Ability"
+1000020 msg:"[PATH_TRAVERSAL] Directory traversal pattern in URI - T1083"
+1000030 msg:"[BRUTE_FORCE] Login attempt to /api/auth/login - T1110"
+1000031 msg:"[BRUTE_FORCE] Multiple login attempts detected - T1110"
+1000032 msg:"[BRUTE_FORCE] Slow brute force detected (5/180s) - T1110 (Feedback)"
+1000060 msg:"[SSRF] Cloud metadata IP (169.254.169.254) in URI - T1090"
+### SQLi sid(1000010~1000019) 10-16 발동: 아래 집계에 없으면 0건
+    400 "signature_id":1000001
+    400 "signature_id":1000002
+    400 "signature_id":1000003
+    400 "signature_id":1000004

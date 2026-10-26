@@ -1,0 +1,906 @@
+# 슬라이스 1c — Wazuh 4.14.8 → 4.14.9 (indexer·manager·agent, digest 고정)
+# 근거: ADR-S4-03 v1.1 D2·D4·D5 (직전 233454f). 설정 파일 수정 없음, agent 재등록 없음, 비밀값 미출력(인덱서 인증은 manager 컨테이너 env)
+
+## (0-1) 현재 상태 2026-10-20T23:39:52+09:00 HEAD=233454f
+  security-lab-wazuh.indexer-1 Image=sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de -> 1a SAME
+  security-lab-wazuh.manager-1 Image=sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55 -> 1a SAME
+  security-lab-wazuh.agent-1 Image=sha256:7b87b6142c52320f0b6db5373e38c3f6f3024169fbedc08e64e5f9444a61520b -> 1a SAME
+  security-lab-wazuh.manager-1: WAZUH_VERSION="v4.14.8" WAZUH_REVISION="rc2" WAZUH_TYPE="server" 
+  security-lab-wazuh.agent-1: WAZUH_VERSION="v4.14.8" WAZUH_REVISION="rc2" WAZUH_TYPE="agent" 
+  indexer OpenSearch jar: opensearch-2.19.6.jar  VERSION.json: {"version":"4.14.8","stage":"rc2","commit":"9f4796b8"}
+  indexer API version.number(호환 표기): 7.10.2
+  agent_control -l:
+      ID: 000, Name: wazuh.manager (server), IP: 127.0.0.1, Active/Local
+      ID: 004, Name: wazuh.agent, IP: any, Active
+  client.keys 행 수: manager=1 agent=1
+  alerts.json 마지막 timestamp: 2026-10-20T14:26:09.508+0000
+  wazuh-alerts-* count: 6661  cluster health: green
+  인증서 notAfter:
+   manager /etc/ssl/filebeat.pem: notAfter=May 29 15:27:28 2036 GMT
+   manager /etc/ssl/root-ca.pem: notAfter=May 29 15:27:28 2036 GMT
+   indexer wazuh.indexer.pem: notAfter=May 29 15:27:28 2036 GMT  (indexer 컨테이너에 openssl 없음 → 공개 인증서를 호스트 openssl 로 읽음)
+   indexer root-ca.pem: notAfter=May 29 15:27:28 2036 GMT  (indexer 컨테이너에 openssl 없음 → 공개 인증서를 호스트 openssl 로 읽음)
+   indexer admin.pem: notAfter=May 29 15:27:28 2036 GMT  (indexer 컨테이너에 openssl 없음 → 공개 인증서를 호스트 openssl 로 읽음)
+  manager ossec.log 기준선: duplicated rule ID 종류=Rule ID '100001' is duplicated  ; 직전 기동(12:52:55Z) 이후 100001 duplicated 3줄, ERROR/CRITICAL 0줄
+  (참고) ossec.log 의 다른 'duplicat' 줄은 과거 wazuh-authd 'Duplicate name wazuh.agent, rejecting enrollment'(agent 001~003) 63줄
+## (0-2) 공식 wazuh-docker 설정 차이 v4.14.8 ↔ v4.14.9 (raw.githubusercontent.com, 저장소 밖 임시 폴더) 2026-10-20T23:39:54+09:00
+  wazuh_manager.conf: v4.14.8 8741B sha256=b137a003c617aee4a980e9eb132ced34c746a7807089a67a107dbbae74518fce
+                      v4.14.9 8741B sha256=b137a003c617aee4a980e9eb132ced34c746a7807089a67a107dbbae74518fce  diff 줄 수=0
+  wazuh.indexer.yml: v4.14.8 2242B sha256=8273837e2047a6a02a05c2ac3802c7d19e578a454e6250e0e1b5e2a8693bf295
+                     v4.14.9 2242B sha256=8273837e2047a6a02a05c2ac3802c7d19e578a454e6250e0e1b5e2a8693bf295  diff 줄 수=0
+  (경로: single-node/config/wazuh_cluster/wazuh_manager.conf, single-node/config/wazuh_indexer/wazuh.indexer.yml)
+  우리 compose 마운트(설정 파일, 경로만):
+   manager ./docker/config/wazuh_cluster/wazuh_manager.conf -> /wazuh-config-mount/etc/ossec.conf
+   manager ./docker/config/wazuh_manager/rules/vuln_rules.xml -> /var/ossec/etc/rules/vuln_rules.xml
+   manager ./docker/config/wazuh_manager/decoders/vuln_decoder.xml -> /var/ossec/etc/decoders/vuln_decoder.xml
+   manager volume wazuh_etc -> /var/ossec/etc, volume filebeat_etc -> /etc/filebeat (이미지 교체 후에도 유지되는 볼륨)
+   indexer ./docker/config/wazuh_indexer/wazuh.indexer.yml -> /usr/share/wazuh-indexer/config/opensearch.yml
+   indexer ./docker/config/wazuh_indexer/internal_users.yml -> /usr/share/wazuh-indexer/config/opensearch-security/internal_users.yml
+   agent   ./docker/config/wazuh-agent/ossec.conf -> /wazuh-config-mount/etc/ossec.conf, volume wazuh_agent_etc -> /var/ossec/etc
+## (0-3) 후보 이미지 (manifest 조회만) 2026-10-20T23:39:54+09:00
+  wazuh/wazuh-indexer:4.14.9 OK
+  wazuh/wazuh-manager:4.14.9 OK
+  wazuh/wazuh-agent:4.14.9 OK
+## (0-4) StartedAt 2026-10-20T23:40:37+09:00
+  caldera                        2026-10-20T13:19:32.028170508Z running
+  target-web                     2026-10-20T08:21:29.808661429Z running
+  backend                        2026-10-20T08:21:29.809956225Z running
+  react-dashboard                2026-10-20T08:21:29.814149846Z running
+  security-lab-wazuh.manager-1   2026-10-20T12:52:55.647866853Z running
+  security-lab-wazuh.agent-1     2026-10-20T12:52:56.286752022Z running
+  security-lab-wazuh.indexer-1   2026-10-20T12:52:54.821567761Z running
+  suricata                       2026-10-20T12:52:54.823361335Z running
+  postgres                       2026-10-20T14:18:03.86327753Z running/healthy
+  mock-imds                      2026-10-20T12:52:54.826215371Z running
+
+## (1-1) docker pull (wazuh 4.14.9 3개) 2026-10-20T23:42:05+09:00
+$ docker pull wazuh/wazuh-indexer:4.14.9
+Digest: sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6
+Status: Downloaded newer image for wazuh/wazuh-indexer:4.14.9
+docker.io/wazuh/wazuh-indexer:4.14.9
+$ docker pull wazuh/wazuh-manager:4.14.9
+Digest: sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
+Status: Downloaded newer image for wazuh/wazuh-manager:4.14.9
+docker.io/wazuh/wazuh-manager:4.14.9
+$ docker pull wazuh/wazuh-agent:4.14.9
+Digest: sha256:db274c1e2c56106f108fa1469f7ee99995ad3cac41003e8ca7a975cda2af20d8
+Status: Downloaded newer image for wazuh/wazuh-agent:4.14.9
+docker.io/wazuh/wazuh-agent:4.14.9
+## (1-2) 새 이미지 RepoDigests·생성일 2026-10-20T23:43:25+09:00
+  wazuh/wazuh-indexer:4.14.9 Id=sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6 RepoDigests=["wazuh/wazuh-indexer@sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6"] Created=2026-10-16T10:49:09.004556792Z
+  wazuh/wazuh-manager:4.14.9 Id=sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b RepoDigests=["wazuh/wazuh-manager@sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b"] Created=2026-10-16T10:49:36.456531386Z
+  wazuh/wazuh-agent:4.14.9 Id=sha256:db274c1e2c56106f108fa1469f7ee99995ad3cac41003e8ca7a975cda2af20d8 RepoDigests=["wazuh/wazuh-agent@sha256:db274c1e2c56106f108fa1469f7ee99995ad3cac41003e8ca7a975cda2af20d8"] Created=2026-10-16T10:48:43.926575287Z
+## (1-3) 새 이미지 안 버전 (docker run --rm --entrypoint, --network none) 2026-10-20T23:43:43+09:00
+  wazuh-manager:4.14.9: WAZUH_VERSION="v4.14.9" WAZUH_REVISION="rc2" WAZUH_TYPE="server" 
+  wazuh-agent:4.14.9: WAZUH_VERSION="v4.14.9" WAZUH_REVISION="rc2" WAZUH_TYPE="agent" 
+  wazuh-indexer:4.14.9: OpenSearch jar=opensearch-2.19.6.jar  VERSION.json={"version":"4.14.9","stage":"rc2","commit":"4f4be35f"}
+  현재 indexer OpenSearch jar=opensearch-2.19.6.jar
+## (1-4) indexer OpenSearch 버전 비교 2026-10-20T23:44:53+09:00
+  현재 opensearch-2.19.6.jar = 새 opensearch-2.19.6.jar → 같음 (VERSION.json 새: 4.14.9 / rc2 / commit 4f4be35f)
+## (1-5) manager 볼륨 filebeat 파일 ↔ 새 이미지 기본 파일 (sha256, 읽기 전용) 2026-10-20T23:44:53+09:00
+  새 이미지 /etc/filebeat/ 에는 filebeat.yml·wazuh-template.json 없음(fields.yml·filebeat.reference.yml·modules.d 만) → 실제 원본 경로 find 결과 /var/ossec/data_tmp/exclusion/etc/filebeat/
+  원본(이미지 안) 4.14.8 ↔ 4.14.9:
+    filebeat.yml        971bd71d42697527 (625B) = 971bd71d42697527 (625B)
+    wazuh-template.json b2d182f49cc68957 (84554B) = b2d182f49cc68957 (84554B)
+    /etc/cont-init.d/1-config-filebeat 86616ca762209db3… = 86616ca762209db3… (매 기동 시 env 로 filebeat.yml 의 hosts·username·password·ssl.* 를 sed 로 채움)
+  ① 볼륨(/etc/filebeat) ↔ ② 새 이미지 원본:
+    wazuh-template.json ①b2d182f49cc68957 (84554B) = ②b2d182f49cc68957 → 같음
+    filebeat.yml        ①ad3edcc61b9c5e1e (740B) ≠ ②971bd71d42697527 (625B), diff 14줄
+    바뀐 키 이름(값 미출력): ① 쪽 hosts, username, password, ssl.verification_mode, ssl.certificate_authorities, ssl.certificate, ssl.key / ② 쪽 hosts + 키 없는(주석) 줄 6
+  → 지시 기준(다르면 Step 2 진행 안 함)에 따라 중단, 보고
+  임시 파일(볼륨 filebeat.yml 에 인증 값 포함) 비교 직후 삭제
+
+## (1-J) DRI 판정 (현성 2026-10-20): (1-5) filebeat.yml 차이 허용
+- 근거(사실): 이미지 원본 filebeat.yml 템플릿·wazuh-template.json·기동 스크립트 1-config-filebeat가 4.14.8과 4.14.9에서 동일
+  → 업그레이드로 생기는 filebeat 설정 차이는 0. 볼륨 파일과 원본의 차이는 업그레이드 판단과 무관.
+
+## (1-6) 기록용 확인: 볼륨 filebeat.yml 이 기동 시 치환으로 설명되는가 2026-10-20T23:56:06+09:00
+  manager 컨테이너(4.14.8) 안에서: 원본 템플릿 /var/ossec/data_tmp/exclusion/etc/filebeat/filebeat.yml 을 mktemp 로 복사 →
+  /etc/cont-init.d/1-config-filebeat 의 sed 규칙(경로만 임시 파일로 치환, chmod/chown 줄 제외)을 컨테이너 env 로 적용 → sha256 비교(값 미출력)
+  
+  판정: 볼륨 파일에 별도 수정 흔적 — 후속 확인 항목
+
+## (1-6 정정) 2026-10-20T23:56:24+09:00
+- 위 (1-6) 판정은 무효: 실행 중 manager 컨테이너에는 /var/ossec/data_tmp/exclusion/etc/filebeat/filebeat.yml 이 없어(cp: cannot stat) 비교가 수행되지 않았음. 해시 3개 모두 미산출
+- 실패 시 컨테이너 /tmp 에 남은 내 임시 파일(fbcheck.*, fbscript.*) 삭제함. 원본 템플릿은 4.14.8 이미지(docker run --rm)에서 읽어 다시 수행 → (1-6b)
+
+## (1-6b) 기록용 확인 재수행 2026-10-20T23:56:42+09:00
+  원본 템플릿: wazuh/wazuh-manager:4.14.8 이미지(docker run --rm --network none)의 /var/ossec/data_tmp/exclusion/etc/filebeat/filebeat.yml 을 stdin 으로 manager 컨테이너 안 mktemp 파일에 기록
+  → 컨테이너의 /etc/cont-init.d/1-config-filebeat sed 규칙(경로만 임시 파일로, chmod/chown 제외)을 컨테이너 env 로 적용 → sha256 비교(값 미출력), 임시 파일 즉시 삭제
+  template_in=971bd71d4269752727c56600f11a7995228d530fb99db7b7b59e67fcaa57cb4b bytes=625
+  script_exit=0
+  regenerated=ad3edcc61b9c5e1e17d9bc7e63fb35a45a6c5fc5ac36114fc67ca8623d4bda92 bytes=740
+  volume=ad3edcc61b9c5e1e17d9bc7e63fb35a45a6c5fc5ac36114fc67ca8623d4bda92 bytes=740
+  leftover_tmp_files=0
+  판정: 기동 시 치환으로 설명됨
+
+## (2-1) 설정 수정 — git diff 2026-10-20T23:57:23+09:00
+diff --git a/docker/.env.example b/docker/.env.example
+index 89fa720..d19f184 100644
+--- a/docker/.env.example
++++ b/docker/.env.example
+@@ -1,7 +1,7 @@
+ COMPOSE_PROJECT_NAME=security-lab
+ 
+ # Versions
+-WAZUH_VERSION=4.14.8
++WAZUH_VERSION=4.14.9
+ POSTGRES_VERSION=16.15-trixie
+ 
+ # Published ports
+diff --git a/docker/docker-compose.yml b/docker/docker-compose.yml
+index 8dc6e78..d2a148c 100644
+--- a/docker/docker-compose.yml
++++ b/docker/docker-compose.yml
+@@ -122,7 +122,7 @@ services:
+ 
+   wazuh.indexer:
+     # digest 고정(ADR-S4-03 D1). WAZUH_VERSION을 바꿀 때 digest도 함께 바꿀 것(슬라이스 1c)
+-    image: wazuh/wazuh-indexer:${WAZUH_VERSION}@sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de
++    image: wazuh/wazuh-indexer:${WAZUH_VERSION}@sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6
+     hostname: wazuh.indexer
+     restart: unless-stopped
+     ports:
+@@ -150,7 +150,7 @@ services:
+ 
+   wazuh.manager:
+     # digest 고정(ADR-S4-03 D1). WAZUH_VERSION을 바꿀 때 digest도 함께 바꿀 것(슬라이스 1c)
+-    image: wazuh/wazuh-manager:${WAZUH_VERSION}@sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55
++    image: wazuh/wazuh-manager:${WAZUH_VERSION}@sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
+     hostname: wazuh.manager
+     restart: unless-stopped
+     depends_on:
+@@ -200,7 +200,7 @@ services:
+ 
+   wazuh.agent:
+     # digest 고정(ADR-S4-03 D1). WAZUH_VERSION을 바꿀 때 digest도 함께 바꿀 것(슬라이스 1c)
+-    image: wazuh/wazuh-agent:${WAZUH_VERSION}@sha256:7b87b6142c52320f0b6db5373e38c3f6f3024169fbedc08e64e5f9444a61520b
++    image: wazuh/wazuh-agent:${WAZUH_VERSION}@sha256:db274c1e2c56106f108fa1469f7ee99995ad3cac41003e8ca7a975cda2af20d8
+     hostname: wazuh.agent
+     restart: unless-stopped
+     depends_on:
+$ git diff --numstat: 1	1	docker/.env.example 3	3	docker/docker-compose.yml 
+  docker/.env (gitignore 대상): WAZUH_VERSION 한 줄만 sed 로 변경 → WAZUH_VERSION=4.14.9, 전체 줄 수 44 유지(다른 줄 미출력)
+## (2-2) config --images (HEAD+WAZUH_VERSION=4.14.8 ↔ 현재) 2026-10-20T23:57:23+09:00
+  8,10c8,10
+  < wazuh/wazuh-agent:4.14.8@sha256:7b87b6142c52320f0b6db5373e38c3f6f3024169fbedc08e64e5f9444a61520b
+  < wazuh/wazuh-indexer:4.14.8@sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de
+  < wazuh/wazuh-manager:4.14.8@sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55
+  ---
+  > wazuh/wazuh-agent:4.14.9@sha256:db274c1e2c56106f108fa1469f7ee99995ad3cac41003e8ca7a975cda2af20d8
+  > wazuh/wazuh-indexer:4.14.9@sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6
+  > wazuh/wazuh-manager:4.14.9@sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
+## (2-3) dry-run 2026-10-20T23:57:23+09:00
+$ docker compose -p security-lab -f docker/docker-compose.yml --dry-run up -d --no-build --pull never --no-deps wazuh.indexer wazuh.manager wazuh.agent
+   DRY-RUN MODE -  Container security-lab-wazuh.indexer-1  Recreate
+   DRY-RUN MODE -  Container security-lab-wazuh.indexer-1  Recreated
+   DRY-RUN MODE -  Container security-lab-wazuh.manager-1  Recreate
+   DRY-RUN MODE -  Container security-lab-wazuh.manager-1  Recreated
+   DRY-RUN MODE -  Container security-lab-wazuh.agent-1  Recreate
+   DRY-RUN MODE -  Container security-lab-wazuh.agent-1  Recreated
+   DRY-RUN MODE -  Container e88b8916c119_security-lab-wazuh.indexer-1  Starting
+   DRY-RUN MODE -  Container e88b8916c119_security-lab-wazuh.indexer-1  Started
+   DRY-RUN MODE -  Container 1c5fb65c6f01_security-lab-wazuh.manager-1  Starting
+   DRY-RUN MODE -  Container 1c5fb65c6f01_security-lab-wazuh.manager-1  Started
+   DRY-RUN MODE -  Container 8b06b66a1916_security-lab-wazuh.agent-1  Starting
+   DRY-RUN MODE -  Container 8b06b66a1916_security-lab-wazuh.agent-1  Started
+  pull 줄 0개, Recreate 대상: security-lab-wazuh.agent-1 security-lab-wazuh.indexer-1 security-lab-wazuh.manager-1 
+
+## (3-1) 재생성 2026-10-20T23:59:07+09:00 T_up_utc=2026-10-20T14:59:07Z
+$ docker compose -p security-lab -f docker/docker-compose.yml up -d --no-build --pull never --no-deps wazuh.indexer wazuh.manager wazuh.agent
+ Container security-lab-wazuh.indexer-1  Recreate
+ Container security-lab-wazuh.indexer-1  Recreated
+ Container security-lab-wazuh.manager-1  Recreate
+ Container security-lab-wazuh.manager-1  Recreated
+ Container security-lab-wazuh.agent-1  Recreate
+ Container security-lab-wazuh.agent-1  Recreated
+ Container security-lab-wazuh.indexer-1  Starting
+ Container security-lab-wazuh.indexer-1  Started
+ Container security-lab-wazuh.manager-1  Starting
+ Container security-lab-wazuh.manager-1  Started
+ Container security-lab-wazuh.agent-1  Starting
+ Container security-lab-wazuh.agent-1  Started
+(exit=0)
+## (3-2) 기동 대기 (최대 5분, 10초 간격 폴링; 디스크 포화 중 TIMEOUT) 2026-10-21T00:15:07+09:00
+  2026-10-20T14:59:40Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T14:59:52Z agent004_active=0 indexer_health=red analysisd=up
+  2026-10-20T15:00:02Z agent004_active=0 indexer_health=green analysisd=up
+  2026-10-20T15:00:13Z agent004_active=0 indexer_health=green analysisd=up
+  2026-10-20T15:00:29Z agent004_active=0 indexer_health=ERR analysisd=up
+  2026-10-20T15:00:45Z agent004_active=0 indexer_health=ERR analysisd=up
+  2026-10-20T15:01:00Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:01:16Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:01:31Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:01:46Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:02:02Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:02:17Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:02:33Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:02:48Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:03:03Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:03:19Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:03:34Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:03:49Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:04:05Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:04:20Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:04:36Z agent004_active=1 indexer_health=ERR analysisd=up
+  2026-10-20T15:04:51Z agent004_active=1 indexer_health=ERR analysisd=up
+  TIMEOUT 2026-10-20T15:04:51Z
+  (indexer_health=ERR = 응답 파싱 실패. 15:00:02Z~15:00:13Z green 이후 15:00:29Z 부터 ERR 지속)
+## (3-D) 디스크 포화 사건 2026-10-21T00:15:08+09:00
+- 발생: 대기 루프에서 indexer 응답이 15:00:29Z 부터 ERR. 이 세션에서 ENOSPC(temp filesystem 0MB free)를 처음 본 시각 2026-10-20T15:05Z 경(대기 루프 종료 15:04:51Z 직후, 진단 파일 ~/claude_df_check.txt 생성 시각 15:05:26Z·0바이트)
+- 원인 추정(해석): 오늘 받은 새 이미지(postgres:16.15-trixie, wazuh 4.14.9 ×3)와 되돌리기용 이전 이미지(postgres:16, wazuh 4.14.8 ×3)가 함께 디스크에 있었음
+- 정리(현성 수동, 2026-10-21 KST): docker builder prune 3.787GB, journal 392.7M, apt clean,
+  이미지 삭제: postgres:16(760ea41a…), wazuh-indexer:4.14.8(6a9c1e38…), wazuh-manager:4.14.8(412f665c…), wazuh-agent:4.14.8(7b87b614…), testcontainers/ryuk:0.12.0
+- 확보 후: 59G 중 49G 사용, 7.0G 여유, 88% (2026-10-20T15:15:08Z)
+- 되돌리기(1c 실패 시): 커밋 3550c67 compose 의 digest 로 pull 해 복구(태그 아님). 새 이미지 pull 금지(VM 디스크 확장 전까지)
+- 확보 후 사전 확인(상태 변경 없음):
+  docker ps -a: 10개 Up(postgres healthy), keen_brahmagupta(hello-world) Exited(0) 6개월 전
+  postgres: healthy, restarts=0, 재생성(14:18:03Z) 이후 로그 13줄 중 PANIC·FATAL·'No space left' 0줄, ERROR·WARNING 0줄
+  indexer: cluster health green(nodes 1, active_shards 101, unassigned 0), _all/_settings **.blocks 응답 {}(읽기 전용 잠금 없음), 클러스터 설정 blocks·disk 없음, allocation disk.percent 88
+
+## (3-3) 사후 확인 ①~⑦ (디스크 확보 후) 2026-10-21T00:15:40+09:00
+### ① Image ID·버전
+  security-lab-wazuh.indexer-1 sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6 -> SAME started=2026-10-20T14:59:20.434746668Z restarts=0
+  security-lab-wazuh.manager-1 sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b -> SAME started=2026-10-20T14:59:20.801570114Z restarts=0
+  security-lab-wazuh.agent-1 sha256:db274c1e2c56106f108fa1469f7ee99995ad3cac41003e8ca7a975cda2af20d8 -> SAME started=2026-10-20T14:59:21.488148934Z restarts=0
+  security-lab-wazuh.manager-1: WAZUH_VERSION="v4.14.9" WAZUH_REVISION="rc2" WAZUH_TYPE="server" 
+  security-lab-wazuh.agent-1: WAZUH_VERSION="v4.14.9" WAZUH_REVISION="rc2" WAZUH_TYPE="agent" 
+  indexer OpenSearch jar=opensearch-2.19.6.jar -> SAME  VERSION.json={"version":"4.14.9","stage":"rc2","commit":"4f4be35f"}
+### ② 다른 7개 StartedAt = Step 0
+  caldera          2026-10-20T13:19:32.028170508Z -> SAME
+  target-web       2026-10-20T08:21:29.808661429Z -> SAME
+  backend          2026-10-20T08:21:29.809956225Z -> SAME
+  react-dashboard  2026-10-20T08:21:29.814149846Z -> SAME
+  suricata         2026-10-20T12:52:54.823361335Z -> SAME
+  postgres         2026-10-20T14:18:03.86327753Z -> SAME
+  mock-imds        2026-10-20T12:52:54.826215371Z -> SAME
+### ③ agent (재등록 없이 ID 004 Active), client.keys 행 수 (Step 0: manager 1, agent 1)
+  $ docker exec security-lab-wazuh.manager-1 /var/ossec/bin/agent_control -l  (원본)
+    
+    Wazuh agent_control. List of available agents:
+       ID: 000, Name: wazuh.manager (server), IP: 127.0.0.1, Active/Local
+       ID: 004, Name: wazuh.agent, IP: any, Disconnected
+    
+    List of agentless devices:
+    
+  client.keys: manager=1 -> SAME, agent=1 -> SAME
+  재기동 이후 manager ossec.log 의 authd enrollment 줄(재등록 흔적, 원본):
+    2026/10/20 14:59:12 wazuh-authd: INFO: (1225): SIGNAL [(15)-(Terminated)] Received. Exit Cleaning...
+    2026/10/20 14:59:12 wazuh-authd: INFO: (1225): SIGNAL [(1)-(Hangup)] Received. Exit Cleaning...
+    2026/10/20 14:59:13 wazuh-authd: INFO: Exiting...
+    2026/10/20 14:59:35 wazuh-authd: INFO: Started (pid: 616).
+    2026/10/20 14:59:35 wazuh-authd: INFO: Accepting connections on port 1515. No password required.
+    2026/10/20 14:59:35 wazuh-authd: INFO: Setting network timeout to 1.000000 sec.
+    (줄 수: 0)
+### ④ manager ossec.log 재기동(14:59:07Z) 이후 — ERROR·CRITICAL, 룰·디코더 로드, duplicated (원본 줄)
+  재기동 이후 줄 수: 163
+  ERROR/CRITICAL 줄:
+    2026/10/20 15:00:31 wazuh-modulesd:vulnerability-scanner: ERROR: VulnerabilityScannerFacade::start: Error saving data: No space left on device.
+    2026/10/20 15:03:02 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:02 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:03 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:03 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:03 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:03 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:03 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:03 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:03 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:04 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:04 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:04 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:04 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:04 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:04 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:04 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:04 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:04 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:04 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:05 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:05 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:05 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:05 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:05 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:05 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:05 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    2026/10/20 15:03:05 wazuh-analysisd: ERROR: dbsync: Bad response from database: Cannot save Syscheck
+    (줄 수: 28)
+  rule/decoder 관련 WARNING·ERROR 줄:
+    2026/10/20 14:59:30 wazuh-analysisd: WARNING: (7612): Rule ID '100001' is duplicated. Only the first occurrence will be considered.
+    2026/10/20 14:59:31 wazuh-testrule: WARNING: (7612): Rule ID '100001' is duplicated. Only the first occurrence will be considered.
+    2026/10/20 14:59:39 wazuh-analysisd: WARNING: (7612): Rule ID '100001' is duplicated. Only the first occurrence will be considered.
+  duplicated 줄(rule ID 별 개수):
+          3 Rule ID '100001' is duplicated
+  duplicated 원본 줄:
+    2026/10/20 14:59:30 wazuh-analysisd: WARNING: (7612): Rule ID '100001' is duplicated. Only the first occurrence will be considered.
+    2026/10/20 14:59:31 wazuh-testrule: WARNING: (7612): Rule ID '100001' is duplicated. Only the first occurrence will be considered.
+    2026/10/20 14:59:39 wazuh-analysisd: WARNING: (7612): Rule ID '100001' is duplicated. Only the first occurrence will be considered.
+### ⑤ filebeat test output (manager, 성공 여부만)
+      connection...
+      TLS...
+        handshake... OK
+        TLS version: TLSv1.2
+      talk to server... OK
+  → 성공
+### ⑥ indexer health, wazuh-alerts-* 문서 수 (Step 0: green, 6661)
+  health=green  count=6848 -> Step 0(6661) 이상
+  index blocks: {}  (빈 {} = 없음)
+  allocation: wazuh.indexer 51.8gb 6.9gb 88
+### ⑦ suricata eve.json 최신 timestamp (재생성 2026-10-20T14:59:07Z 이후여야 함)
+  last eve timestamp=2026-10-20T15:15:07.667536+0000 -> AFTER
+  (참고) agent 의 suricata eve 수집: 재생성 이후 alerts.json 중 location=/var/log/suricata/eve.json 건수 643 (전체 파일 기준), 마지막 alert timestamp 2026-10-20T15:09:52.296+0000
+
+## (3-4) ③·④ 실패 — 원본 사실 추가 수집(읽기 전용, 수정 없음) 2026-10-21T00:16:33+09:00 now_utc=2026-10-20T15:16:33Z
+### agent_control -i 004 (manager)
+     Agent ID:   004
+     Agent Name: wazuh.agent
+     IP address: any
+     Status:     Disconnected
+     Last keep alive:     1792508351
+     Syscheck last started at:  Tue Oct 20 14:58:22 2026
+     Syscheck last ended at:    Tue Oct 20 14:58:22 2026
+### agent 컨테이너 프로세스·상태
+  container: running restarts=0 started=2026-10-20T14:59:21.488148934Z
+  wazuh-modulesd is running...
+  wazuh-logcollector is running...
+  wazuh-syscheckd is running...
+  wazuh-agentd not running...
+  wazuh-execd is running...
+### agent ossec.log 재기동(14:59:07Z) 이후 ERROR·WARNING·연결 관련 줄 (원본, 마지막 25줄)
+  2026/10/20 14:59:22 wazuh-agentd: ERROR: (1103): Could not open file 'queue/sockets/.agent_info' due to [(2)-(No such file or directory)].
+  2026/10/20 14:59:22 wazuh-agentd: ERROR: (1103): Could not open file 'queue/sockets/.agent_info' due to [(2)-(No such file or directory)].
+  2026/10/20 14:59:22 wazuh-syscheckd: ERROR: (1103): Could not open file 'queue/sockets/.agent_info' due to [(2)-(No such file or directory)].
+  2026/10/20 14:59:22 wazuh-syscheckd: ERROR: (1103): Could not open file 'queue/sockets/.agent_info' due to [(2)-(No such file or directory)].
+  2026/10/20 14:59:22 wazuh-logcollector: ERROR: (1103): Could not open file 'queue/sockets/.agent_info' due to [(2)-(No such file or directory)].
+  2026/10/20 14:59:22 wazuh-modulesd: ERROR: (1103): Could not open file 'queue/sockets/.agent_info' due to [(2)-(No such file or directory)].
+  2026/10/20 14:59:23 wazuh-agentd: ERROR: (1103): Could not open file 'queue/sockets/.agent_info' due to [(2)-(No such file or directory)].
+  2026/10/20 14:59:23 wazuh-agentd: ERROR: (1103): Could not open file 'queue/sockets/.agent_info' due to [(2)-(No such file or directory)].
+  2026/10/20 14:59:23 wazuh-agentd: INFO: Using notify time: 10 and max time to reconnect: 60
+  2026/10/20 14:59:23 wazuh-agentd: INFO: Trying to connect to server ([wazuh.manager]:1514/tcp).
+  2026/10/20 14:59:23 wazuh-agentd: ERROR: (1216): Unable to connect to '[172.19.0.3]:1514/tcp': 'Transport endpoint is not connected'.
+  2026/10/20 14:59:33 wazuh-agentd: INFO: Trying to connect to server ([wazuh.manager]:1514/tcp).
+  2026/10/20 14:59:33 wazuh-agentd: ERROR: (1216): Unable to connect to '[172.19.0.3]:1514/tcp': 'Transport endpoint is not connected'.
+  2026/10/20 14:59:43 wazuh-agentd: INFO: Trying to connect to server ([wazuh.manager]:1514/tcp).
+  2026/10/20 14:59:43 wazuh-agentd: CRITICAL: (2301): Definition not found for: 'agent.tcp_keepidle'.
+  agent ossec.log 재기동 이후 줄 수: 34, ERROR/CRITICAL: 11, 마지막 줄 시각: 2026/10/20 14:59:43
+### manager ossec.log 의 agent 004 / remoted 관련 최근 줄 (원본, 마지막 10줄)
+  2026/10/20 14:59:12 wazuh-remoted: INFO: (1225): SIGNAL [(15)-(Terminated)] Received. Exit Cleaning...
+  2026/10/20 14:59:39 wazuh-syscheckd: INFO: (6004): No diff for file: '/etc/ssl/private.key'
+  2026/10/20 14:59:40 wazuh-remoted: INFO: Started (pid: 792). Listening on port 1514/TCP (secure).
+  2026/10/20 14:59:40 wazuh-remoted: INFO: (1410): Reading authentication keys file.
+### ④ ERROR 28줄 시각 분포 (디스크 포화 구간 대비)
+        1 2026/10/20 15:00 wazuh-modulesd:vulnerability-scanner:
+       27 2026/10/20 15:03 wazuh-analysisd:
+  manager ossec.log 마지막 줄 시각: 2026/10/20 15:09:20  disk now: 88%
+
+## (3-5) agent.tcp_keepidle 정의 위치 확인 (읽기 전용) 2026-10-21T00:17:26+09:00
+  agent 컨테이너(볼륨 wazuh_agent_etc) /var/ossec/etc/internal_options.conf: tcp_keepidle 줄 수=1, sha256=2f434217b2f894a4, mtime=2026-09-18 11:13:49
+  wazuh-agent:4.14.8 이미지 기본 파일: 이미지 없음(로컬에서 삭제됨)
+  wazuh-agent:4.14.9 이미지 기본 파일: 
+  manager 컨테이너(볼륨 wazuh_etc) internal_options.conf: tcp_keepidle 줄 수=2
+  wazuh-manager:4.14.9 이미지 기본 파일: /var/ossec/data_tmp/exclusion/var/ossec/etc/internal_options.conf keepidle=2 sha=d10adcd7c0a448d2
+### manager 프로세스 상태
+  wazuh-clusterd not running...
+  wazuh-modulesd is running...
+  wazuh-monitord is running...
+  wazuh-logcollector is running...
+  wazuh-remoted is running...
+  wazuh-syscheckd is running...
+  wazuh-analysisd is running...
+  wazuh-maild not running...
+  wazuh-execd is running...
+  wazuh-db is running...
+  wazuh-authd is running...
+  wazuh-agentlessd not running...
+  wazuh-integratord not running...
+  wazuh-csyslogd not running...
+  wazuh-apid is running...
+  manager ossec.log 재기동 이후 CRITICAL 줄 수: 0
+
+## (3-5b) 재확인 2026-10-21T00:18:13+09:00 — (3-5) 의 'wazuh-agent:4.14.9 이미지 기본 파일' 결과가 빈 값 → 측정 실패로 판정, 경로를 넓혀 1회 재조회
+  agent 볼륨 internal_options.conf 의 tcp_keep* 키(줄번호:키): 238:remoted.tcp_keepidle 240:remoted.tcp_keepintvl 242:remoted.tcp_keepcnt
+  wazuh-agent:4.14.9 이미지 find -name internal_options.conf: (빈 값 → 측정 실패)
+  이미지 파일 tcp_keep* 키: (빈 값 → 측정 실패)
+
+## (3-6a) (가) internal_options.conf 확인 (읽기 전용) 2026-10-21T00:22:59+09:00
+### 1. 새 agent 이미지 wazuh/wazuh-agent:4.14.9
+  find / -name 'internal_options.conf*' → exit 127 (이미지에 find 없음). (3-5)·(3-5b) 의 빈 값도 같은 원인
+  ls /var/ossec/etc 로 위치 확인: /var/ossec/etc/internal_options.conf (root:wazuh 0640, 15907B, 2026-10-08)
+  sha256=d10adcd7c0a448d29f74f63510907b1aa72d3fd5789842e85c70421887ffe964 size=15907
+  agent.tcp_keepidle 줄: 343:agent.tcp_keepidle  (줄 수 1)
+  agent.tcp_keep*/send_timeout 키와 값(공개 기본값): agent.tcp_keepidle=60;agent.tcp_keepintvl=15;agent.tcp_keepcnt=4;agent.send_timeout=30;
+### 2. agent 볼륨 (wazuh_agent_etc)
+  internal_options.conf sha256=2f434217b2f894a4cf3164ef6a1f4471d9196e5ad21f19c2e21c5be97b16e26a size=14961 owner/mode=root:wazuh 640
+  ↔ 새 이미지: DIFF
+  local_internal_options.conf (전체 내용, 비밀값 없음):
+    | # local_internal_options.conf
+    | #
+    | # This file should be handled with care. It contains
+    | # run time modifications that can affect the use
+    | # of OSSEC. Only change it if you know what you
+    | # are doing. Look first at ossec.conf
+    | # for most of the things you want to change.
+    | #
+    | # This file will not be overwritten during upgrades.
+  local_internal_options.conf sha256 볼륨=73252a6f47fff93d 이미지=73252a6f47fff93d
+### 3. 키 이름 비교 (agent)
+  키 수: 이미지=158 볼륨=154
+  새 이미지에만: agent.send_timeout agent.tcp_keepcnt agent.tcp_keepidle agent.tcp_keepintvl 
+  볼륨에만: 
+  공통 키 중 값이 다른 키: 
+### 4. manager: 볼륨(wazuh_etc) ↔ wazuh/wazuh-manager:4.14.9 기본 파일(/var/ossec/data_tmp/exclusion/var/ossec/etc/internal_options.conf)
+  볼륨 sha256=d10adcd7c0a448d29f74f63510907b1aa72d3fd5789842e85c70421887ffe964 size=15907  이미지 sha256=d10adcd7c0a448d29f74f63510907b1aa72d3fd5789842e85c70421887ffe964 size=15907
+  → SAME
+  키 수: 이미지=158 볼륨=158
+  새 이미지에만: 
+  볼륨에만: 
+  공통 키 중 값이 다른 키: 
+  (참고) manager 이미지 기본 파일 sha256 = agent 이미지 파일 sha256 (d10adcd7c0a448d2) → 같음
+  → 지시에 따라 manager 파일은 교체하지 않음(결과만 기록)
+
+## (3-6b) (나) agent internal_options.conf 교체 (DRI 승인: (가)에서 새 이미지 파일의 agent.tcp_keepidle 확인) 2026-10-21T00:23:51+09:00
+### 1. 백업(저장소 밖): /home/hyeonseong/capstone-backups/2026-10-21_agent_internal_options.conf.pre-4.14.9 sha256=2f434217b2f894a4cf3164ef6a1f4471d9196e5ad21f19c2e21c5be97b16e26a size=14961 mode=600 (볼륨 파일 2f434217… 와 같음)
+### 2. 교체: $ docker run --rm --entrypoint cat wazuh/wazuh-agent:4.14.9 /var/ossec/etc/internal_options.conf | docker exec -i security-lab-wazuh.agent-1 sh -c 'cat > /var/ossec/etc/internal_options.conf'
+  교체 후 sha256=d10adcd7c0a448d29f74f63510907b1aa72d3fd5789842e85c70421887ffe964 → 새 이미지 파일 d10adcd7… SAME
+  inode·소유자·권한: 전 [828897 root:wazuh 640] 후 [828897 root:wazuh 640] → 유지
+  local_internal_options.conf: 전 73252a6f47fff93d 후 73252a6f47fff93d → 건드리지 않음
+  client.keys(재시작 전): 행 수 1, sha256 3974b8bbb8dc01bc(내용 미출력)
+### 3. 재시작(재생성 아님) 2026-10-21T00:24:09+09:00 T_restart_utc=2026-10-20T15:24:05Z
+  $ docker restart security-lab-wazuh.agent-1 → security-lab-wazuh.agent-1
+  container id 전 ea593a328c20 후 ea593a328c20 → 같음(재생성 아님)
+### 4. 재시작 후 확인 2026-10-21T00:25:08+09:00 (재시작 2026-10-20T15:24:05Z)
+  대기(최대 2분, 5초 간격):
+    2026-10-20T15:24:22Z agentd_running=1 agent004_active=1
+    READY 2026-10-20T15:24:22Z
+  $ docker exec security-lab-wazuh.agent-1 /var/ossec/bin/wazuh-control status
+    wazuh-modulesd is running...
+    wazuh-logcollector is running...
+    wazuh-syscheckd is running...
+    wazuh-agentd is running...
+    wazuh-execd is running...
+  agent ossec.log 재시작(2026/10/20 15:24:05) 이후 ERROR·CRITICAL 줄 (원본):
+    (줄 수: 0, 재시작 이후 전체 줄 수: 30)
+  agent ossec.log 재시작 이후 연결 관련 줄 (원본):
+    2026/10/20 15:24:11 wazuh-agentd: INFO: Trying to connect to server ([wazuh.manager]:1514/tcp).
+    2026/10/20 15:24:11 wazuh-agentd: INFO: (4102): Connected to the server ([wazuh.manager]:1514/tcp).
+  client.keys: 행 수 1, sha256 3974b8bbb8dc01bc (재시작 전 1 / 3974b8bbb8dc01bc) → SAME
+
+## (3-7) Step 3 사후 확인 ③·④ 재실행 2026-10-21T00:25:08+09:00
+### ③ agent (재등록 없이 ID 004 Active), client.keys 행 수
+  $ docker exec security-lab-wazuh.manager-1 /var/ossec/bin/agent_control -l  (원본)
+    
+    Wazuh agent_control. List of available agents:
+       ID: 000, Name: wazuh.manager (server), IP: 127.0.0.1, Active/Local
+       ID: 004, Name: wazuh.agent, IP: any, Active
+    
+    List of agentless devices:
+    
+  client.keys: manager=1 agent=1 (Step 0: 1/1)
+  manager ossec.log 재시작(2026/10/20 15:24:05) 이후 authd enrollment·Duplicate 줄 수: 0
+### ④ manager ossec.log — agent 재시작(2026/10/20 15:24:05) 이후 ERROR·CRITICAL / duplicated (원본)
+  재시작 이후 줄 수: 1
+  ERROR/CRITICAL 줄:
+    (줄 수: 0)
+  duplicated 줄:
+    (줄 수: 0)
+  (참고) manager 재기동(14:59:07Z) 이후 전체 기준: ERROR 28줄(디스크 포화 15:00~15:03 의 28줄 포함), duplicated rule ID 종류: Rule ID '100001' is duplicated 
+  (참고) 재시작 이후 수집 재개: alerts.json 마지막 timestamp 2026-10-20T15:24:11.440+0000, now 2026-10-20T15:25:09Z
+
+## (3-6) ③ 실패 원인·근거·교체·결과 요약 2026-10-21T00:26:44+09:00
+- 원인: agent /var/ossec/etc 볼륨(wazuh_agent_etc, S0-B 2ae26c5)이 4.14.8 때 internal_options.conf(2f434217…, 154키)를 보존 → 4.14.9 agentd 가 요구하는 agent.tcp_keepidle 정의 없음 → 'CRITICAL: (2301): Definition not found for: agent.tcp_keepidle' 로 agentd 종료(14:59:43)
+- 근거 문서(1차, DRI 확인): Wazuh 공식 Internal configuration — agent.tcp_keepidle·tcp_keepintvl·tcp_keepcnt·send_timeout 은 agent 내부 설정(기본 60/15/4/30),
+  internal_options.conf 는 업그레이드 때 덮어써지는 파일이며 사용자 변경은 local_internal_options.conf 에 둘 것
+- 교체: (3-6a) 새 이미지 파일(d10adcd7…, 158키)에만 agent.send_timeout·tcp_keepcnt·tcp_keepidle·tcp_keepintvl 4키, 볼륨에만 있는 키·값이 다른 키 0 →
+  (3-6b) 옛 파일 백업(~/capstone-backups/2026-10-21_agent_internal_options.conf.pre-4.14.9, 600) 후 내용만 교체(inode·root:wazuh 640 유지), local_internal_options.conf 무변경, docker restart(재생성 아님)
+- manager: 볼륨 internal_options.conf = 4.14.9 이미지 기본 파일(d10adcd7…) SAME → 교체 없음
+- 결과: agentd running, 15:24:11 Connected to the server, 재시작 이후 agent ERROR·CRITICAL 0, manager agent_control -l ID 004 Active(재등록 0, client.keys 1/1 sha 동일), manager 재시작 이후 ERROR 0·duplicated 0, alerts 수집 재개(15:24:11Z)
+- ④ 의 ERROR 28줄은 모두 디스크 포화 구간(15:00:31 vulnerability-scanner 'No space left on device' 1줄, 15:03:02~05 analysisd 'dbsync: Cannot save Syscheck' 27줄) — (3-D) 사건 기록과 연결
+- 판단(현성 DRI): 원인은 슬라이스 이미지 자체가 아니라 S0-B 볼륨이 공식 업그레이드의 internal_options.conf 교체를 막은 것. 공식 문서 절차대로 교체해 업그레이드를 마무리함(되돌리지 않음).
+
+## (3-E) 환경 변경 — VM 디스크 60→100GB 확장 (현성 수동) 기록 2026-10-21T02:09+09:00
+- 위치: DRI 지시는 "(3-6) 앞"이나, 실제 발생이 (3-6) 기록(00:26:44 KST) 이후(VM 부팅 01:57:07 KST)라 시간 순서대로 여기에 둠. (3-6a)~(3-6) 의 교체·확인은 확장 전 디스크(88%)에서 수행됨
+- 현성 보고:
+  - sda2 growpart + resize2fs, 사용률 88% → 53%, 여유 45GB
+  - 순서: 컨테이너 10개 docker stop → VM 종료 → VMware Expand → VM 부팅 → 같은 ID 로 docker start (재생성 아님)
+  - target-web 네트워크를 공유하는 컨테이너 1개가 시작 순서 때문에 1회 실패 → 재시도로 시작
+  - 10개 전부 Up 확인
+- 측정(2026-10-21T02:06:24+09:00):
+  - uptime -s: 2026-10-21 01:57:07 (KST)
+  - lsblk: sda 100G, sda2 100G /;  df /: 99G 중 41G 사용, 53G 여유, 44% (현성 보고 53% 이후 정리·재기동 차이로 보이나 미확인)
+  - docker ps -a: 10개 running, restarts=0 전부; keen_brahmagupta(hello-world) Exited (변화 없음)
+  - StartedAt(UTC): agent 17:00:49.69 / manager 17:00:51.00 / indexer 17:00:51.74 / postgres 17:00:52.30 / caldera 17:00:52.93 / mock-imds 17:00:53.82 / target-web 17:00:54.27 / react-dashboard 17:00:56.89 / backend 17:00:58.04 / suricata 17:01:58.25 (가장 늦음 — 재시도로 시작한 1개로 추정, 미확인)
+  - container id: agent ea593a328c20 = (3-6b) 의 ea593a328c20 → 재생성 아님
+
+## (3-8) 재부팅 후 (가) 재확인 (읽기 전용) 2026-10-21T02:06+09:00
+### 1. 새 agent 이미지 wazuh/wazuh-agent:4.14.9 (--network none)
+  $ docker run --rm --entrypoint sh wazuh/wazuh-agent:4.14.9 -c 'find / -name "internal_options.conf*" 2>/dev/null' → 출력 없음, exit=127 (이미지에 find 없음 — (3-6a) 와 같음, 빈 값은 측정 실패이므로 ls 로 대체)
+  ls /var/ossec/etc: internal_options.conf (0:999 = root:wazuh 0640, 15907B, 2026-10-08), local_internal_options.conf (0640, 320B)
+  internal_options.conf sha256=d10adcd7c0a448d29f74f63510907b1aa72d3fd5789842e85c70421887ffe964 size=15907, 343:agent.tcp_keepidle=60 (줄 수 1)
+### 2. agent 볼륨 (wazuh_agent_etc)
+  internal_options.conf sha256=d10adcd7c0a448d29f74f63510907b1aa72d3fd5789842e85c70421887ffe964 size=15907, inode 828897 root:wazuh 640, mtime 2026-10-20 15:23:52Z (= (3-6b) 교체 시각) → 새 이미지 파일과 SAME, 재부팅 후에도 교체 유지
+  343:agent.tcp_keepidle=60 (줄 수 1)
+  local_internal_options.conf sha256=73252a6f47fff93d8ce62ca70a8f9196a216d5e09dc2228758fcf0b0ac77133f size=320 inode 828901 mtime 2026-09-18 11:13:49 = 이미지 기본 파일 SAME, 내용은 (3-6a) 기록의 주석 9줄과 같음(사용자 설정 줄 0)
+  백업 ~/capstone-backups/2026-10-21_agent_internal_options.conf.pre-4.14.9 sha256=2f434217b2f894a4cf3164ef6a1f4471d9196e5ad21f19c2e21c5be97b16e26a size=14961 → (3-6b) 기록과 SAME
+### 3. 키 이름 비교 (agent)
+  현재 볼륨 ↔ 새 이미지: 키 수 158/158, 새 이미지에만: (없음) 볼륨에만: (없음)
+  (참고) 백업(옛 볼륨 파일) ↔ 새 이미지: 키 수 154/158, 새 이미지에만: agent.send_timeout agent.tcp_keepcnt agent.tcp_keepidle agent.tcp_keepintvl, 백업에만: (없음) → (3-6a) 3 과 같음
+  키 추출: ^\s*[A-Za-z0-9_]+\.[A-Za-z0-9_]+\s*= 줄의 키 이름(sort -u)
+### 4. manager: 볼륨(wazuh_etc) ↔ wazuh/wazuh-manager:4.14.9 기본 파일(/var/ossec/data_tmp/exclusion/var/ossec/etc/internal_options.conf)
+  볼륨 sha256=d10adcd7c0a448d29f74f63510907b1aa72d3fd5789842e85c70421887ffe964 size=15907, 이미지 같은 값 → SAME, 키 수 158/158, 차이 없음 → 교체 없음
+### (나) 판단
+  볼륨 파일이 이미 새 이미지 파일과 SAME → (3-6b) 교체가 재부팅 후에도 유지됨. 재교체·재시작 하지 않음(백업 덮어쓰기도 하지 않음)
+
+## (3-9) 재부팅 후 Step 3 사후 확인 ③·④ 재실행 2026-10-21T02:08+09:00 (now_utc 2026-10-20T17:08:04Z)
+### ③ agent (재등록 없이 ID 004 Active), client.keys 행 수
+  $ docker exec security-lab-wazuh.agent-1 /var/ossec/bin/wazuh-control status
+    wazuh-modulesd is running...
+    wazuh-logcollector is running...
+    wazuh-syscheckd is running...
+    wazuh-agentd is running...
+    wazuh-execd is running...
+  agent ossec.log 기동(17:00:49Z) 이후: 45줄(17:00:51~17:07:40), WARNING 0, CRITICAL 0, ERROR 4 (원본):
+    2026/10/20 17:00:52 wazuh-agentd: ERROR: (1216): Unable to connect to '[172.19.0.3]:1514/tcp': 'Transport endpoint is not connected'.
+    2026/10/20 17:01:02 wazuh-agentd: ERROR: (1216): Unable to connect to '[172.19.0.3]:1514/tcp': 'Transport endpoint is not connected'.
+    2026/10/20 17:01:12 wazuh-agentd: ERROR: (1216): Unable to connect to '[172.19.0.3]:1514/tcp': 'Transport endpoint is not connected'.
+    2026/10/20 17:01:22 wazuh-agentd: ERROR: (1216): Unable to connect to '[172.19.0.3]:1514/tcp': 'Transport endpoint is not connected'.
+    2026/10/20 17:01:33 wazuh-agentd: INFO: (4102): Connected to the server ([wazuh.manager]:1514/tcp).
+  → 4줄 모두 manager remoted 기동 전(remoted 'Listening on port 1514' 17:01:29) 재시도. 17:01:33 연결 후 ERROR 없음. 'Definition not found' 0줄
+  $ docker exec security-lab-wazuh.manager-1 /var/ossec/bin/agent_control -l  (원본)
+
+    Wazuh agent_control. List of available agents:
+       ID: 000, Name: wazuh.manager (server), IP: 127.0.0.1, Active/Local
+       ID: 004, Name: wazuh.agent, IP: any, Active
+
+    List of agentless devices:
+
+  agent_control -i 004: Status Active, Last keep alive 1792516062
+  client.keys: manager=1 agent=1 (Step 0: 1/1), agent sha256 3974b8bbb8dc01bc = (3-6b) SAME
+  manager ossec.log 기동 이후 authd enrollment·Duplicate 줄 수: 0 → 재등록 없음
+### ④ manager ossec.log — 기동(17:00:50Z) 이후 ERROR·CRITICAL / rule·decoder / duplicated (원본)
+  기동 이후 줄 수: 121 (17:01:01~17:03:55). 시각 필터에 걸린 깨진 줄 1개 제외: '2026/10/20 2026/10/20 15:08:19 indexer-connector: INFO: ...' (디스크 포화 구간 15:08 기록, ERROR 아님)
+  ERROR/CRITICAL 줄:
+    (줄 수: 0)
+  rule/decoder 관련 WARNING·ERROR 줄:
+    2026/10/20 17:01:01 wazuh-analysisd: WARNING: (7612): Rule ID '100001' is duplicated. Only the first occurrence will be considered.
+    2026/10/20 17:01:11 wazuh-testrule: WARNING: (7612): Rule ID '100001' is duplicated. Only the first occurrence will be considered.
+    2026/10/20 17:01:32 wazuh-analysisd: WARNING: (7612): Rule ID '100001' is duplicated. Only the first occurrence will be considered.
+  duplicated 줄(rule ID 별 개수):
+          3 Rule ID '100001' is duplicated   (= (3-3) ④ 재기동 때와 같은 종류·개수)
+  (참고) alerts.json 기동 이후(17:0x) 187건: sca 185, wazuh-agent 1, wazuh-monitord 1; 마지막 2026-10-20T17:02:19.201Z
+         suricata 위치 0건 — eve.json 17:0x 이벤트가 flow 47건뿐(alert 0)이라 수집 실패로 보지 않음. agent logcollector 17:00:55 'Analyzing file: /var/log/suricata/eve.json'
+         eve.json 에 NUL 바이트 1614개(grep 이 binary 로 판정) — 원인 미확인(디스크 포화 구간 추정), 1c 범위 밖  → (3-10) NUL 관찰에서 정정: 디스크 포화 구간 아님
+
+## (3-10) 재부팅 후 Step 3 사후 확인 ①②⑤⑥⑦ 재실행 (읽기 전용, 상태 변경 없음) 2026-10-21T02:20+09:00 (부팅 2026-10-20T16:57:07Z)
+### ① Image ID·버전 → 통과
+  security-lab-wazuh.indexer-1 sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6 = (1-1) digest SAME
+  security-lab-wazuh.manager-1 sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b = (1-1) digest SAME
+  security-lab-wazuh.agent-1   sha256:db274c1e2c56106f108fa1469f7ee99995ad3cac41003e8ca7a975cda2af20d8 = (1-1) digest SAME
+  wazuh-control info: manager WAZUH_VERSION="v4.14.9" WAZUH_REVISION="rc2" WAZUH_TYPE="server" / agent WAZUH_VERSION="v4.14.9" WAZUH_REVISION="rc2" WAZUH_TYPE="agent"
+  indexer: opensearch-2.19.6.jar, VERSION.json {"version":"4.14.9","stage":"rc2","commit":"4f4be35f"}
+### ② (재부팅 대체) 재생성 없음·Up·postgres healthy·mock-imds imds_net → 통과 (단, ID 기준값은 agent 만 있음)
+  재부팅 전 container ID 기록: 이 로그와 evidence/·docs/ 전체에서 agent(ea593a328c20, (3-6b))만 있음 — 나머지 9개는 기준값 없음 → 'ID SAME' 판정 불가.
+  대체 근거: Created 가 부팅(16:57:07Z) 이전이고, 재부팅 전 기록된 StartedAt((0-4)·(3-3)②) 이하 → 재부팅 때 재생성 아님
+    name             id            Created(UTC)                    재부팅 전 StartedAt          StartedAt(현재)        status   restarts
+    wazuh.agent-1    ea593a328c20  2026-10-20T14:59:16.46  ≤ 14:59:21.49                 17:00:49.69  running  0   (ID = (3-6b) SAME)
+    wazuh.manager-1  2e981a803ed5  2026-10-20T14:59:11.87  ≤ 14:59:20.80                 17:00:51.00  running  0
+    wazuh.indexer-1  4de121e938e7  2026-10-20T14:59:08.40  ≤ 14:59:20.43                 17:00:51.74  running  0
+    postgres         03c8a168cf37  2026-10-20T14:18:03.36  ≤ 14:18:03.86                 17:00:52.30  running  0  health=healthy
+    caldera          655ec54ec456  2026-10-20T13:19:29.31  ≤ 13:19:32.03                 17:00:52.93  running  0
+    mock-imds        aadb7b5b54d1  2026-10-20T12:52:42.41  ≤ 12:52:54.83                 17:00:53.82  running  0
+    target-web       528f2fc58bba  2026-10-16T08:13:52.65  ≤ 2026-10-20T08:21:29.81      17:00:54.27  running  0
+    react-dashboard  04cd261f05f1  2026-10-10T18:25:38.04  ≤ 2026-10-20T08:21:29.81      17:00:56.89  running  0
+    backend          1f46e3ad546a  2026-10-10T18:18:56.59  ≤ 2026-10-20T08:21:29.81      17:00:58.04  running  0
+    suricata         2a4b0b36faae  2026-10-20T12:52:42.63  ≤ 12:52:54.82                 17:01:58.25  running  0
+  (keen_brahmagupta hello-world Exited — 변화 없음)
+  mock-imds: security-lab_imds_net=169.254.169.254 (= 1a·0R 기록)
+### ③·④ → 통과 ((3-9) 인용)
+  ③ agentd running, agent_control -l ID 004 Active, client.keys 1/1 (sha 3974b8bbb8dc01bc SAME), 재등록 0. agent ERROR 4줄은 remoted 기동(17:01:29) 전 연결 재시도, 17:01:33 Connected
+  ④ manager 기동 이후 ERROR·CRITICAL 0, Rule ID '100001' duplicated 3줄(기준선과 같음)
+### ⑤ filebeat test output (manager) → 통과
+  parse url OK / dns lookup OK (wazuh.indexer → 172.19.0.4) / dial up OK / TLS handshake OK (TLSv1.2, chain verification enabled) / talk to server OK / version 7.10.2, exit=0
+### ⑥ indexer → 통과 (인증: manager 컨테이너 env INDEXER_USERNAME/INDEXER_PASSWORD, 값 미출력, URL=$INDEXER_URL host wazuh.indexer)
+  _cluster/health: {"status":"green","number_of_nodes":1,"active_shards":101,"relocating_shards":0,"unassigned_shards":0}
+  wazuh-alerts-*/_count: 7037 ≥ 6661(Step 0)
+  GET _all/_settings?filter_path=**.blocks → {}  (읽기 전용 잠금 없음)
+  GET _cluster/settings?filter_path=**.blocks,**.disk → {}
+  _cat/allocation: wazuh.indexer used 46.6gb avail 51.5gb 47%
+### ⑦ suricata → **실패 (인터페이스 매핑이 50b9625 고정과 다름). 지시대로 고치지 않고 멈춤**
+  NetworkMode=container:528f2fc58bba7095838edab6c1ba90f7fbc31c0a5100c558d06e945bf3136b7f = 현재 target-web Id → MATCH
+  suricata Cmd: -i eth0 -i eth1 -i eth2 -k none ... (50b9625 그대로)
+  인터페이스 이름: eth0·eth1·eth2 모두 있음(operstate up), 전체 eth0 eth1 eth2 eth3 lo
+  그러나 주소 매핑(현재, suricata netns = target-web netns):
+    eth0 172.19.0.5/16  security_net (관리 평면)   ← 50b9625: eth0=app_net(172.20)
+    eth1 172.20.0.3/16  app_net                     ← 50b9625: eth1=attack_net(172.18)
+    eth2 172.18.0.3/16  attack_net                  ← 50b9625: eth2=imds_net(169.254)
+    eth3 169.254.169.2/24 imds_net (미캡처)          ← 50b9625: eth3=security_net(미캡처)
+  → 현재 캡처 대상 = security·app·attack, imds_net 미캡처 (Gap #4 회귀 상태)
+  재부팅 전엔 맞았음(eve.json 2026-10-20T12:53Z~16:57:07Z, in_iface × dest /16):
+    eth0 172.20 1231 / eth1 172.18 2 / eth2 169.254 30 (+ 각 iface 224.0 멀티캐스트 26, eth0 외부 104.20·172.66 10)
+  재부팅 후 eve flow in_iface × src/dst /16: eth0 172.19→224.0 3·IPv6 멀티캐스트 11·192.168→224.0 1 / eth1 172.20→172.20 65(target-web 172.20.0.3→postgres 172.20.0.2:5432, 재조회 67) / eth2 172.18→224.0 3
+  원인(추정, 미확인): VM 재부팅 후 compose up 이 아닌 docker start 로 기동 — 네트워크 연결 순서를 정하는 compose priority 가 적용되지 않았을 수 있음. target-web 기동 1회 실패·재시도(3-E)와의 관계 미확인
+  suricata docker logs (StartedAt 17:01:58Z 이후, 7줄): 인터페이스 오류(E) 0줄. W 3줄(원본):
+    W: af-packet: eth0: AF_PACKET tpacket-v3 is recommended for non-inline operation
+    W: af-packet: eth1: AF_PACKET tpacket-v3 is recommended for non-inline operation
+    W: af-packet: eth2: AF_PACKET tpacket-v3 is recommended for non-inline operation
+    i: threads: Threads created -> W: 12 FM: 1 FR: 1   Engine started.
+  docker logs 16:57:07Z~17:01:58Z: 0줄 (1회 실패한 시작 시도의 흔적은 docker logs 에 없음)
+  eve.json: size 10884237, 16153줄, 첫 timestamp 2026-06-01T15:34:28Z, 최신 2026-10-20T17:16:35.859858+0000 → 재부팅 이후
+  재부팅 이후 event_type: flow 110, alert 0 (공격 없음 → 실패로 보지 않음, 스모크에서 확인)
+  재부팅 이후 flow dest_ip: 172.20.0.5(backend 앱)=0, 169.254.169.254(IMDS)=0
+    (참고: 172.20.0.5=backend 는 app_net 에 있으나 target-web 의 상대가 아니면 target-web netns 에 안 보임; 169.254.169.254 는 eth3 이라 지금 매핑으로는 트래픽이 있어도 캡처 안 됨)
+### eve.json NUL 바이트 (관찰만 — 자르기·로테이트·재시작 없음)
+  NUL 1614바이트, 블록 2개 (각 블록이 한 줄의 앞부분, 뒤에 정상 JSON 이 이어짐)
+    block1: offset 1049219, 992B, 줄 1817 / 앞 줄 ts 2026-06-14T11:01:59.486443Z, 같은 줄 NUL 뒤 ts 2026-09-14T08:30:00.615023Z, 다음 줄 ts 2026-09-14T08:30:05.192428Z
+    block2: offset 1069214, 622B, 줄 1853 / 앞 줄 ts 2026-09-14T09:00:09.398512Z, 같은 줄 NUL 뒤 ts 2026-09-15T10:10:44.079404Z, 다음 줄 ts 2026-09-15T10:10:44.079374Z
+  → 두 블록 모두 2026-09-14~15. ENOSPC 구간(2026-10-20 15:00~15:15Z, (3-D))과 겹치지 않음. (3-9) '디스크 포화 구간 추정'은 틀림 → 정정. 원인 미확인
+  (별도) ENOSPC 구간 흔적은 NUL 이 아니라 잘린 줄 1개: 줄 15972 (654B, NUL 0) '{"timestamp":"2026-10-20T15:0' 에서 잘리고 '{"timestamp":"2026-10-20T15:09:03.048413+…' 가 이어 붙음 → JSON 파싱 불가 줄 총 3개(NUL 2 + 이것 1)
+  agent ossec.log eve.json 관련 'zero-bytes'·JSON 파싱 경고: 0줄
+    ('json' 일치 6줄은 전부 'Analyzing file: /var/log/suricata/eve.json'·'/var/log/target/attack.json.log' INFO, 14:59:24·15:24:13·17:00:55)
+    범위 한계: agent ossec.log 는 컨테이너 재생성(14:59:16Z) 이후 311줄만 있음(첫 줄 2026/10/20 14:59:22, 로테이트 디렉터리 비어 있음) → 2026-09 NUL 기록 시점의 agent 로그는 없음
+### 판정
+  ①②③④⑤⑥ 통과, ⑦ 실패(suricata 인터페이스 매핑 변경, imds_net 미캡처). 수정·재시작 없이 멈춤 — DRI 판단 대기. Step 4 진행 안 함
+
+## (3-11) ⑦ 복구 A — 확인만 (상태 변경 없음) 2026-10-21T02:40+09:00
+- DRI 판단(현성): 원인은 1c(Wazuh 이미지)가 아니라 재부팅(3-E) → ADR-S4-03 D5 "원인이 슬라이스 밖이면 원인 제거 후 측정" 적용. 복구는 compose 재생성(파일 변경 없음), network disconnect/connect 안 함
+- DRI 정정: 지난 지시서의 "앱 172.20.0.5"는 추측이었고 틀림. 앞으로 앱 IP 는 target-web 현재 IP(inspect)로 비교 → (3-10) 의 172.20.0.5(backend) 건수는 판정에서 제외
+- 근거(1차, DRI 제시): moby/moby#49935 — 인터페이스 이름(eth0…)은 기본적으로 예측 불가, 생성·재시작에 걸쳐 순서 미보장, 이름이 중요하면 명시 지정.
+  Docker Engine 28 릴리스 노트 — com.docker.network.endpoint.ifname 추가, 자동 이름과 같은 eth 접두사로 지정하면 시작 실패 가능
+### 1. 고정 방식
+  $ git show 50b9625 -- docker/docker-compose.yml  (target-web networks 부분 원문)
+    +    # 연결 순서 고정 (priority 높을수록 먼저 연결 = 낮은 eth 번호). suricata -i 인덱스가 이 순서에 의존 (Gap #4)
+         networks:
+    -      - attack_net
+    -      - security_net
+    -      - app_net
+    -      - imds_net
+    +      app_net:
+    +        priority: 100      # -> eth0
+    +      attack_net:
+    +        priority: 90       # -> eth1
+    +      imds_net:
+    +        priority: 80       # -> eth2
+    +      security_net:
+    +        priority: 70       # -> eth3 (관리 평면, 미캡처)
+  → 쓴 것: priority 만. interface_name·gw_priority·driver_opts(com.docker.network.endpoint.ifname) 없음
+  HEAD docker/docker-compose.yml target-web networks 원문: 위 + 와 같음(priority 100/90/80/70). interface_name 없음
+    grep interface_name|gw_priority|ifname docker/docker-compose.yml → 0줄 (작업 트리 diff 는 wazuh digest 3줄뿐, target-web·suricata 무관)
+  suricata compose command 원문: -i eth0 -i eth1 -i eth2 -k none -l /var/log/suricata -S /var/lib/suricata/rules/local.rules --set outputs.7.stats.enabled=no --set outputs.1.eve-log.types.26.stats.enabled=no
+  suricata.yaml: 저장소에 없음(docker/config/suricata/ 에는 caldera-vuln.rules·local.rules 만). 컨테이너 /etc/suricata 는 익명 볼륨 70e39aa52c62(이미지 기본 파일), suricata.yaml 88789B
+    감시 인터페이스 부분 원문(이미지 기본값, 명령줄 -i 가 우선):
+      628:af-packet:
+      629:  - interface: eth0
+      710:  - interface: default
+      828:pcap:
+      829:  - interface: eth0
+      2019: - interface: eth2      (netmap 절, 미사용)
+      2061:  - interface: eth0     (pfring 절, 미사용)
+### 2. 버전
+  docker version: Client 29.1.3 API 1.52 / Engine 29.1.3 API 1.52 (min 1.44), dockerd commit 29.1.3-0ubuntu3~24.04.2
+  docker compose version: 2.40.3+ds1-0ubuntu1~24.04.1
+### 3. target-web inspect EndpointSettings
+  security-lab_app_net      ip=172.20.0.3     GwPriority=0 DriverOpts=null mac=0a:a8:0e:0a:ac:df
+  security-lab_attack_net   ip=172.18.0.3     GwPriority=0 DriverOpts=null mac=32:a5:5c:de:fc:d7
+  security-lab_imds_net     ip=169.254.169.2  GwPriority=0 DriverOpts=null mac=56:c8:1b:bb:88:b3
+  security-lab_security_net ip=172.19.0.5     GwPriority=0 DriverOpts=null mac=da:c0:a2:85:97:ca
+  HostConfig.NetworkMode=security-lab_app_net
+  → ifname 값 없음(DriverOpts 전부 null), GwPriority 전부 0. compose priority 는 컨테이너 설정에 남지 않음
+  netns 의 이름↔MAC: eth0 da:c0…(security) ifindex2 / eth1 0a:a8…(app) 3 / eth2 32:a5…(attack) 4 / eth3 56:c8…(imds) 5
+  앱 IP(target-web 현재, app_net) = 172.20.0.3
+### 4. 재부팅 후 시작 실패 원인
+  State: target-web status=running exit=0 error="" restarts=0 oom=false started=17:00:54.27Z finished=16:54:57.76Z (docker stop)
+         suricata   status=running exit=0 error="" restarts=0 oom=false started=17:01:58.25Z finished=16:54:56.46Z (docker stop)
+  → target-web 은 1회에 정상 시작. 1회 실패한 것은 target-web netns 를 공유하는 suricata (3-E 의 '컨테이너 1개')
+  journalctl -u docker --since 2026-10-21 01:57:07 (54줄): 키워드 줄 수 interface 0 / ifname 0 / exists 0 / eth[0-9] 0 / suricata 0, level=error 1(02:16:56 exec broken pipe — 내 (3-9) 측정 명령의 파이프 조기 종료), level=warning 11(01:57:18 'failed to determine if container is already mounted' 컨테이너 11개)
+  target-web 관련 원본 줄(docker start 때 네트워크 연결 순서):
+    2026-10-21T02:00:54.600669536+09:00 level=info msg="sbJoin: gwep4 ''->'66b1b573347d', gwep6 ''->''" eid=66b1b573347d ep=target-web net=security-lab_security_net nid=ef17512d8450
+    2026-10-21T02:00:55.141008531+09:00 level=info msg="sbJoin: gwep4 '66b1b573347d'->'755a17d634d6', gwep6 ''->''" eid=755a17d634d6 ep=target-web net=security-lab_app_net nid=6a06c902634f
+    2026-10-21T02:00:55.866254703+09:00 level=info msg="sbJoin: gwep4 '755a17d634d6'->'755a17d634d6', gwep6 ''->''" eid=efb6bd8d2ccb ep=target-web net=security-lab_attack_net nid=c81b6fab8d03
+    2026-10-21T02:00:56.700210651+09:00 level=info msg="sbJoin: gwep4 '755a17d634d6'->'755a17d634d6', gwep6 ''->''" eid=7eafa5ef1434 ep=target-web net=security-lab_imds_net nid=ec05b6dbdab5
+  kernel (같은 구간, 원본):
+    02:00:54 kernel: eth0: renamed from veth86f9fe8 / br-ef17512d8450(security): port 4(vethb6c05c6) entered forwarding state
+    02:00:55 kernel: eth1: renamed from vethae12bec / br-6a06c902634f(app): port 2(vethb78978b) entered forwarding state
+    02:00:55 kernel: eth2: renamed from veth2acc3cb / br-c81b6fab8d03(attack): port 2(veth2005d57) entered forwarding state
+    02:00:56 kernel: eth3: renamed from veth26cbdaf / br-ec05b6dbdab5(imds): port 2(veth63a0bb3) entered forwarding state
+  → docker start 의 연결 순서 security→app→attack→imds 가 그대로 eth0~eth3 이 됨. 이름 충돌 메시지 없음(오류가 아니라 순서 문제)
+  suricata 1회 실패 흔적(원본): 2026-10-21T02:00:53 systemd[1]: var-lib-docker-rootfs-overlayfs-2a4b0b36faae….mount: Deactivated successfully.
+    → caldera(02:00:53) 다음·mock-imds·target-web(02:00:54) 앞에 시작 시도 = docker ps 목록 순서. target-web 미기동 상태라 실패한 것으로 보임(daemon 로그에 오류 줄 없음, CLI 출력은 미보존)
+    재시도 성공: 02:01:58 containerd 'connecting to shim 2a4b0b36…' → 02:02:00 kernel eth0·eth1·eth2 entered promiscuous mode
+  containerd 'error|fail' 10줄: 전부 01:57:17 플러그인 skip(info)·CRI cni 미설정(error) — 컨테이너 시작과 무관
+### 5. 재생성 dry-run
+  현재 이미지: target-web sha256:e33f35d940b6b66d52ab4d4b629a9a622fbb9272b1e4c67f2f59f4cb197e9e17 (cfg security-lab-target-web = 로컬 태그 :latest 같은 Id)
+               suricata   sha256:5b3f3aabc3646a4d94ee26abc4f487c2d11a8700b0e6ee52d9b47f110812e898 (cfg jasonish/suricata:7.0@sha256:5b3f3aab… digest 고정)
+  $ docker compose -p security-lab -f docker/docker-compose.yml up -d --no-build --pull never --no-deps --force-recreate target-web suricata --dry-run
+     DRY-RUN MODE -  Container target-web  Recreate
+     DRY-RUN MODE -  Container target-web  Recreated
+     DRY-RUN MODE -  Container suricata  Recreate
+     DRY-RUN MODE -  Container suricata  Recreated
+     DRY-RUN MODE -  Container 528f2fc58bba_target-web  Starting
+     DRY-RUN MODE -  Container 528f2fc58bba_target-web  Started
+     DRY-RUN MODE -  Container 2a4b0b36faae_suricata  Starting
+     DRY-RUN MODE -  Container 2a4b0b36faae_suricata  Started
+  exit=0 → Recreate 2개(target-web·suricata)뿐, pull·build 줄 0, --pull never·--no-build 라 이미지 Id 는 위 2개 그대로
+### 판정
+  A 1~5 완료, 이상 없음(측정 실패 0). 재생성(B)은 DRI 승인 대기
+### 정정 (DRI 현성, 2026-10-21)
+  지시서의 "eth 이름 충돌" 가설은 틀림: 인터페이스 이름 지정(interface_name·ifname)을 쓰지 않았고, 1회 실패한 것은 target-web 이 아니라 suricata 의 시작 순서(target-web 기동 전 시작 시도)
+
+## (3-12) ⑦ 복구 B — target-web·suricata compose 재생성 (DRI 승인) 2026-10-21T02:35:47+09:00 T_recreate_utc=2026-10-20T17:35:47Z
+### 전 상태
+  target-web 528f2fc58bba… started 17:00:54.27Z / suricata 2a4b0b36faae… started 17:01:58.25Z, eve.json 16269줄 inode 963311
+  다른 8개 StartedAt: agent 17:00:49.686845212 / manager 17:00:50.997397674 / indexer 17:00:51.739122373 / postgres 17:00:52.299058825 / caldera 17:00:52.925780782 / mock-imds 17:00:53.819402488 / react-dashboard 17:00:56.887797127 / backend 17:00:58.035420748
+### 재생성
+  $ docker compose -p security-lab -f docker/docker-compose.yml up -d --no-build --pull never --no-deps --force-recreate target-web suricata
+     Container target-web  Recreate
+     Container target-web  Recreated
+     Container suricata  Recreate
+     Container suricata  Recreated
+     Container target-web  Starting
+     Container target-web  Started
+     Container suricata  Starting
+     Container suricata  Started
+  exit=0 (17:35:58Z 종료)
+  docker journal(원본 요약): 02:35:50·02:35:56 'ShouldRestart failed, container will not be restarted' error="restart canceled" hasBeenManuallyStopped=true (옛 528f…·2a4b… 정지 시 정상 메시지), 그 외 error 0
+  새 target-web 연결 순서(docker journal sbJoin, 원본 시각):
+    02:35:57.254 net=security-lab_app_net → 02:35:57.463 attack_net → 02:35:57.957 imds_net → 02:35:58.298 security_net  (= priority 100/90/80/70 순서)
+### 확인 → 전부 통과
+  1. 인터페이스 (suricata netns = 새 target-web netns):
+     eth0 172.20.0.3/16 app_net    mac 6e:20:4c:bd:f7:cf   (50b9625 eth0=app 172.20)  SAME
+     eth1 172.18.0.3/16 attack_net mac 0a:58:f7:c1:24:40   (eth1=attack 172.18)       SAME
+     eth2 169.254.169.2/24 imds_net mac a2:7a:34:4b:89:da  (eth2=imds 169.254)        SAME
+     eth3 172.19.0.5/16 security_net mac a6:c5:3f:66:50:d9 (eth3=security, 미캡처)    SAME
+     (target-web inspect 의 네트워크별 MAC 과 netns MAC 일치)
+  2. 새 target-web Id=b681cfc9fc7a7971abe4367043513f5d08ec8a4714887cb3556c517f41652ae8 created 17:35:47.43Z started 17:35:56.81Z
+     새 suricata Id=dd05e021bdd5e817645845d532ac80cacc906a866b6c0a650ae2d59da8a7fda7 started 17:35:58.38Z restarts=0
+     suricata HostConfig.NetworkMode=container:b681cfc9fc7a7971abe4367043513f5d08ec8a4714887cb3556c517f41652ae8 → 새 target-web Id MATCH
+     suricata docker logs 전체(원본 7줄): Suricata 7.0.15 RELEASE, W: af-packet eth0·eth1·eth2 'AF_PACKET tpacket-v3 is recommended for non-inline operation' 3줄, 'Engine started.'
+       → E: 줄 0, 인터페이스 오류 0
+  3. target-web: 'Started VulnApplication in 7.478 seconds' (17:36:07.657Z), 기동 후 로그 ERROR 0
+     health 요청 1회(대기는 HTTP 없이 앱 로그로) T_health=2026-10-20T17:37:08.772Z: GET http://127.0.0.1:8080/actuator/health → http_code=200, status=UP (세부 미출력, 응답 파일 즉시 삭제)
+  4. 다른 8개 StartedAt: 전 상태와 diff 0 → 8/8 SAME, postgres healthy
+  5. agent_control -l: ID: 004, Name: wazuh.agent, IP: any, Active
+  6. 앱 IP(재생성 후 inspect): security-lab_app_net=172.20.0.3 (재생성 전과 같음)
+     health 요청 이후 eve.json flow dest_ip=172.20.0.3: 1건 (in_iface eth0, src 172.20.0.1(app_net 게이트웨이, 호스트 포트 게시 경로) → :8080, app_proto http, state closed, reason timeout, flow start 17:37:08.863Z, 기록 17:38:15.839Z)
+     같은 구간 http 1건·fileinfo 1건
+     (참고) eve 'timestamp' ≥ 재생성 시각인 flow 중 eth1 172.20.0.3→172.20.0.2:5432 10건(줄 16272~16281)은 옛 suricata 의 종료 flush:
+            reason=shutdown, 기록 17:35:53.9Z(새 suricata 시작 17:35:58 전), flow start 17:24~17:35 — 옛 매핑(eth1=app) 기록이며 새 매핑 판정과 무관
+            새 suricata 시작 이후 flow: eth0 172.20 1건뿐(위 health)
+### 판단 (DRI 현성)
+  50b9625는 compose priority로만 순서를 정했고 이는 컨테이너 설정에 남지 않아 재부팅(docker start) 때 적용되지 않음.
+  Docker 메인테이너 정리(moby#49935)상 이름 지정 없는 인터페이스 순서는 보장되지 않음.
+  compose 재생성은 임시 복구이며, 근본 수정은 인터페이스 이름 명시 슬라이스로 별도 진행.
+  → ⑦ 복구 완료(짝 50b9625 표와 같음, 재생성 1회). Step 3 사후 확인 ①~⑦ 전부 통과 상태. Step 4 는 sandcat 준비 여부 DRI 확인 후
+
+## (4-0) RUNBOOK 사전 조건 2026-10-21T02:40:43+09:00 (DRI: sandcat 별도 창 실행 중, Step 4 승인)
+### (0) 사전 점검
+  233454f S4 stack 1b: PostgreSQL 16.13 -> 16.15 (trixie, digest pinned)  porcelain=3(미커밋 → git_dirty=true 예상)
+  target-web	Up 4 minutes
+  security-lab-wazuh.manager-1	Up 39 minutes
+  security-lab-wazuh.indexer-1	Up 39 minutes
+  postgres	Up 39 minutes (healthy)
+  caldera	Up 39 minutes
+  red agents (paw group trusted last_seen, 키 미출력):
+  mcukpa	red	false	2026-10-16T18:23:26Z
+  jznjpj	red	false	2026-10-18T10:10:09Z
+  oeintf	red	false	2026-10-20T13:45:21Z
+  pqkuqm	red	false	2026-10-20T14:30:41Z   ← 재부팅 전 sandcat(1b 스모크), 죽어 있음
+  zetofr	red	true	2026-10-20T17:39:47Z   ← 새 sandcat
+  now=2026-10-20T17:40:43Z → alive(trusted=true) 정확히 1개 = zetofr
+  실행 직전 재조회: zetofr red true 2026-10-20T17:40:46Z (start 17:41:07Z)
+  label S4-STACK-1c-SMOKE: 0
+### (0-b) Caldera operation 확인
+  total=41
+  finished=41   (running= / paused= 줄 없음)
+### 인터페이스 짝 재확인 (측정 신뢰 사전 검사)
+  eth0 172.20.0.3/16 (app) / eth1 172.18.0.3/16 (attack) / eth2 169.254.169.2/24 (imds) / eth3 172.19.0.5/16 (security) → 50b9625 표 SAME
+  suricata NetworkMode = container:<현재 target-web Id> yes, agent 004 Active
+
+## (4-1) 스모크 실행 (RUNBOOK-S4-1b (2), 라벨만 변경) 2026-10-21T02:41:07+09:00
+$ RUN_CALDERA_MEASURE=1 MEASURE_N=1 MEASURE_LABEL='S4-STACK-1c-SMOKE' APP_CALDERA_APIKEY=… INDEXER_USERNAME=… INDEXER_PASSWORD=… POSTGRES_DB=… VALIDATION_DB_PASSWORD=… ./gradlew cleanTest test --tests 'com.capstone.vuln.measure.CampaignRunnerIT' -i | grep -E '<RUNBOOK 필터>'   (값은 docker/.env 에서 env 로만 주입, 미출력)
+  start=2026-10-20T17:41:07Z
+  CampaignRunnerIT STANDARD_OUT
+      2026-10-21T02:41:24.435+09:00  INFO 30942 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Starting CampaignRunnerIT using Java 17.0.20.1 with PID 30942 (started by hyeonseong in /home/hyeonseong/capstone-dev/mitre-attack-capstone-v2)
+      2026-10-21T02:41:24.442+09:00 DEBUG 30942 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Running with Spring Boot v3.5.13, Spring v6.2.17
+      2026-10-21T02:41:24.446+09:00  INFO 30942 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : No active profile set, falling back to 1 default profile: "default"
+      2026-10-21T02:41:26.961+09:00  INFO 30942 --- [    Test worker] c.c.vuln.measure.CampaignRunnerIT        : Started CampaignRunnerIT in 3.231 seconds (process running for 5.068)
+  CampaignRunnerIT > measure() STANDARD_OUT
+      MEASURE>> starting campaign run label=S4-STACK-1c-SMOKE n=1 truncate=false
+      PER-RUN op=f50d6ea2-861d-4c6d-b9da-873a19c9076d rows=8
+        [SQLI/SINGLE] rid=df40df79-2267-4fbc-9ccd-d1ec0b9af55a gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_MISSED conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [SSRF/SINGLE] rid=45068fcc-9b84-4784-a97c-972d5ab410c5 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1978
+        [SSRF/SINGLE] rid=28696f3a-545a-4741-b078-e44bec2d9762 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=1496
+        [SSRF/SINGLE] rid=a72263b0-854a-46ec-aeab-ae828749907d gt=FAILED attacker=SUCCEEDED match=false overestimate=true verdict=FAILED_UNSEEN conf=0.00 detection=NOT_DETECTED mttdMs=null
+        [PATH_TRAVERSAL/SINGLE] rid=ad175359-d518-4dfe-9459-d820e58130a3 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=993
+        [PATH_TRAVERSAL/SINGLE] rid=2d9c1768-3d75-466c-8165-ac1798840ffd gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=925
+        [PATH_TRAVERSAL/SINGLE] rid=dafced6f-a88a-4b2a-918a-a11e0d1c0bdd gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=911
+        [BRUTE_FORCE/BF_SEQUENCE] rid=9489fc23-5901-409f-86c9-6f7754fb7278 gt=SUCCEEDED attacker=SUCCEEDED match=true overestimate=false verdict=SUCCEEDED_DETECTED conf=1.00 detection=DETECTED mttdMs=993
+      GATE overall=INCONCLUSIVE totalSamples=7 totalUncertain=0 report=detections/measurements/gate-report-2026-10-20T17-44-51-924Z.md
+      RUN run_id=cf488201-b0d8-4e45-b376-c6bc60607d9f R10=VALID
+      MEASURE>> done overall=INCONCLUSIVE totalSamples=7
+  BUILD SUCCESSFUL in 3m 44s
+  end=2026-10-20T17:44:52Z
+  op_id 교차검증 WARN 줄 수: 0  ('Caldera operation 조회 실패' 0, FAILED 0)
+
+## (4-2) DB 확인 (validation_rw, BEGIN READ ONLY … ROLLBACK) 2026-10-21T02:45+09:00
+       label       |  kind  | status | ended |                git_commit                | git_dirty |         started_at         |          ended_at          | wazuh_rules  | suricata_rules |  adversary   | abilities | expected_attempts | expected_controls
+-------------------+--------+--------+-------+------------------------------------------+-----------+----------------------------+----------------------------+--------------+----------------+--------------+-----------+-------------------+-------------------
+ S4-STACK-1b-SMOKE | ATTACK | CLOSED | t     | 14031dbd2b265a365e83d20f2c6c76811174b230 | t         | 2026-10-20 14:22:45.878+00 | 2026-10-20 14:26:44.862+00 | 47715556fd0f | 007b188d4e80   | cba127e95e91 |         4 |                 7 |                 1
+ S4-STACK-1c-SMOKE | ATTACK | CLOSED | t     | 233454f07af061c145bf8cf03d4e80908cc28712 | t         | 2026-10-20 17:41:27.867+00 | 2026-10-20 17:44:51.918+00 | 47715556fd0f | 007b188d4e80   | cba127e95e91 |         4 |                 7 |                 1
+(2 rows)
+
+       label       | attack | control |  r10
+-------------------+--------+---------+-------
+ S4-STACK-1c-SMOKE |      7 |       1 | VALID
+(1 row)
+
+       label       | attempt_role | gt_outcome | count
+-------------------+--------------+------------+-------
+ S4-STACK-1b-SMOKE | ATTACK       | SUCCEEDED  |     7
+ S4-STACK-1b-SMOKE | CONTROL      | FAILED     |     1
+ S4-STACK-1c-SMOKE | ATTACK       | SUCCEEDED  |     7
+ S4-STACK-1c-SMOKE | CONTROL      | FAILED     |     1
+(4 rows)
+
+ correlations | op_id_not_null | all_resolved | distinct_op_ids |                op_id
+--------------+----------------+--------------+-----------------+--------------------------------------
+            8 |              8 | t            |               1 | f50d6ea2-861d-4c6d-b9da-873a19c9076d
+(1 row)
+
+    scenario    |  role   | k |   gt_1b   |   gt_1c   |     verdict_1b     |     verdict_1c     |      init_1b       |      init_1c       |  atk_1b   |  atk_1c   | ovr_1b | ovr_1c |    det_1b    |    det_1c    | cmp
+----------------+---------+---+-----------+-----------+--------------------+--------------------+--------------------+--------------------+-----------+-----------+--------+--------+--------------+--------------+------
+ BRUTE_FORCE    | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | DETECTED     | DETECTED     | same
+ PATH_TRAVERSAL | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | DETECTED     | DETECTED     | same
+ PATH_TRAVERSAL | ATTACK  | 2 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | DETECTED     | DETECTED     | same
+ PATH_TRAVERSAL | ATTACK  | 3 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | DETECTED     | DETECTED     | same
+ SQLI           | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED_MISSED   | SUCCEEDED | SUCCEEDED | f      | f      | NOT_DETECTED | NOT_DETECTED | same
+ SSRF           | ATTACK  | 1 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | DETECTED     | DETECTED     | same
+ SSRF           | ATTACK  | 2 | SUCCEEDED | SUCCEEDED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED_DETECTED | SUCCEEDED | SUCCEEDED | f      | f      | DETECTED     | DETECTED     | same
+ SSRF           | CONTROL | 1 | FAILED    | FAILED    | FAILED_UNSEEN      | FAILED_UNSEEN      | FAILED_UNSEEN      | FAILED_UNSEEN      | SUCCEEDED | SUCCEEDED | t      | t      | NOT_DETECTED | NOT_DETECTED | same
+(8 rows)
+(비교: S4-STACK-1b-SMOKE ↔ S4-STACK-1c-SMOKE, 시나리오·attempt_role 안 verdict·id 순 k번째 짝(FULL JOIN, 한쪽 없으면 DIFF). 6개 컬럼 gt_outcome·verdict·initial_verdict·attacker_verdict·overestimate·detection_status, IS NOT DISTINCT FROM)
+
+      label      | status | verdicts
+-----------------+--------+----------
+ S3-GATE-dc66322 | CLOSED |      160
+(1 row)
+### (3-c 보강) Caldera operation
+  db op_id=f50d6ea2-861d-4c6d-b9da-873a19c9076d (= PER-RUN op)
+  f50d6ea2-861d-4c6d-b9da-873a19c9076d	S4-measure #1 2026-10-20T17:41:28.008Z	finished	2026-10-20T17:41:28Z	4 links
+  링크 실행 paw: zetofr ×4 (status 0) — 1b 의 51d01fdb 는 pqkuqm ×4. host_group 에는 red 그룹 5개 paw 가 모두 나열되나 실행은 alive 1개뿐
+
+## (4-3) 사후 2026-10-21T02:45:58+09:00
+  (0-b): total=42 finished=42 (running/paused 0)
+  agent_control -l: ID: 004, Name: wazuh.agent, IP: any, Active
+  red alive: zetofr red true 2026-10-20T17:45:11Z
+
+## (4-4) 기록용: 스모크 구간 Suricata alert sid 별 비교 (eve.json 읽기만)
+  구간: 1b 2026-10-20T14:22:32Z~14:26:45Z ((1b 로그 4-1) start~end) / 1c 17:41:07Z~17:44:52Z, eve 'timestamp' 기준
+       sid   1b   1c cmp   iface(1c)          msg
+   1000001   20   20 same  eth0:20            [CALDERA] Agent detected via User-Agent
+   1000002   20   20 same  eth0:20            [CALDERA] Operation header detected - X-Caldera-Op-Id
+   1000003   20   20 same  eth0:20            [CALDERA] Technique header detected - X-Caldera-Technique
+   1000004   20   20 same  eth0:20            [CALDERA] Ability header detected - X-Caldera-Ability
+   1000020    3    3 same  eth0:3             [PATH_TRAVERSAL] Directory traversal pattern in URI - T1083
+   1000030   13   13 same  eth0:13            [BRUTE_FORCE] Login attempt to /api/auth/login - T1110
+   1000031    1    1 same  eth0:1             [BRUTE_FORCE] Multiple login attempts detected - T1110
+   1000032    2    2 same  eth0:2             [BRUTE_FORCE] Slow brute force detected (5/180s) - T1110 (Feedback)
+   1000060    2    2 same  eth0:2             [SSRF] Cloud metadata IP (169.254.169.254) in URI - T1090  <== IMDS sid
+  total alerts 1b=101 1c=101, sid 9종 모두 same
+  ** sid 1000060 (IMDS): 1b 2건, 1c 2건 — 나옴 **
+    (주의: 1000060 은 'http.uri 에 169.254.169.254' 룰(local.rules:185, -> any 8080)이라 공격 요청(eth0=app, sandcat→호스트 포트→app_net)에서 잡힘. imds_net 캡처 여부의 직접 증거는 아래)
+  dest_ip=169.254.169.254 이벤트(event_type, in_iface): 1b {http eth2: 2, flow eth2: 2} / 1c {http eth2: 2, flow eth2: 2} → imds_net(eth2) 캡처 1b 와 같음
+
+## (4-J) D5 판정 2026-10-21T02:47+09:00
+- R10: VALID (expected 7/1 = actual 7/1) → 충족
+- GT: ATTACK 7 SUCCEEDED, CONTROL 1 FAILED (S4-STACK-1b-SMOKE 와 동일) → 충족
+- verdict 비교(vs S4-STACK-1b-SMOKE, 6개 컬럼): 8행 모두 same, DIFF 0
+- op_id 교차검증 WARN 0줄, correlation op_id_resolved=t 8/8, distinct op_id 1 = PER-RUN = Caldera finished op, rows=8
+- 룰 해시 wazuh 47715556fd0f / suricata 007b188d4e80 / adversary cba127e95e91 / abilities 4 → 1b 와 같음(룰 파일 무변경)
+- 기록용 Suricata: sid 9종·101건 1b 와 같음, IMDS sid 1000060 1c 에서 2건 나옴, imds eth2 http·flow 각 2건
+- 사후: running/paused 0, agent 004 Active
+- 기록 사항: run git_commit=233454f, git_dirty=true(compose·.env.example 수정·증거 로그 미커밋 상태에서 측정). red agent 는 새 sandcat zetofr(재부팅 전 pqkuqm 은 trusted=false)
+- 측정 환경: 재부팅(3-E) 후 target-web·suricata 를 compose 재생성(3-12)한 상태. ⑦ 원인(인터페이스 순서)은 슬라이스 밖 → D5 "원인 제거 후 측정" 적용
+- 하네스 생성 gate-report: 2026-10-20T17-44-51-924Z.{md,json}
+- 백업 ~/capstone-backups/2026-10-21_agent_internal_options.conf.pre-4.14.9(600)은 저장소 밖, 커밋 대상 아님. docker/.env 는 gitignore
+- 비밀값 자가 점검(커밋 대상 5개 파일 + git diff docker/, 값 미출력·건수만): docker/.env 의 PASS·KEY·SECRET·TOKEN·SALT 키 11개
+  (INDEXER_PASSWORD·WAZUH_API_PASSWORD·POSTGRES_PASSWORD·TARGET_JWT_SECRET·VALIDATION_DB_PASSWORD·VULN_APP_DB_PASSWORD·APP_CALDERA_APIKEY·CALDERA_API_KEY_RED·CALDERA_API_KEY_BLUE·CALDERA_CRYPT_SALT·CALDERA_ENCRYPTION_KEY) 값 일치 0건.
+  패턴(password=·passwd·PRIVATE KEY·Bearer·'KEY: '·apikey=) 8건 = 전부 .env.example 자리표시자(__GENERATE__ 등)·compose 의 ${VAR} 참조
+

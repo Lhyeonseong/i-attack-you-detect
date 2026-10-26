@@ -1,0 +1,226 @@
+# S4-3 metric_snapshot — Step 0 운영 DB 읽기 (validation_rw, BEGIN READ ONLY … ROLLBACK) 2026-10-21T13:02:32Z HEAD=6992f5e
+BEGIN
+--- 0-3 run 목록 (v_run_integrity 조인)
+        label        |  kind  | status | r10_status |   r10_reason    |  git_commit  | git_dirty | digest_type | digest_status |    wazuh     |   suricata   |  adversary   | abilities |          started_at           
+---------------------+--------+--------+------------+-----------------+--------------+-----------+-------------+---------------+--------------+--------------+--------------+-----------+-------------------------------
+ S3-GATE-dc66322     | ATTACK | CLOSED | VALID      |                 | 17a0b04      |           | object      | unverified    |              |              |              |         0 | 2026-10-16 17:04:01.091971+00
+ S4-1b-SMOKE         | ATTACK | CLOSED | VALID      |                 | 21885c250077 | f         | object      |               | 47715556fd0f | 007b188d4e80 | cba127e95e91 |         4 | 2026-10-18 10:03:17.081+00
+ S4-STACK-1a-SMOKE   | ATTACK | CLOSED | VALID      |                 | 417eb4b81bff | t         | object      |               | 47715556fd0f | 007b188d4e80 | cba127e95e91 |         4 | 2026-10-20 12:59:31.694+00
+ S4-STACK-4-SMOKE    | ATTACK | CLOSED | INVALID    | ATTACK_MISMATCH | 3550c67cdf5c | t         | object      |               | 47715556fd0f | 007b188d4e80 | cba127e95e91 |         4 | 2026-10-20 13:22:15.477+00
+ S4-STACK-4-SMOKE-R2 | ATTACK | CLOSED | VALID      |                 | 3550c67cdf5c | t         | object      |               | 47715556fd0f | 007b188d4e80 | cba127e95e91 |         4 | 2026-10-20 13:37:41.536+00
+ S4-STACK-1b-SMOKE   | ATTACK | CLOSED | VALID      |                 | 14031dbd2b26 | t         | object      |               | 47715556fd0f | 007b188d4e80 | cba127e95e91 |         4 | 2026-10-20 14:22:45.878+00
+ S4-STACK-1c-SMOKE   | ATTACK | CLOSED | VALID      |                 | 233454f07af0 | t         | object      |               | 47715556fd0f | 007b188d4e80 | cba127e95e91 |         4 | 2026-10-20 17:41:27.867+00
+ S4-STACK-IFN-SMOKE  | ATTACK | CLOSED | VALID      |                 | bac71f8ad7ec | t         | object      |               | 47715556fd0f | 007b188d4e80 | cba127e95e91 |         4 | 2026-10-20 18:21:31.301+00
+ S4-STACK-5-SMOKE    | ATTACK | CLOSED | VALID      |                 | 524cd80f981b | t         | object      |               | 47715556fd0f | 007b188d4e80 | cba127e95e91 |         4 | 2026-10-20 19:18:16.785+00
+ S4-STACK-2-SMOKE    | ATTACK | CLOSED | VALID      |                 | 72d10dbc9a64 | t         | object      |               | 47715556fd0f | 007b188d4e80 | cba127e95e91 |         4 | 2026-10-20 20:06:58.085+00
+ S4-STACK-3-SMOKE    | ATTACK | CLOSED | VALID      |                 | 8aa6e6f9e162 | t         | object      |               | 47715556fd0f | 007b188d4e80 | cba127e95e91 |         4 | 2026-10-21 09:09:11.058+00
+ S4-STACK-6-BASELINE | ATTACK | CLOSED | VALID      |                 | e3b5f5285152 | f         | object      |               | 47715556fd0f | 007b188d4e80 | cba127e95e91 |         4 | 2026-10-21 10:03:13.914+00
+(12 rows)
+
+--- 0-3 ★ S4-STACK-6-BASELINE rules_digest 원문
+                run_id                |                                                                                                                                                                                                                                                                                                                                                               rules_digest                                                                                                                                                                                                                                                                                                                                                                
+--------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ b1c26be1-add2-4d45-8207-0998b0f743b1 | {"wazuh_rules": "47715556fd0fd7c9c8449d8308c454074884a07a996996ce9fe0dd07d1e239cb", "suricata_rules": "007b188d4e80f10582668659f6db9f02b5047af1fa72cbefa295b42601a947a4", "caldera_abilities": {"7aa89a87-3fd7-4d52-8c9e-1e5b2f4c6a3d": "544261e4328051b6d9f5000c3ea75466a8eca0e688e7ce7e1036a05806d7dad0", "a7f3c1d9-5e2b-4a6c-9f08-1b2c3d4e5f60": "4b082c2e7f3e20f910ea1c2801f261071bbb779cb4e691639addd46afa9c6710", "c4e8f2b1-9d5a-4f7e-b3c6-8a2d1e9f0c4b": "8ea20816400aa762ba6a65f848135661c4ab09405f90ee94bc3410b70cca85c7", "e3f1a9c7-2b4d-4e6f-a8c2-5d7e9f1b3a5c": "ec1f1db416eb5aa10c18e7359ac9fb60cafbdf2a3ea7897c615fd2149ca3636f"}, "caldera_adversary": "cba127e95e913f68b9ee650e9bfbec80d3b517dd445e5063d8211ceab6b8d3f2"}
+(1 row)
+
+--- 0-3 S3-GATE-dc66322 rules_digest 키 목록 (백필 run)
+      key       
+----------------
+ reason
+ status
+ observed_after
+(3 rows)
+
+ROLLBACK
+BEGIN
+--- 0-6 테이블 (dt+ validation.*)
+                                                                                                     List of relations
+   Schema   |         Name          | Type  |     Owner     | Persistence | Access method |    Size    |                                                    Description                                                    
+------------+-----------------------+-------+---------------+-------------+---------------+------------+-------------------------------------------------------------------------------------------------------------------
+ validation | correlation           | table | validation_rw | permanent   | heap          | 168 kB     | 공격 1건(BF 는 srcIp+username 시퀀스) ↔ 탐지 알림 상관 결과
+ validation | detection_link        | table | validation_rw | permanent   | heap          | 144 kB     | 
+ validation | flyway_schema_history | table | validation_rw | permanent   | heap          | 16 kB      | 
+ validation | measurement_run       | table | validation_rw | permanent   | heap          | 48 kB      | 측정 실행 1회(run) — 지표는 run 단위로만 계산한다 (R4)
+ validation | metric_scope          | table | validation_rw | permanent   | heap          | 16 kB      | ADR-S4-01 R12: Analytic Coverage(M06a·M06b) 분모 범위 단위 — 시도 0건 단위도 분모에 포함
+ validation | verdict_history       | table | validation_rw | permanent   | heap          | 8192 bytes | verdict 변경 이력 — append-only (UPDATE/DELETE 트리거로 차단)
+ validation | verdict_member        | table | validation_rw | permanent   | heap          | 48 kB      | 
+ validation | verdict_result        | table | validation_rw | permanent   | heap          | 144 kB     | Verdict 단위(SINGLE / BF_SEQUENCE / SPRAY_CAMPAIGN) 판정 — S4 지표는 이 테이블의 detection_status·mttd_ms 만 사용
+(8 rows)
+
+--- 0-6 뷰 (dv+ validation.*)
+                                                                                                                                                                                                                                                                          List of relations
+   Schema   |          Name          | Type |     Owner     | Persistence |  Size   |                                                                                                                                                                                                                                   Description                                                                                                                                                                                                                                   
+------------+------------------------+------+---------------+-------------+---------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ validation | v_metric_attacker      | view | validation_rw | permanent   | 0 bytes | ADR-S4-01 v1.4 M09 (R1·R3·R6·D1·D3·D6·D7): n = conclusive(UNCERTAIN 제외), x = attacker_match TRUE(NULL 은 분모만), overestimate = 전체 시도 중 과대평가 수. criteria_met = n ≥ 20 ∧ x/n ≥ 0.95 ∧ overestimate = 0 (결정3, 점추정 — Wilson 은 병기만). D3: 측정값이며 게이트 전환 판정 기록이 아니다
+ validation | v_metric_attempt       | view | validation_rw | permanent   | 0 bytes | 내부 — ADR-S4-01 v1.4 R6·D6·D7: 대상 run 의 ATTACK 시도. scenario·technique_id 가 NULL 이거나 metric_scope 밖이면 UNKNOWN
+ validation | v_metric_correlation   | view | validation_rw | permanent   | 0 bytes | ADR-S4-01 v1.4 M05 source 분포 (R1·R2 예외·R3·R4·R10·D1·D6·D7): 멤버 correlation 에 detection_link ≥1 인 ATTACK 시도(UNCERTAIN 포함). best source = 멤버 correlation.correlation_source 중 최고 순위 (RID > HEADER > UA_FALLBACK > NONE). 전체(판정)·시나리오(보고)
+ validation | v_metric_coverage      | view | validation_rw | permanent   | 0 bytes | ADR-S4-01 v1.4 M06a·M06b (R3·R12·D2·D7): M06a = present 단위 수 / 범위 단위 수, M06b = consistent 단위 수 / 범위 단위 수 (기법 2·시나리오 4). I5: M06b ≤ M06a
+ validation | v_metric_coverage_unit | view | validation_rw | permanent   | 0 bytes | ADR-S4-01 v1.4 M06 단위별 상세 (R5·R12·D2·D7): present = SUCCEEDED_DETECTED ≥ 1 (최종 verdict — 늦은 탐지 포함), consistent = S_ALL ≥ 1 ∧ SUCCEEDED_MISSED = 0 (D2)
+ validation | v_metric_h2            | view | validation_rw | permanent   | 0 bytes | ADR-S4-01 v1.4 M05 H2 판정 (전체만, R3·D7): PASS = (RID+HEADER) Wilson 하한 ≥ 0.90 ∧ NONE Wilson 상한 ≤ 0.05, n < 73 → INCONCLUSIVE(0건일 때 상한 ≤ 5% 가 되는 최소 n), 그 외 FAIL
+ validation | v_metric_mttd          | view | validation_rw | permanent   | 0 bytes | ADR-S4-01 v1.4 M04 MTTD (R1·R4·R10·R11·D1·D6·D7): SUCCEEDED_DETECTED ∧ late_detection=false 의 mttd_ms p50·p95 (Hyndman & Fan type 8) + n(mttd_ms NOT NULL 건수). 늦은 탐지는 M10. n=0 → NULL·NO_DATA
+ validation | v_metric_rates         | view | validation_rw | permanent   | 0 bytes | ADR-S4-01 v1.4 비율 지표 (R1·R2·R3·R4·R6·R10·D1·D6·D7). M01 S_ALL/CONCL, M02 (SD+SB)/S_ALL, M03 SM/S_ALL (전체·시나리오·기법, R5 최종 verdict 기준), M02_INITIAL·M03_INITIAL = 같은 식을 분자·분모 모두 initial_verdict 기준(R5 보조·D4), M07b FU/F_ALL (시나리오), M08 UNCERTAIN/전체 (전체·시나리오·기법 — D5, R2 예외), M10 late/(SD+FD) (전체·시나리오, late = verdict_result.late_detection), M12 Block Rate N/A 1행(R8). n=0 → p·lo·hi NULL·NO_DATA(R3), 구간 = wilson_ci
+ validation | v_metric_run           | view | validation_rw | permanent   | 0 bytes | 내부 — ADR-S4-01 v1.4 D7·R10: 지표 대상 run = kind ATTACK ∧ r10_status VALID (BENIGN 은 M14 전용)
+ validation | v_metric_split_attempt | view | validation_rw | permanent   | 0 bytes | 내부 — ADR-S4-01 v1.4 D1: 분할 행(ALL·SCENARIO·TECHNIQUE) × 소속 시도. 범위 6단위(R12)는 시도 0건이어도 행(verdict_id NULL), UNKNOWN 은 시도 ≥1 일 때만. I6: 시나리오·기법 각각 시도는 정확히 1단위에 속한다
+ validation | v_metric_split_count   | view | validation_rw | permanent   | 0 bytes | 내부 — ADR-S4-01 v1.4 집합 약어(S_ALL·F_ALL·CONCL) 카운트, *_initial = initial_verdict 기준(D4)
+ validation | v_run_integrity        | view | validation_rw | permanent   | 0 bytes | ADR-S4-01 R10: VALID = CLOSED ∧ ATTACK·CONTROL 실제 = 기대, INVALID = CLOSED ∧ (불일치 ∨ 기대 없음), INCOMPLETE = OPEN. r10_reason 은 첫 해당 1개, 우선순위 OPEN → EXPECTED_MISSING → ATTACK_MISMATCH → CONTROL_MISMATCH (VALID 는 NULL). 지표는 VALID run 에서만 산출
+(12 rows)
+
+--- 0-6 함수 (df+ 요약: 이름·소유자·보안·권한)
+             proname              |     owner     | security_definer |             proacl              
+----------------------------------+---------------+------------------+---------------------------------
+ quantile_t8                      | validation_rw | f                | {validation_rw=X/validation_rw}
+ verdict_history_append_only      | validation_rw | f                | 
+ verdict_result_reject_closed_run | validation_rw | f                | 
+ wilson_ci                        | validation_rw | f                | {validation_rw=X/validation_rw}
+(4 rows)
+
+--- 0-6 스키마 소유자·권한
+  nspname   |     owner     |              nspacl              
+------------+---------------+----------------------------------
+ validation | validation_rw | {validation_rw=UC/validation_rw}
+(1 row)
+
+--- 0-6 role 속성
+    rolname    | rolsuper | rolcreaterole | rolcreatedb | rolinherit | rolbypassrls 
+---------------+----------+---------------+-------------+------------+--------------
+ validation_rw | f        | f             | f           | t          | f
+ vuln_app      | f        | f             | f           | t          | f
+(2 rows)
+
+ current_user  | session_user  
+---------------+---------------
+ validation_rw | validation_rw
+(1 row)
+
+--- 0-6 flyway_schema_history installed_by
+ installed_rank | version | installed_by  
+----------------+---------+---------------
+              1 | 1       | validation_rw
+              2 | 2       | validation_rw
+              3 | 3       | validation_rw
+              4 | 4       | validation_rw
+(4 rows)
+
+ROLLBACK
+
+## Step 0 정리 (코드 읽기 — 파일:줄)
+### 0-1 Flyway 위치·버전
+  위치: src/main/resources/db/validation/ (ValidationSchemaMigrator.java:26 locations("classpath:db/validation")), 파일 V1~V4, 운영 flyway_schema_history 최신 version 4 (위 0-6)
+  V3 (V3__metric_foundation.sql): 함수 wilson_ci(bigint,bigint)→(p,lo,hi) :22 · quantile_t8(double precision[],double precision) :52 (둘 다 REVOKE ALL FROM PUBLIC :84-85),
+      테이블 metric_scope(kind,unit) :88 (시드 TECHNIQUE T1190·T1110, SCENARIO SQLI·PATH_TRAVERSAL·BRUTE_FORCE·SSRF :96-102),
+      뷰 v_run_integrity(run_id,label,kind,status,expected_attempts,expected_controls,actual_attack,actual_control,r10_status,r10_reason) :105
+  V4 (V4__metric_views.sql) — 모두 definition_version 상수 'ADR-S4-01 v1.4':
+      내부: v_metric_run(run_id) :9 · v_metric_attempt :17 · v_metric_split_attempt :32 · v_metric_split_count :55
+      v_metric_rates :78  (run_id, definition_version, metric_id, split_kind, split_unit, x, n, p, lo, hi, status) — M01·M02·M03·M02_INITIAL·M03_INITIAL·M07b(SCENARIO)·M08·M10(ALL·SCENARIO)·M12(ALL, NOT_APPLICABLE, 수치 NULL)
+      v_metric_mttd :109  (run_id, definition_version, split_kind, split_unit, n, p50_ms, p95_ms, status) — M04
+      v_metric_correlation :125 (run_id, definition_version, split_kind, split_unit, source, x, n, p, lo, hi, status) — M05 (ALL·SCENARIO × RID/HEADER/UA_FALLBACK/NONE)
+      v_metric_h2 :166 (run_id, definition_version, n, rid_header_x, rid_header_p, rid_header_lo, rid_header_hi, none_x, none_p, none_lo, none_hi, h2_status) — M05 H2 (ALL 1행)
+      v_metric_coverage_unit :188 (run_id, definition_version, split_kind, split_unit, s_all, sd, sm, present, consistent) — M06 단위 상세
+      v_metric_coverage :199 (run_id, definition_version, metric_id, split_kind, x, n, p, lo, hi, status) — M06a·M06b (TECHNIQUE·SCENARIO, 단위 없음)
+      v_metric_attacker :215 (run_id, definition_version, split_kind, split_unit, x, n, p, lo, hi, overestimate, uncertain, criteria_met, status) — M09 (SCENARIO)
+  대상 run: v_metric_run = kind 'ATTACK' ∧ r10_status 'VALID' (V4:9-12) → BENIGN·INVALID·INCOMPLETE run 은 모든 지표 뷰에서 0행
+### 0-2 measurement_run·트리거 패턴
+  V2__measurement_run.sql:4-20 measurement_run(run_id uuid PK, label, kind, status, started_at, ended_at, git_commit NOT NULL, git_dirty BOOLEAN(NULL 허용 — 백필), rules_digest JSONB NOT NULL, expected_attempts, expected_controls, notes)
+  CLOSED run INSERT 거부: V2:40-54 함수 verdict_result_reject_closed_run() + 'BEFORE INSERT ON verdict_result FOR EACH ROW'
+  append-only 패턴: V1:131-141 verdict_history_append_only() 'RAISE EXCEPTION' + 'BEFORE UPDATE OR DELETE ON verdict_history FOR EACH ROW' (TRUNCATE 문장 트리거·REVOKE 없음)
+### 0-3 운영 run (위 SQL 출력)
+  run 12개: VALID 11 · INVALID 1(S4-STACK-4-SMOKE ATTACK_MISMATCH). ★ S4-STACK-6-BASELINE rules_digest = 실제 sha256 4종(wazuh 47715556… suricata 007b188d… adversary cba127e9… abilities 4개), git_dirty=f, git_commit e3b5f528…
+  S3-GATE-dc66322 = 백필 run: rules_digest {status: unverified, reason, observed_after}, git_dirty NULL, git_commit '17a0b04'
+### 0-4 truncate 경로
+  운영 코드: GateVerdictReader.java:40-53 truncateAll — 'LOCK TABLE validation.measurement_run IN SHARE MODE', CLOSED run ≥1 이면 거부,
+    'TRUNCATE validation.verdict_result, validation.verdict_member, validation.verdict_history RESTART IDENTITY CASCADE' (호출: MeasurementCampaign.java:63-64, CampaignRunnerIT MEASURE_TRUNCATE=1)
+  테스트 정리 코드(measurement_run 까지 비움 — V5 FK·TRUNCATE 거부와 충돌):
+    ValidationDbFixture.java:47-50 truncateRunData 'TRUNCATE … validation.measurement_run RESTART IDENTITY CASCADE'
+    MeasurementRunPersistenceTest.java:99-103 clean '… validation.measurement_run RESTART IDENTITY CASCADE'
+    (ValidationPersistenceTest.java:82-83 는 measurement_run 제외 — 영향 없음)
+### 0-5 V4 테스트 픽스처·기대값
+  픽스처: src/test/java/com/capstone/vuln/measure/MetricFixture.java:160-176 f1 (12건, 주석 'x/n 기대값은 현성 확인 손계산')
+  기대값: MetricRatesViewTest.java:46-111 (M01·M02·M03·*_INITIAL·M07b·M08·M10 분할별 x/n), MttdViewTest.java:47-62 (ALL 4/2500/5000, SQLI 3/2000/3000, UNKNOWN 1/5000/5000, T1190 4/2500/5000, 나머지 n=0),
+          CoverageViewTest.java:28-36 (TECHNIQUE M06a 1/2·M06b 0/2, SCENARIO M06a 2/4·M06b 1/4), AttackerAccuracyViewTest.java:63-70 (F1 SQLI n5 x4 overestimate 1),
+          CorrelationViewTest.java:33-80 픽스처 A(ALL RID 5/8·HEADER 1/8·UA 1/8·NONE 1/8, SQLI RID 5/8, H2 n8 rid_header_x 6 none_x 1 INCONCLUSIVE), InvariantTest.java:81 (F1 H2 n=0)
+  구간 값: 테스트는 '= validation.wilson_ci(x, n)' 로만 검사(MetricRatesViewTest.java:178-194). 고정 수치는 crosscheck 증거만:
+          detections/measurements/evidence/2026-10-18_s4-2-crosscheck.log 'wilson 20/20: lo=0.838875', '80/80 lo=0.954182', '0/73 hi=0.049992', '10/20 lo=0.299298 hi=0.700702', t8 {1..20}·{1..5}·{7}
+### 0-6 소유자·권한 (위 \dt+·\dv+·pg_proc 출력)
+  validation 스키마·테이블 8·뷰 12·함수 4 전부 owner = validation_rw. 스키마 ACL {validation_rw=UC/validation_rw}
+  validation_rw: superuser f, createrole f, bypassrls f. Flyway installed_by V1~V4 = validation_rw (ValidationSchemaMigrator 를 validation_rw 접속으로 실행)
+  → 테이블 소유자 = validation_rw. PostgreSQL 소유자는 ALTER TABLE … DISABLE TRIGGER, 자기 권한 재GRANT 가 가능 → V5 불변 보장은 일반 DML 에 한정(known-gaps 대상)
+
+## (추가 읽기) 운영 지표 뷰 행 수 — RUNBOOK dry-run 기대값용 2026-10-21T13:17:43Z
+BEGIN
+        label        | rates | mttd | corr | h2 | coverage | attacker 
+---------------------+-------+------+------+----+----------+----------
+ S3-GATE-dc66322     |    52 |    7 |   20 |  1 |        4 |        4
+ S4-STACK-6-BASELINE |    52 |    7 |   20 |  1 |        4 |        4
+(2 rows)
+
+ROLLBACK
+
+## Step 4 — ./gradlew clean build (V5 포함, 미커밋) start=2026-10-21T13:19:02Z end=2026-10-21T13:19:46Z exit=1 → 멈춤
+  BUILD FAILED in 43s
+  총 tests=250 failures=51 errors=0 skipped=3 passed=196 (suite 52개)
+  신규: MetricSnapshotTest 10/10, MetricSnapshotTruncateGuardTest 1/1 통과
+  실패 51 = 두 종류 (원문)
+  (a) 49건 — 공용 정리 코드의 'DELETE FROM validation.measurement_run' (ValidationDbFixture.truncateRunData, MeasurementRunPersistenceTest.clean)
+      'Caused by: org.postgresql.util.PSQLException: ERROR: permission denied for table metric_snapshot'
+      (스냅샷 행 0 이어도 발생 — measurement_run DELETE 의 FK(ON DELETE RESTRICT) 확인이 metric_snapshot 행 잠금을 요구하고,
+       V5 의 'REVOKE UPDATE, DELETE, TRUNCATE … FROM PUBLIC, validation_rw' 로 validation_rw 가 그 권한을 잃음 — 해석)
+      Step 2 red 실행(V5 없음)에서는 같은 DELETE 정리가 통과했음(48/48)
+  (b) 2건 — 스키마 목록을 고정한 기존 테스트
+      ValidationMigrateEntryTest.java:104·112 'expected: <[1, 2, 3, 4]> but was: <[1, 2, 3, 4, 5]>'
+      ValidationPersistenceTest.java:124 'expected: <[correlation, …, metric_scope, verdict_history, …]> but was: <[…, metric_scope, metric_snapshot, metric_snapshot_withdrawal, verdict_history, …]>'
+  고치지 않음 — 보고 후 대기
+
+## DRI 결정 반영 (2026-10-21) — (a) A1, (b) 기대값 갱신 승인, 설계 수정 A·B, T9·T10 추가
+  원인 근거(PostgreSQL 16 SELECT 문서 원문, https://www.postgresql.org/docs/16/sql-select.html):
+    'The use of FOR NO KEY UPDATE, FOR UPDATE, FOR SHARE or FOR KEY SHARE requires UPDATE privilege as well (for at least one column of each table so selected).'
+  반영: V5 status 원 뷰 값 그대로·criteria_met boolean·view_status 삭제, take_metric_snapshot(p_run_id uuid) + definition_version 자동(뷰 불일치 거부)
+        + snapshot_rule_version 'ADR-S4-01 v1.6', 테스트 정리 measurement_run DELETE 를 관리자(superuser) 연결로(A1), 기대값 2건 갱신, T9·T10 추가,
+        ADR R13 c·d·e, Gap #8, RUNBOOK 시그니처
+  운영 dry-run 기대 행 수 재계산 (READ ONLY 재조회):
+            label        | rates | mttd | corr | h2 | coverage | attacker | expected_snapshot_rows |      defs      
+    ---------------------+-------+------+------+----+----------+----------+------------------------+----------------
+     S3-GATE-dc66322     |    52 |    7 |   20 |  1 |        4 |        4 |                     89 | ADR-S4-01 v1.4
+     S4-STACK-6-BASELINE |    52 |    7 |   20 |  1 |        4 |        4 |                     89 | ADR-S4-01 v1.4
+    (2 rows)
+## Step 4 재실행 — ./gradlew clean build start=2026-10-21T13:29:16Z end=2026-10-21T13:30:17Z exit=1 → 멈춤
+  총 tests=252 failures=49 errors=0 skipped=3 passed=200 (suite 53개)
+  통과: MetricSnapshotTest 11/11, MetricSnapshotDefinitionVersionTest 1/1, MetricSnapshotTruncateGuardTest 1/1, ValidationMigrateEntryTest 2/2, ValidationPersistenceTest 9/9
+  실패 49 — A1 적용 후에도 같은 정리 코드 실패 (ValidationDbFixture.java:67 truncateRunData 의 관리자 연결 DELETE, MeasurementRunPersistenceTest.clean 동일) 원문:
+    'Caused by: org.postgresql.util.PSQLException: ERROR: permission denied for table metric_snapshot'
+    '  Where: SQL statement "SELECT 1 FROM ONLY "validation"."metric_snapshot" x WHERE $1 OPERATOR(pg_catalog.=) "run_id" FOR KEY SHARE OF x"'
+  사실: superuser 가 실행한 DELETE 에서도 FK 내부 확인 쿼리(FOR KEY SHARE)가 metric_snapshot 권한 거부로 실패
+  해석(문서 원문 미확인): FK 확인 쿼리는 실행자가 아니라 참조하는 테이블(metric_snapshot) 소유자 = validation_rw 권한으로 돈다
+    → validation_rw 의 UPDATE 회수로 measurement_run 행은 superuser 도 지울 수 없다(스냅샷 행 0 이어도)
+  고치지 않음 — 보고 후 대기
+
+## DRI 결정 B1 반영 (2026-10-21)
+  V5: 'GRANT UPDATE (run_id) ON metric_snapshot TO validation_rw;' 'GRANT UPDATE (run_id) ON metric_snapshot_withdrawal TO validation_rw;'
+      (다른 컬럼 UPDATE·DELETE·TRUNCATE 회수, 불변 트리거 그대로)
+  A1 정리 연결(superuser) 되돌림 — ValidationDbFixture.truncateRunData·MeasurementRunPersistenceTest.clean 은 validation_rw 의 'DELETE FROM validation.measurement_run'
+      (스냅샷 없는 run 은 run_id 컬럼 UPDATE 권한으로 FK 확인 통과 — 아래 build 로 확인)
+  ADR R13 d·Gap #8: '관리자 절차' 문구 삭제, 스냅샷 있는 run 삭제 불가 / 없는 run 삭제 가능 + 근거·등급(해석, 실측) 문구
+  T11 추가: run_id UPDATE → 트리거 거부, 다른 컬럼 UPDATE → permission denied, 스냅샷 있는 run 삭제 → FK 거부, 없는 run 삭제 → 성공
+## 관련 테스트 (timeout 300) start=2026-10-21T13:37:06Z end=2026-10-21T13:37:57Z exit=0, BUILD SUCCESSFUL in 50s
+  36 tests, 실패 0: ValidationMigrateEntryTest 2, ValidationPersistenceTest 9, MeasurementRunPersistenceTest 11, MetricSnapshotTest 12, MetricSnapshotDefinitionVersionTest 1, MetricSnapshotTruncateGuardTest 1
+## Step 4 최종 — ./gradlew clean build start=2026-10-21T13:38:13Z end=2026-10-21T13:39:37Z exit=0, BUILD SUCCESSFUL in 1m 23s
+  총 tests=253 failures=0 errors=0 skipped=3 passed=250 (suite 53개)
+  -- skip 목록 --
+  VulnerableWebappApplicationTests#contextLoads()
+  correlation.ValidationMigrateIT#migrate()
+  measure.CampaignRunnerIT#measure()
+  기준선(b5c577e~6992f5e) 239 → 253 (+14: MetricSnapshotTest 12, MetricSnapshotDefinitionVersionTest 1, MetricSnapshotTruncateGuardTest 1), skip 3 은 기존 env/DB 게이트
+  운영 dry-run 기대 행 수: S4-STACK-6-BASELINE 89, S3-GATE-dc66322 89 (definition_version ADR-S4-01 v1.4, 위 재조회)
+  git status --short:
+     M detections/known-gaps.md
+     M docs/adr/ADR-S4-01-metric-definitions.md
+     M src/main/java/com/capstone/vuln/measure/GateVerdictReader.java
+     M src/test/java/com/capstone/vuln/correlation/ValidationDbFixture.java
+     M src/test/java/com/capstone/vuln/correlation/ValidationMigrateEntryTest.java
+     M src/test/java/com/capstone/vuln/correlation/ValidationPersistenceTest.java
+     M src/test/java/com/capstone/vuln/measure/MeasurementRunPersistenceTest.java
+    ?? detections/measurements/RUNBOOK-S4-3-snapshot.md
+    ?? detections/measurements/evidence/2026-10-21_s4-3-step0.log
+    ?? src/main/resources/db/validation/V5__metric_snapshot.sql
+    ?? src/test/java/com/capstone/vuln/measure/MetricSnapshotDefinitionVersionTest.java
+    ?? src/test/java/com/capstone/vuln/measure/MetricSnapshotTest.java
+    ?? src/test/java/com/capstone/vuln/measure/MetricSnapshotTruncateGuardTest.java
