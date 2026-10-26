@@ -322,7 +322,7 @@ export default function Report() {
                   <td><BadgeText cls={app.cls}>{app.t}</BadgeText></td>
                   <td><BadgeText cls={net.cls}>{net.t}</BadgeText></td>
                   <td>{backend.t === '대상 아님' ? <span className="t-unk">대상 아님</span> : <BadgeText cls={backend.cls}>{backend.t}</BadgeText>}</td>
-                  <td className="cellrate">{r ? <RatioBlock label={`${s.name} 탐지율`} x={r.x} n={r.n} lo={r.lo} hi={r.hi} status={r.status} /> : NO_RECORD}</td>
+                  <td className="cellrate">{r ? <RatioBlock label={`${s.name} 탐지율`} x={r.x} n={r.n} lo={r.lo} hi={r.hi} status={r.status === 'OK' ? 'VALID' : r.status} /> : NO_RECORD}</td>
                   <td><small>{s.remediation}</small></td>
                   <td><small>{s.key === 'BRUTE_FORCE'
                     ? `최종 FP ${loginBackend ? `${loginBackend.x ?? 0}/${loginBackend.n}` : NO_RECORD}`
