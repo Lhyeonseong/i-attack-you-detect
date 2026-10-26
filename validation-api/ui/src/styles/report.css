@@ -1,6 +1,6 @@
 /* Q8 검증 결과 */
 [data-testid="screen-report"] {
-  gap: 28px;
+  gap: 18px;
 
   .eyebrow { color: var(--accent); font-size: 11px; font-weight: 650; }
   .heading h1 { font-size: 24px; font-weight: 600; margin: 8px 0; }
@@ -9,8 +9,8 @@
   .toprow .spacer { margin-left: auto; }
   .export-actions { display: flex; align-items: center; gap: 14px; }
   .link { color: var(--accent); font-weight: 700; font-size: 11px; white-space: nowrap; background: none; border: 0; cursor: pointer; font-family: inherit; padding: 0; }
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 24px; min-width: 0; }
-  .ph { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 22px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 22px; min-width: 0; }
+  .ph { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 18px; }
   .ph h2 { margin: 0; font-size: 14px; line-height: 20px; font-weight: 600; }
   .ctx { color: var(--accent); font-size: 11px; font-weight: 750; }
   .pm { color: var(--soft); font-size: 11px; white-space: nowrap; }
@@ -38,7 +38,7 @@
   .pa2 { color: #f3c97a; border-color: #f3c97a66; }
 
   .fd { display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 16px; }
-  .fcard { border: 1px solid var(--border); border-radius: 16px; padding: 20px; background: var(--panel); }
+  .fcard { border: 1px solid var(--border); border-radius: 14px; padding: 16px; background: var(--panel); }
   .fcard h3 { margin: 0; font-size: 15px; }
   .fcard .id { color: var(--accent); font-size: 11px; font-weight: 750; }
   .fcard dl { margin: 14px 0 0; display: grid; gap: 10px; font-size: 12px; }
@@ -47,7 +47,7 @@
   .fcard dd { margin: 0; color: var(--muted); line-height: 1.55; }
   .tag { display: inline-flex; font-size: 10px; padding: 3px 6px; border-radius: 5px; background: var(--alt); border: 1px solid var(--border); color: var(--muted); margin: 0 4px 4px 0; }
 
-  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 24px; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 18px; }
   .gaps { display: grid; gap: 0; margin-top: 0; }
   .gap { display: grid; grid-template-columns: 1fr auto; gap: 10px 20px; align-items: center; padding: 14px 0; border-top: 1px solid var(--border); }
   .gap b { font-size: 13px; }

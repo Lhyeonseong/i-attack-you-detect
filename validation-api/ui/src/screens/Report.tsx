@@ -10,29 +10,14 @@ import { useAsync } from '../lib/useAsync';
 import { api } from '../api';
 import { byMetricScope, byScope } from '../lib/select';
 import { NO_RECORD } from '../lib/ratio';
+import { REPORT_SCENARIOS, FINDING_SCENARIO } from '../lib/reportScenarioMeta';
 import type { SnapshotRow, RateRow, AttackerRow } from '../api/types';
 import '../styles/report.css';
 
-interface ScenarioMetaRow {
-  status: 'OK' | 'PARTIAL';
-  name: string; det: string; kisa: string; scope: string;
-  app: { t: string; cls: string }; net: { t: string; cls: string }; backend: string;
-  key: string; remediation: string; followup: string;
-}
-
-const SCEN_ROWS: ScenarioMetaRow[] = [
-  { status: 'PARTIAL', name: 'SQL 인젝션', det: 'T1190 · DET0080', kisa: 'SI (상)', scope: '취약 · 성공 20/20', app: { t: '탐지', cls: 'b-ok' }, net: { t: '로그만 · 경보 0/20', cls: 'b-at' }, backend: '대상 아님', key: 'SQLI', remediation: '입력값 바인딩(Prepared Statement) 적용', followup: 'Suricata 1000013을 디코딩된 따옴표까지 검사하도록 보완' },
-  { status: 'OK', name: '경로 조작', det: 'T1190 · DET0080', kisa: 'FD (상)', scope: '취약 · 성공', app: { t: '탐지', cls: 'b-ok' }, net: { t: '탐지', cls: 'b-ok' }, backend: '대상 아님', key: 'PATH_TRAVERSAL', remediation: '파일명 DB 매칭 · 경로 문자 필터링', followup: '인코딩 우회 변형 추가 측정 (Gap #2)' },
-  { status: 'OK', name: 'SSRF', det: 'T1190 · AN0222', kisa: 'SF (상)', scope: '취약 · 성공', app: { t: '탐지', cls: 'b-ok' }, net: { t: '탐지', cls: 'b-ok' }, backend: '대상 아님', key: 'SSRF', remediation: '허용 URL · IP 화이트리스트 검증', followup: '대조 요청 오판(측정 도구) 별도 수정' },
-  { status: 'PARTIAL', name: '무차별 대입', det: 'T1110 · DET0463', kisa: 'AU (상)', scope: '취약 · 성공', app: { t: '탐지', cls: 'b-ok' }, net: { t: NO_RECORD, cls: 'b-nu' }, backend: '탐지', key: 'BRUTE_FORCE', remediation: '로그인 시도 횟수 제한 · 추가 인증', followup: '1000031 · 1000032 실패 조건 추가' },
-];
-
-const FINDING_BADGE: Record<string, { t: string; cls: string }> = {
-  'V-01': { t: '앱 로그 탐지 · 네트워크 로그만', cls: 'b-at' },
-  'V-02': { t: '탐지', cls: 'b-ok' },
-  'V-03': { t: '탐지', cls: 'b-ok' },
-  'V-04': { t: '탐지 · 정상 로그인 오탐 있음', cls: 'b-at' },
-};
+const SCEN_ROWS = REPORT_SCENARIOS.map((s) => ({
+  ...s,
+  det: `${s.technique} · ${s.detection}`,
+}));
 
 export default function Report() {
   const { runIds, runAfter, displayName, runs } = useDashboard();
@@ -43,9 +28,11 @@ export default function Report() {
   const findings = useAsync(() => api.getFindings(), []);
   const gaps = useAsync(() => api.getGaps(), []);
   const attacker = useAsync(() => api.getAttacker(runIds.after), [runIds.after]);
+  const attempts = useAsync(() => api.getAttempts(runIds.after), [runIds.after]);
 
   const def = snap.data?.[0]?.definition_version ?? '';
   const m02 = byMetricScope<SnapshotRow>(snap.data, 'M02', 'ALL');
+  const m01 = byMetricScope<RateRow>(rates.data, 'M01', 'ALL');
   const m02b = byMetricScope<SnapshotRow>(snapB.data, 'M02', 'ALL');
   // v_metric_attacker에는 ALL 행이 없으므로,
   // 존재하는 SCENARIO 행을 합산해 전체 판정 값을 동적으로 구성합니다.
@@ -73,17 +60,67 @@ export default function Report() {
   const loginNids = (benignLogin.data ?? []).find(
     (r) => r.metric_id === 'M14a_NIDS' && r.scope_key === 'BRUTE_FORCE'
   );
+  const loginBackend = (benignLogin.data ?? []).find(
+    (r) => r.metric_id === 'M14a_BACKEND_CORR' && r.scope_key === 'BRUTE_FORCE'
+  );
+  const sqliNids = (snap.data ?? []).find(
+    (r) => r.metric_id === 'M13_NIDS'
+      && r.scope_kind === 'SCENARIO'
+      && r.scope_key === 'SQLI'
+  );
   const findingList = findings.data ?? [];
   const benignLoginRun = runs.find((r) => r.run_id === runIds.benignLogin);
-  const gapList = (gaps.data ?? []).map((g) =>
-    g.id === 'Gap-login' && loginNids
-      ? {
-          ...g,
-          reval_run: benignLoginRun?.label ?? NO_RECORD,
-          reval_note: `${loginNids.x ?? 0} / ${loginNids.n}`,
-          status: (loginNids.x ?? 0) === 0 ? '해결' : '잔존',
-        }
-      : g
+
+  const controlAttempts = (attempts.data ?? []).filter(
+    (a) => a.attempt_role === 'CONTROL'
+  );
+  const validControls = controlAttempts.filter(
+    (a) => a.gt_outcome === 'FAILED' && a.verdict === 'FAILED_UNSEEN'
+  );
+  const controlStatusOk =
+    controlAttempts.length > 0 && validControls.length === controlAttempts.length;
+
+  const engineVersions = Array.from(new Set((attempts.data ?? []).map((a) => a.engine_version).filter(Boolean))).join(', ');
+
+  const gapList = (gaps.data ?? []).map((g) => {
+    if (g.id === 'Gap #7n' && sqliNids) {
+      return {
+        ...g,
+        reval_run: runAfter?.label ?? g.reval_run,
+        reval_note: `${sqliNids.x ?? 0} / ${sqliNids.n}`,
+        status: sqliNids.status === 'OK'
+          && sqliNids.n > 0
+          && (sqliNids.x ?? 0) === sqliNids.n
+          ? '해결'
+          : '확인 필요',
+      };
+    }
+
+    if (g.id === 'Gap-login' && loginBackend) {
+      return {
+        ...g,
+        reval_run: benignLoginRun?.label ?? NO_RECORD,
+        reval_note: `최종 FP ${loginBackend.x ?? 0} / ${loginBackend.n}`
+          + (loginNids ? ` · 원시 NIDS ${loginNids.x ?? 0} / ${loginNids.n}` : ''),
+        status: (loginBackend.x ?? 0) === 0 ? '해결' : '확인 필요',
+      };
+    }
+
+    if (g.id === 'Gap-ssrf-ctrl' && controlAttempts.length > 0) {
+      return {
+        ...g,
+        reval_run: runAfter?.label ?? g.reval_run,
+        reval_note: `${validControls.length} / ${controlAttempts.length} 정상 판정`,
+        status: controlStatusOk ? '해결' : '확인 필요',
+      };
+    }
+
+    return g;
+  });
+
+  const detectionGaps = gapList.filter((g) => g.control !== '측정 도구');
+  const openDetectionGaps = detectionGaps.filter(
+    (g) => g.status !== '해결' && g.status !== '해소'
   );
   const attackScenarioRows = (rates.data ?? []).filter(
     (r) => r.metric_id === 'M01' && r.scope_kind === 'SCENARIO'
@@ -96,6 +133,72 @@ export default function Report() {
   // 시나리오별 탐지율 = M02 SCENARIO.
   const rateFor = (key: string): RateRow | undefined =>
     (rates.data ?? []).find((r) => r.metric_id === 'M02' && r.scope_kind === 'SCENARIO' && r.scope_key === key);
+
+  const sensorFor = (metricId: string, key: string): SnapshotRow | undefined =>
+    (snap.data ?? []).find(
+      (r) => r.metric_id === metricId
+        && r.scope_kind === 'SCENARIO'
+        && r.scope_key === key
+    );
+
+  const sensorBadge = (row: SnapshotRow | undefined) => {
+    if (!row || row.n <= 0 || row.status === 'NOT_APPLICABLE' || row.status === 'NO_RULE') {
+      return { t: '대상 아님', cls: 'b-nu' };
+    }
+    if (row.status === 'OK' && (row.x ?? 0) === row.n) {
+      return { t: `탐지 ${row.x ?? 0}/${row.n}`, cls: 'b-ok' };
+    }
+    return { t: `${row.x ?? 0}/${row.n}`, cls: 'b-at' };
+  };
+
+  const scenarioStatus = (key: string) => {
+    const rows = [
+      sensorFor('M13_APP_RULE', key),
+      sensorFor('M13_NIDS', key),
+      sensorFor('M13_BACKEND_CORR', key),
+    ].filter((r): r is SnapshotRow => !!r && r.n > 0 && r.status !== 'NOT_APPLICABLE' && r.status !== 'NO_RULE');
+
+    return rows.length > 0
+      && rows.every((r) => r.status === 'OK' && (r.x ?? 0) === r.n)
+      ? 'OK'
+      : 'PARTIAL';
+  };
+
+  const findingBadge = (id: string) => {
+    const key = FINDING_SCENARIO[id];
+    if (!key) return { t: NO_RECORD, cls: 'b-nu' };
+
+    const status = scenarioStatus(key);
+    return status === 'OK'
+      ? { t: '탐지 확인', cls: 'b-ok' }
+      : { t: '일부 관제 확인 필요', cls: 'b-at' };
+  };
+
+  const findingDetectionText = (id: string) => {
+    const key = FINDING_SCENARIO[id];
+    if (!key) return NO_RECORD;
+
+    const app = sensorBadge(sensorFor('M13_APP_RULE', key)).t;
+    const nids = sensorBadge(sensorFor('M13_NIDS', key)).t;
+    const backend = sensorBadge(sensorFor('M13_BACKEND_CORR', key)).t;
+
+    const parts = [`앱 로그 ${app}`, `네트워크 ${nids}`];
+
+    if (backend !== '대상 아님') {
+      parts.push(`백엔드 상관 ${backend}`);
+    }
+
+    if (key === 'BRUTE_FORCE') {
+      parts.push(
+        `최종 FP ${loginBackend ? `${loginBackend.x ?? 0}/${loginBackend.n}` : NO_RECORD}`
+      );
+      if (loginNids) {
+        parts.push(`원시 NIDS ${loginNids.x ?? 0}/${loginNids.n}`);
+      }
+    }
+
+    return parts.join(' · ');
+  };
 
   async function downloadPdf() {
     const report = document.querySelector<HTMLElement>('#pdf-report-root .pdf-report');
@@ -144,18 +247,17 @@ export default function Report() {
         <p>측정한 공격 시나리오별로 대상 시스템의 취약 여부, 관제의 탐지 여부, 조치 권고를 정리합니다.</p>
       </div>
       <div className="toprow">
-        <span className="tnote">{displayName(runAfter?.label ?? '')} · {runAfter?.label ?? ''} · 확정 결과</span>
-        <span className="tnote">측정 범위 · 웹 취약점 4종 · 공격 {m02?.n ?? NO_RECORD}건</span>
+        <span className="tnote">측정 범위 · 웹 취약점 {scenarioN || NO_RECORD}종 · 공격 {m01?.n ?? NO_RECORD}건</span>
         <div className="export-actions spacer">
           <button type="button" className="link" onClick={downloadPdf}>PDF 보고서 다운로드 →</button>
         </div>
       </div>
 
       <section className="sum">
-        <div className="sc2"><span>대상 시스템 취약점</span><b className="t-danger">{scenarioN ? `${successfulScenarioN} / ${scenarioN} 시나리오 성공` : NO_RECORD}</b><small>공격 {m02?.n ?? NO_RECORD}건 모두 성공 · 정답지 기준</small></div>
-        <div className="sc2"><span>탐지</span><b className="t-det">{m02 ? `${m02.x} / ${m02.n} 탐지` : NO_RECORD}</b><small>개선 전 측정 (10/21) {m02b ? `${m02b.x} / ${m02b.n}` : NO_RECORD}</small></div>
-        <div className="sc2"><span>남은 탐지 공백</span><b className="t-warn">{gapList.filter((g) => g.status === '잔존').length}건 잔존</b><small>네트워크 SQL 인젝션 · 정상 로그인 오탐</small></div>
-        <div className="sc2"><span>측정 신뢰</span><b>통과</b><small>판정 일치 {atk ? `${atk.x} / ${atk.n}` : NO_RECORD} · 기대 요청 {((runAfter?.expected_attempts ?? 0) + (runAfter?.expected_controls ?? 0))}건 · 기록 검증 {runAfter?.integrity_status === 'VALID' ? '일치' : (runAfter?.integrity_status ?? NO_RECORD)}</small></div>
+        <div className="sc2"><span>대상 시스템 취약점</span><b className="t-danger">{scenarioN ? `${successfulScenarioN} / ${scenarioN} 시나리오 성공` : NO_RECORD}</b><small>공격 {m01?.n ?? NO_RECORD}건 중 {m01?.x ?? NO_RECORD}건 성공 · 정답지 기준</small></div>
+        <div className="sc2"><span>탐지</span><b className="t-det">{m02 ? `${m02.x} / ${m02.n} 탐지` : NO_RECORD}</b><small>개선 전 측정 {m02b ? `${m02b.x} / ${m02b.n}` : NO_RECORD}</small></div>
+        <div className="sc2"><span>현재 탐지 공백</span><b className={openDetectionGaps.length === 0 ? 't-det' : 't-warn'}>{openDetectionGaps.length}건</b><small>최신 공격·정상 트래픽 실측 기준</small></div>
+        <div className="sc2"><span>측정 신뢰</span><b>{runAfter?.integrity_status === 'VALID' ? '통과' : (runAfter?.integrity_status ?? NO_RECORD)}</b><small>판정 일치 {atk ? `${atk.x} / ${atk.n}` : NO_RECORD} · 기대 요청 {((runAfter?.expected_attempts ?? 0) + (runAfter?.expected_controls ?? 0))}건 · 기록 검증 {runAfter?.integrity_status === 'VALID' ? '일치' : (runAfter?.integrity_status ?? NO_RECORD)}</small></div>
       </section>
 
       <section className="panel">
@@ -164,7 +266,7 @@ export default function Report() {
           <thead><tr><th>ID</th><th>취약점</th><th>위치</th><th>KISA 중요도</th><th>대상 시스템</th><th>탐지</th></tr></thead>
           <tbody>
             {findingList.map((f) => {
-              const db = FINDING_BADGE[f.id] ?? { t: f.detection, cls: 'b-ok' };
+              const db = findingBadge(f.id);
               return (
                 <tr key={f.id}>
                   <td><b>{f.id}</b></td><td><b>{f.title}</b></td><td>{f.location}</td>
@@ -189,7 +291,7 @@ export default function Report() {
                 <div><dt>설명</dt><dd>{f.description}</dd></div>
                 <div><dt>확인된 영향</dt><dd>{f.impact}</dd></div>
                 <div><dt>분류</dt><dd>{f.tags.map((t) => <span className="tag" key={t}>{t}</span>)}</dd></div>
-                <div><dt>탐지</dt><dd>{f.detection}</dd></div>
+                <div><dt>탐지</dt><dd>{findingDetectionText(f.id)}</dd></div>
                 <div><dt>취약점 조치</dt><dd>{f.remediation}</dd></div>
                 <div><dt>탐지 보완</dt><dd>{f.detection_followup}</dd></div>
               </dl>
@@ -205,19 +307,27 @@ export default function Report() {
           <tbody>
             {SCEN_ROWS.map((s) => {
               const r = rateFor(s.key);
+              const attack = attackScenarioRows.find((x) => x.scope_key === s.key);
+              const app = sensorBadge(sensorFor('M13_APP_RULE', s.key));
+              const net = sensorBadge(sensorFor('M13_NIDS', s.key));
+              const backend = sensorBadge(sensorFor('M13_BACKEND_CORR', s.key));
+              const status = scenarioStatus(s.key);
+
               return (
                 <tr key={s.key}>
-                  <td><span className={`st2 ${s.status === 'OK' ? 'ok2' : 'pa2'}`}>{s.status}</span></td>
+                  <td><span className={`st2 ${status === 'OK' ? 'ok2' : 'pa2'}`}>{status}</span></td>
                   <td><b>{s.name}</b><small>{s.det}</small></td>
                   <td>{s.kisa}</td>
-                  <td><BadgeText cls="b-dg">{s.scope}</BadgeText></td>
-                  <td><BadgeText cls={s.app.cls}>{s.app.t}</BadgeText></td>
-                  <td><BadgeText cls={s.net.cls}>{s.net.t}</BadgeText></td>
-                  <td>{s.backend === '대상 아님' ? <span className="t-unk">대상 아님</span> : <BadgeText cls="b-ok">{s.backend}</BadgeText>}</td>
+                  <td><BadgeText cls="b-dg">{attack ? `취약 · 성공 ${attack.x ?? 0}/${attack.n}` : NO_RECORD}</BadgeText></td>
+                  <td><BadgeText cls={app.cls}>{app.t}</BadgeText></td>
+                  <td><BadgeText cls={net.cls}>{net.t}</BadgeText></td>
+                  <td>{backend.t === '대상 아님' ? <span className="t-unk">대상 아님</span> : <BadgeText cls={backend.cls}>{backend.t}</BadgeText>}</td>
                   <td className="cellrate">{r ? <RatioBlock label={`${s.name} 탐지율`} x={r.x} n={r.n} lo={r.lo} hi={r.hi} status={r.status} /> : NO_RECORD}</td>
                   <td><small>{s.remediation}</small></td>
                   <td><small>{s.key === 'BRUTE_FORCE'
-                    ? `정상 로그인 오탐 ${loginNids?.p != null ? `${(loginNids.p * 100).toFixed(1)}%` : NO_RECORD} (${loginNids ? `${loginNids.n}건 중 ${loginNids.x ?? 0}건` : NO_RECORD}) · ${s.followup}`
+                    ? `최종 FP ${loginBackend ? `${loginBackend.x ?? 0}/${loginBackend.n}` : NO_RECORD}`
+                      + (loginNids ? ` · 원시 NIDS ${loginNids.x ?? 0}/${loginNids.n}` : '')
+                      + ` · ${s.followup}`
                     : s.followup}</small></td>
                 </tr>
               );
@@ -234,7 +344,7 @@ export default function Report() {
             {gapList.filter((g) => g.status !== '발견').map((g) => (
               <div className="gap" key={g.id}>
                 <div><b>{g.title}</b><span className="s">{g.fix !== '—' ? `${g.fix}${g.fix_note ? ` (${g.fix_note})` : ''} · ` : ''}{g.reval_note || g.found_note}</span></div>
-                <BadgeText cls={g.status === '해결' ? 'b-ok' : g.status === '잔존' ? 'b-dg' : 'b-at'}>{g.status === '해결' ? '해소' : g.status}</BadgeText>
+                <BadgeText cls={g.status === '해결' ? 'b-ok' : g.status === '확인 필요' ? 'b-dg' : 'b-at'}>{g.status === '해결' ? '해소' : g.status}</BadgeText>
               </div>
             ))}
           </div>
@@ -250,7 +360,7 @@ export default function Report() {
         </section>
       </div>
 
-      <p className="foot">측정 {runAfter?.label ?? ''} · {runAfter?.git_commit ?? ''} · 정의 {def || NO_RECORD} · 판정 엔진 s4-v1 · 확정 결과는 저장 후 수정할 수 없습니다</p>
+      <p className="foot">측정 {runAfter?.label ?? ''} · {runAfter?.git_commit ?? ''} · 정의 {def || NO_RECORD} · 판정 엔진 {engineVersions || NO_RECORD} · 확정 결과는 저장 후 수정할 수 없습니다</p>
 
       <div id="pdf-report-root" className="pdf-report-root" aria-hidden="true">
         <ReportPdf

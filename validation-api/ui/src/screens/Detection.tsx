@@ -24,7 +24,7 @@ function fp(rows: SnapshotRow[] | null, metricId: string, scopeKey: string): Sna
 }
 
 export default function Detection() {
-  const { runIds, runAfter, displayName } = useDashboard();
+  const { runIds, runAfter, displayName, runs } = useDashboard();
   const snap = useAsync(() => api.getSnapshot('', runIds.after), [runIds.after]);
   const benignWeb = useAsync(() => api.getSnapshot('', runIds.benignWeb), [runIds.benignWeb]);
   const benignLogin = useAsync(() => api.getSnapshot('', runIds.benignLogin), [runIds.benignLogin]);
@@ -65,8 +65,13 @@ export default function Detection() {
   const webNids = fp(benignWeb.data, 'M14a_NIDS', 'SQLI');
   const loginBackend = fp(benignLogin.data, 'M14a_BACKEND_CORR', 'BRUTE_FORCE');
   const loginNids = fp(benignLogin.data, 'M14a_NIDS', 'BRUTE_FORCE');
-  const totalBenign = (webApp ? webApp.n * 3 : 0) + (loginBackend?.n ?? 0);
-  const totalFp = (loginNids?.x ?? 0);
+  const webBenignN = (benignWeb.data ?? [])
+    .filter((r) => r.metric_id === 'M14a_APP_RULE' && r.scope_kind === 'SCENARIO' && r.n > 0)
+    .reduce((sum, r) => sum + r.n, 0);
+  const totalBenign = webBenignN + (loginBackend?.n ?? 0);
+  const finalFp = loginBackend?.x ?? null;
+  const rawLoginNidsFp = loginNids?.x ?? null;
+  const benignLoginRun = runs.find((r) => r.run_id === runIds.benignLogin);
 
   const attemptById = new Map((attempts.data ?? []).map((a) => [a.attempt_id, a]));
   const alerts = links.data ?? [];
@@ -117,8 +122,12 @@ export default function Detection() {
       </section>
 
       <section className="panel">
-        <div className="ph"><div><div className="ctx">정상 요청 측정 · 10/21</div><h2>오탐 (정상 요청을 공격으로 오인)</h2></div><span className="pm">공격 탐지율과 따로 봅니다</span></div>
-        <p className="fplead">정상 요청 {totalBenign.toLocaleString('ko-KR')}건 중 오탐은 <b className="t-danger">네트워크 관제의 로그인 {totalFp}건</b>뿐입니다.</p>
+        <div className="ph"><div><div className="ctx">정상 트래픽 재검증 · {benignLoginRun?.label ?? NO_RECORD}</div><h2>오탐 검증</h2></div><span className="pm">원시 경보와 최종 상관 판정을 분리합니다</span></div>
+        <p className="fplead">
+          정상 요청 {totalBenign.toLocaleString('ko-KR')}건 기준 최종 오탐은
+          <b className={finalFp === 0 ? 't-det' : 't-danger'}> {finalFp != null ? `${finalFp}건` : NO_RECORD}</b>입니다.
+          {rawLoginNidsFp != null ? ` 원시 네트워크 경보 ${rawLoginNidsFp}건은 관측 기록으로 유지합니다.` : ''}
+        </p>
         <div className="tw"><table className="vt">
           <thead><tr><th>정상 요청</th><th>앱 로그 관제 / 백엔드 상관</th><th>네트워크 관제</th></tr></thead>
           <tbody>
@@ -134,7 +143,9 @@ export default function Detection() {
             </tr>
           </tbody>
         </table></div>
-        <p className="fpcellsub">네트워크 로그인 오탐: 룰 1000031 · 1000032 · 개선 예정</p>
+        <p className="fpcellsub">
+          네트워크 로그인 행은 원시 NIDS 경보입니다. 최종 오탐 판정은 로그인 시퀀스를 확인하는 백엔드 상관 결과를 기준으로 합니다.
+        </p>
       </section>
 
       <section className="panel">

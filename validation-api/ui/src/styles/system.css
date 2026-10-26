@@ -1,19 +1,19 @@
 /* Q6 시스템 상태 */
 [data-testid="screen-system"] {
-  gap: 23px;
+  gap: 24px;
 
   .eyebrow { color: var(--accent); font-size: 11px; font-weight: 650; }
   .heading h1 { font-size: 24px; font-weight: 600; line-height: 36px; margin: 8px 0; }
   .heading p { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0; }
   .note { color: var(--muted); background: var(--accentbg); border-left: 2px solid var(--accent); font-size: 11px; line-height: 1.6; padding: 12px 14px; border-radius: 0 6px 6px 0; }
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 24px; min-width: 0; }
-  .ph { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 22px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 22px; min-width: 0; }
+  .ph { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 18px; }
   .ctx { color: var(--accent); font-size: 11px; font-weight: 750; }
   .ph h2 { margin: 6px 0 0; font-size: 16px; letter-spacing: -.025em; }
   .link { color: var(--accent); font-weight: 700; font-size: 11px; white-space: nowrap; }
   .pm { color: var(--soft); font-size: 11px; white-space: nowrap; }
   .pg { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-  .pc { padding: 17px; background: var(--alt); border: 1px solid var(--border); border-radius: 20px; }
+  .pc { padding: 16px; background: var(--alt); border: 1px solid var(--border); border-radius: 14px; }
   .phd { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .phd strong { font-size: 12px; }
   .pc p, .pc small { display: block; color: var(--muted); font-size: 11px; line-height: 1.5; margin: 12px 0 0; }

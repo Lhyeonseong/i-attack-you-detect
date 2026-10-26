@@ -30,7 +30,14 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         const runs = await api.getRuns();
         // 운영에서는 label 로 run 을 식별. 개발 mock 은 KNOWN_RUN_IDS 보유.
         const byLabel = (label: string) => runs.find((r) => r.label === label)?.run_id ?? '';
-        const afterId = KNOWN_RUN_IDS.after || byLabel('S5-SQLI-AFTER') || runs[0]?.run_id || '';
+        const latestValidAttackId = runs
+          .filter((r) =>
+            r.kind === 'ATTACK' &&
+            r.status === 'CLOSED' &&
+            r.integrity_status === 'VALID'
+          )
+          .sort((a, b) => Date.parse(b.ended_at) - Date.parse(a.ended_at))[0]?.run_id ?? '';
+        const afterId = KNOWN_RUN_IDS.after || latestValidAttackId;
         const beforeId = KNOWN_RUN_IDS.before || byLabel('S4-STACK-6-BASELINE');
         const benignWebId = KNOWN_RUN_IDS.benignWeb || byLabel('S5-SQLI-AFTER-BENIGN-WEB');
         const latestBenignLoginId = runs

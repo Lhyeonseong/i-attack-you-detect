@@ -1,6 +1,79 @@
 [
-  { "id": "V-01", "title": "SQL 인젝션", "technique_id": "T1190", "location": "상품 검색 API · 검색어 입력값", "kisa": "SI · 상", "target_status": "취약", "description": "검색어가 SQL 문에 그대로 들어가 쿼리 구조를 바꿀 수 있습니다.", "impact": "정답지가 SQL 오류 노출을 확인 · 20회 모두 성공 (주입 가능성 입증, 데이터 유출까지는 측정하지 않음)", "tags": ["CWE-89", "OWASP A03:2025 Injection", "KISA SI (상)", "ATT&CK T1190"], "detection": "앱 로그 관제 20/20 탐지 (룰 100211 추가 후) · 네트워크 관제는 요청을 기록했지만 경보 0/20", "remediation": "입력값 바인딩(Prepared Statement), 입력값 검증", "detection_followup": "네트워크 룰 1000013 보완 · 다른 SQL 인젝션 변형으로 추가 측정" },
-  { "id": "V-02", "title": "경로 조작", "technique_id": "T1190", "location": "파일 다운로드 API · 파일명 입력값", "kisa": "FD · 상", "target_status": "취약", "description": "파일명 입력값을 검증하지 않아 허용된 폴더 밖 파일을 받을 수 있습니다.", "impact": "정답지가 업로드 폴더 밖 파일 반환을 확인 · 측정 전 회차 성공", "tags": ["CWE-22", "OWASP A01:2025 Broken Access Control", "KISA FD (상)", "ATT&CK T1190"], "detection": "앱 로그 관제 탐지 · 네트워크 관제는 인코딩 변형 일부 미탐(Gap #2)", "remediation": "파일명 DB 매칭 · 확장자 허용 목록 · 경로 문자 필터링", "detection_followup": "인코딩 변형 탐지 확인 (Gap #2)" },
-  { "id": "V-03", "title": "서버 측 요청 위조 (SSRF)", "technique_id": "T1190", "location": "미리보기 API · URL 입력값", "kisa": "SF · 상", "target_status": "취약", "description": "서버가 사용자가 준 URL로 대신 요청해, 외부에서 닿지 않는 내부 메타데이터 서비스에 접근합니다.", "impact": "정답지가 내부 메타데이터 응답(시험용 표식) 도달을 확인 · 측정 전 회차 성공", "tags": ["CWE-918", "OWASP A01:2025 Broken Access Control", "KISA SF (상)", "ATT&CK T1190"], "detection": "앱 로그 · 네트워크 관제 모두 탐지", "remediation": "허용 URL · IP 목록 검증 · 내부 주소 차단 · 네트워크 분리", "detection_followup": "측정 도구의 대조 요청 오판 수정" },
-  { "id": "V-04", "title": "인증 시도 제한 없음 · 약한 비밀번호", "technique_id": "T1110", "location": "로그인 API", "kisa": "AU · 상", "target_status": "취약", "description": "로그인 실패 횟수를 제한하지 않고, 추측하기 쉬운 비밀번호를 허용합니다.", "impact": "정답지가 반복 시도 끝 로그인 성공을 확인 · 측정 전 회차 성공", "tags": ["CWE-307", "CWE-521", "OWASP A07:2025 Authentication Failures", "KISA AU (상)", "ATT&CK T1110"], "detection": "앱 로그 · 백엔드 상관 탐지 · 네트워크 관제는 HTTP 401 실패 응답 기반으로 보완했으며 오탐은 재검증 지표로 추적", "remediation": "로그인 시도 횟수 제한 · 비밀번호 정책 강화 · 추가 인증", "detection_followup": "네트워크 룰 1000031 · 1000032를 HTTP 401 실패 응답 기반으로 보완" }
+  {
+    "id": "V-01",
+    "title": "SQL 인젝션",
+    "technique_id": "T1190",
+    "location": "상품 검색 API · 검색어 입력값",
+    "kisa": "SI · 상",
+    "target_status": "취약",
+    "description": "검색어가 SQL 문에 그대로 들어가 쿼리 구조를 바꿀 수 있습니다.",
+    "impact": "정답지가 SQL 오류 노출을 확인해 주입 가능성을 입증했습니다. 데이터 유출 여부는 측정 범위에 포함하지 않습니다.",
+    "tags": [
+      "CWE-89",
+      "OWASP A03:2025 Injection",
+      "KISA SI (상)",
+      "ATT&CK T1190"
+    ],
+    "detection": "현재 앱 로그·네트워크 탐지 상태는 최신 측정 스냅샷 기준으로 표시합니다.",
+    "remediation": "입력값 바인딩(Prepared Statement), 입력값 검증",
+    "detection_followup": "SQL 인젝션 네트워크 탐지 룰 보완 후 회귀 측정을 유지합니다."
+  },
+  {
+    "id": "V-02",
+    "title": "경로 조작",
+    "technique_id": "T1190",
+    "location": "파일 다운로드 API · 파일명 입력값",
+    "kisa": "FD · 상",
+    "target_status": "취약",
+    "description": "파일명 입력값을 검증하지 않아 허용된 폴더 밖 파일을 받을 수 있습니다.",
+    "impact": "정답지가 허용된 업로드 경로 밖의 파일 반환을 확인했습니다.",
+    "tags": [
+      "CWE-22",
+      "OWASP A01:2025 Broken Access Control",
+      "KISA FD (상)",
+      "ATT&CK T1190"
+    ],
+    "detection": "현재 앱 로그·네트워크 탐지 상태는 최신 측정 스냅샷 기준으로 표시합니다.",
+    "remediation": "파일명 DB 매칭 · 확장자 허용 목록 · 경로 문자 필터링",
+    "detection_followup": "인코딩 우회 변형을 포함한 회귀 측정을 유지합니다."
+  },
+  {
+    "id": "V-03",
+    "title": "서버 측 요청 위조 (SSRF)",
+    "technique_id": "T1190",
+    "location": "미리보기 API · URL 입력값",
+    "kisa": "SF · 상",
+    "target_status": "취약",
+    "description": "서버가 사용자가 준 URL로 대신 요청해, 외부에서 닿지 않는 내부 메타데이터 서비스에 접근합니다.",
+    "impact": "정답지가 시험용 내부 메타데이터 서비스 도달을 확인했습니다.",
+    "tags": [
+      "CWE-918",
+      "OWASP A01:2025 Broken Access Control",
+      "KISA SF (상)",
+      "ATT&CK T1190"
+    ],
+    "detection": "현재 앱 로그·네트워크 탐지 상태는 최신 측정 스냅샷 기준으로 표시합니다.",
+    "remediation": "허용 URL · IP 목록 검증 · 내부 주소 차단 · 네트워크 분리",
+    "detection_followup": "SSRF 공격과 대조 요청의 판정 회귀 검증을 유지합니다."
+  },
+  {
+    "id": "V-04",
+    "title": "인증 시도 제한 없음 · 약한 비밀번호",
+    "technique_id": "T1110",
+    "location": "로그인 API",
+    "kisa": "AU · 상",
+    "target_status": "취약",
+    "description": "로그인 실패 횟수를 제한하지 않고, 추측하기 쉬운 비밀번호를 허용합니다.",
+    "impact": "정답지가 반복 로그인 시도 후 인증 성공을 확인했습니다.",
+    "tags": [
+      "CWE-307",
+      "CWE-521",
+      "OWASP A07:2025 Authentication Failures",
+      "KISA AU (상)",
+      "ATT&CK T1110"
+    ],
+    "detection": "현재 앱 로그·네트워크·백엔드 상관 탐지 상태와 정상 로그인 오탐은 최신 측정 지표 기준으로 표시합니다.",
+    "remediation": "로그인 시도 횟수 제한 · 비밀번호 정책 강화 · 추가 인증",
+    "detection_followup": "원시 네트워크 경보와 최종 백엔드 상관 판정을 분리해 회귀 측정합니다."
+  }
 ]

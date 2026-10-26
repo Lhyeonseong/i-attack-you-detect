@@ -1,23 +1,23 @@
 /* Q5 ATT&CK 검증 */
 [data-testid="screen-attck"] {
-  gap: 23px;
+  gap: 24px;
 
   .eyebrow { color: var(--accent); font-size: 11px; font-weight: 650; }
   .heading h1 { font-size: 24px; font-weight: 600; line-height: 36px; margin: 8px 0; }
   .heading p { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0; }
   .note { color: var(--muted); background: var(--accentbg); border-left: 2px solid var(--accent); font-size: 11px; line-height: 1.6; padding: 12px 14px; border-radius: 0 6px 6px 0; }
   .vs { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
-  .vs > div { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; }
+  .vs > div { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; }
   .vs .eyebrow { font-size: 11px; }
   .vs strong { font-size: 25px; margin: 8px 0; }
   .vs small { color: var(--soft); font-size: 10px; }
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 24px; min-width: 0; }
-  .ph { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 22px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 22px; min-width: 0; }
+  .ph { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 18px; }
   .ctx { color: var(--accent); font-size: 11px; font-weight: 750; }
   .ph h2 { margin: 6px 0 0; font-size: 16px; letter-spacing: -.025em; }
   .pm { color: var(--soft); font-size: 11px; white-space: nowrap; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
-  .tc { padding: 17px; background: var(--alt); border: 1px solid var(--border); border-radius: 20px; }
+  .tc { padding: 16px; background: var(--alt); border: 1px solid var(--border); border-radius: 14px; }
   .th { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .th span { color: var(--accent); font-weight: 800; font-size: 13px; }
   .th small { color: var(--soft); font-size: 10px; }

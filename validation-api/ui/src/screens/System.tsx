@@ -19,12 +19,13 @@ const services = [
 ];
 
 export default function System() {
-  const { runIds, runAfter } = useDashboard();
+  const { runIds, runAfter, runBefore } = useDashboard();
   const snap = useAsync(() => api.getSnapshot('', runIds.after), [runIds.after]);
   const snapBefore = useAsync(() => api.getSnapshot('', runIds.before), [runIds.before]);
   const rates = useAsync(() => api.getRates(runIds.after), [runIds.after]);
   const h2 = useAsync(() => api.getH2(runIds.after), [runIds.after]);
   const attacker = useAsync(() => api.getAttacker(runIds.after), [runIds.after]);
+  const attempts = useAsync(() => api.getAttempts(runIds.after), [runIds.after]);
 
   const snapLen = snap.data ? `${snap.data.length}행` : NO_RECORD;
   const def = snap.data?.[0]?.definition_version ?? '';
@@ -36,6 +37,11 @@ export default function System() {
   const m02Before = (snapBefore.data ?? []).find(
     (r: SnapshotRow) => r.metric_id === 'M02' && r.scope_kind === 'ALL'
   );
+  const appObserved = (snap.data ?? []).find(
+    (r: SnapshotRow) => r.metric_id === 'M07a_APP_LOG' && r.scope_kind === 'ALL'
+  );
+  const expectedRequests =
+    (runAfter?.expected_attempts ?? 0) + (runAfter?.expected_controls ?? 0);
   const beforeMissed = m02Before ? m02Before.n - (m02Before.x ?? 0) : null;
   const afterMissed = m02After ? m02After.n - (m02After.x ?? 0) : null;
 
@@ -46,6 +52,15 @@ export default function System() {
     (r: RateRow) => r.n > 0 && r.x === r.n
   ).length;
   const scenarioN = attackScenarioRows.length;
+
+  const controlAttempts = (attempts.data ?? []).filter(
+    (a) => a.attempt_role === 'CONTROL'
+  );
+  const validControls = controlAttempts.filter(
+    (a) => a.gt_outcome === 'FAILED' && a.verdict === 'FAILED_UNSEEN'
+  );
+  const controlStatusOk =
+    controlAttempts.length > 0 && validControls.length === controlAttempts.length;
 
   return (
     <Layout screenId="system" title="시스템 상태" topNote="읽기 전용 연결">
@@ -76,7 +91,7 @@ export default function System() {
             <div><dt>기록 검증</dt><dd><span className="pill up">{runAfter?.integrity_status === 'VALID' ? '일치' : (runAfter?.integrity_status ?? NO_RECORD)}</span></dd></div>
             <div><dt>마지막 완료</dt><dd>{kst(runAfter?.ended_at)}</dd></div>
             <div><dt>수집 방식</dt><dd>측정 종료 시 일괄 적재</dd></div>
-            <div><dt>요청 기록</dt><dd>기대 160 · 적재 160 · 앱 로그 관측 160</dd></div>
+            <div><dt>요청 기록</dt><dd>기대 {runAfter ? `${expectedRequests}건` : NO_RECORD} · 앱 로그 관측 {appObserved ? `${appObserved.x ?? 0}/${appObserved.n}` : NO_RECORD}</dd></div>
             <div><dt>확정 결과 (스냅샷)</dt><dd>{snapLen} · 정의 {def || NO_RECORD}</dd></div>
             <div><dt>측정 ID</dt><dd>{runAfter?.label ?? NO_RECORD} · {short8(runAfter?.run_id)}</dd></div>
           </dl>
@@ -88,19 +103,17 @@ export default function System() {
             <div><dt>성공을 부풀린 경우</dt><dd>{atk ? `${atk.overestimate}건` : NO_RECORD}</dd></div>
             <div><dt>연결 근거 rid · 헤더</dt><dd>{rid != null ? rid : NO_RECORD} / {h2.data?.n ?? NO_RECORD} · 목표 90% 이상</dd></div>
             <div><dt>판정 불가</dt><dd>{atk ? `${atk.uncertain}건` : NO_RECORD}</dd></div>
-            <div><dt>대조 요청 성공 오판 (SSRF)</dt><dd><span className="pill dn">별도 공백</span></dd></div>
+            <div><dt>SSRF 대조 요청 판정</dt><dd><span className={`pill ${controlStatusOk ? 'up' : 'dn'}`}>{controlAttempts.length > 0 ? `${validControls.length}/${controlAttempts.length} 정상 판정` : NO_RECORD}</span></dd></div>
           </dl>
         </section>
       </div>
 
       <section className="panel">
-        <div className="ph"><div><div className="ctx">구성 변경 · 개선 전 측정 (10/21) → 개선 후 측정 (10/22)</div><h2>탐지 룰 구성 변경</h2></div><Link className="link" to="/revalidate">개선 효과 보기 →</Link></div>
+        <div className="ph"><div><div className="ctx">측정 비교 · {runBefore ? kst(runBefore.ended_at) : NO_RECORD} → {runAfter ? kst(runAfter.ended_at) : NO_RECORD}</div><h2>검증 구성 변경 요약</h2></div><Link className="link" to="/revalidate">재검증 결과 보기 →</Link></div>
         <dl className="dl">
-          <div><dt>변경 내용</dt><dd>SQL 인젝션 탐지 룰 100211 추가 (기존 100210 유지)</dd></div>
           <div><dt>커밋</dt><dd>{short8(runAfter?.git_commit)}</dd></div>
-          <div><dt>탐지 룰 지문</dt><dd>Wazuh 룰만 변경 · Suricata · 앱 · Caldera 동일</dd></div>
-          <div><dt>판정 엔진</dt><dd>s3-v1 → s4-v1 · 측정 후 발견 · SQL 인젝션 결과 영향 없음</dd></div>
-          <div><dt>결과</dt><dd><span className="pill up">놓친 공격 {beforeMissed ?? NO_RECORD} → {afterMissed ?? NO_RECORD}</span></dd></div>
+          <div><dt>지표 정의</dt><dd>{def || NO_RECORD}</dd></div>
+          <div><dt>탐지 결과</dt><dd><span className={`pill ${afterMissed === 0 ? 'up' : 'dn'}`}>놓친 공격 {beforeMissed ?? NO_RECORD} → {afterMissed ?? NO_RECORD}</span></dd></div>
         </dl>
       </section>
     </Layout>

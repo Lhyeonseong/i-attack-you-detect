@@ -1,5 +1,6 @@
 import type { AttackerRow, Finding, GapItem, RateRow, RunDetail, SnapshotRow } from '../api/types';
 import { NO_RECORD } from '../lib/ratio';
+import { REPORT_SCENARIOS, FINDING_SCENARIO } from '../lib/reportScenarioMeta';
 
 interface Props {
   run: RunDetail | null;
@@ -13,40 +14,7 @@ interface Props {
   benignLogin: SnapshotRow[];
 }
 
-const SCENARIOS = [
-  {
-    key: 'SQLI',
-    name: 'SQL 인젝션',
-    kisa: 'SI (상)',
-    technique: 'T1190',
-    remediation: '입력값 바인딩(Prepared Statement) 적용',
-    followup: 'Suricata SQL 인젝션 탐지 룰 보완',
-  },
-  {
-    key: 'PATH_TRAVERSAL',
-    name: '경로 조작',
-    kisa: 'FD (상)',
-    technique: 'T1190',
-    remediation: '파일명 DB 매칭 · 확장자 허용 목록 · 경로 문자 필터링',
-    followup: '인코딩 우회 변형 추가 측정',
-  },
-  {
-    key: 'SSRF',
-    name: '서버 측 요청 위조 (SSRF)',
-    kisa: 'SF (상)',
-    technique: 'T1190',
-    remediation: '허용 URL · IP 목록 검증 · 내부 주소 차단 · 네트워크 분리',
-    followup: 'SSRF 탐지 및 내부 서비스 도달 검증 유지',
-  },
-  {
-    key: 'BRUTE_FORCE',
-    name: '인증 시도 제한 없음 · 약한 비밀번호',
-    kisa: 'AU (상)',
-    technique: 'T1110',
-    remediation: '로그인 시도 횟수 제한 · 비밀번호 정책 강화 · 추가 인증',
-    followup: '정상 로그인 오탐 조건 보완',
-  },
-] as const;
+const SCENARIOS = REPORT_SCENARIOS;
 
 function rate(rows: RateRow[], metricId: string, scopeKey: string) {
   return rows.find(
@@ -76,6 +44,51 @@ export function ReportPdf({
   const loginNids = benignLogin.find(
     (r) => r.metric_id === 'M14a_NIDS' && r.scope_key === 'BRUTE_FORCE',
   );
+  const loginBackend = benignLogin.find(
+    (r) => r.metric_id === 'M14a_BACKEND_CORR' && r.scope_key === 'BRUTE_FORCE',
+  );
+
+  const sensorFor = (metricId: string, key: string) =>
+    snapshot.find(
+      (r) => r.metric_id === metricId
+        && r.scope_kind === 'SCENARIO'
+        && r.scope_key === key,
+    );
+
+  const sensorText = (row: SnapshotRow | undefined) => {
+    if (!row || row.n <= 0 || row.status === 'NOT_APPLICABLE' || row.status === 'NO_RULE') {
+      return '대상 아님';
+    }
+    return `${row.x ?? 0}/${row.n}`;
+  };
+
+  const findingScenario = FINDING_SCENARIO;
+
+  const findingDetectionText = (id: string) => {
+    const key = findingScenario[id];
+    if (!key) return NO_RECORD;
+
+    const app = sensorText(sensorFor('M13_APP_RULE', key));
+    const nids = sensorText(sensorFor('M13_NIDS', key));
+    const backend = sensorText(sensorFor('M13_BACKEND_CORR', key));
+
+    const parts = [`앱 로그 ${app}`, `네트워크 ${nids}`];
+
+    if (backend !== '대상 아님') {
+      parts.push(`백엔드 상관 ${backend}`);
+    }
+
+    if (key === 'BRUTE_FORCE') {
+      parts.push(
+        `최종 FP ${loginBackend ? `${loginBackend.x ?? 0}/${loginBackend.n}` : NO_RECORD}`
+      );
+      if (loginNids) {
+        parts.push(`원시 NIDS ${loginNids.x ?? 0}/${loginNids.n}`);
+      }
+    }
+
+    return parts.join(' · ');
+  };
 
   return (
     <article className="pdf-report">
@@ -128,7 +141,7 @@ export function ReportPdf({
                 <td>{f.location}</td>
                 <td>{f.kisa}</td>
                 <td>{f.target_status}</td>
-                <td>{f.detection}</td>
+                <td>{findingDetectionText(f.id)}</td>
               </tr>
             ))}
           </tbody>
@@ -155,7 +168,7 @@ export function ReportPdf({
                       <div><dt>확인된 영향</dt><dd>{f.impact}</dd></div>
                       <div><dt>분류</dt><dd>{f.tags.join(' · ')}</dd></div>
                       <div><dt>ATT&amp;CK</dt><dd>{f.technique_id}</dd></div>
-                      <div><dt>탐지</dt><dd>{f.detection}</dd></div>
+                      <div><dt>탐지</dt><dd>{findingDetectionText(f.id)}</dd></div>
                       <div><dt>취약점 조치</dt><dd>{f.remediation}</dd></div>
                       <div><dt>탐지 보완</dt><dd>{f.detection_followup}</dd></div>
                     </dl>
@@ -179,8 +192,10 @@ export function ReportPdf({
             {SCENARIOS.map((s) => {
               const r = rate(rates, 'M02', s.key);
               const pct = r?.p != null ? `${(r.p * 100).toFixed(1)}%` : NO_RECORD;
-              const followup = s.key === 'BRUTE_FORCE' && loginNids
-                ? `${s.followup} · 정상 로그인 네트워크 오탐 ${loginNids.x ?? 0}/${loginNids.n}`
+              const followup = s.key === 'BRUTE_FORCE'
+                ? `${s.followup}`
+                  + ` · 최종 FP ${loginBackend ? `${loginBackend.x ?? 0}/${loginBackend.n}` : NO_RECORD}`
+                  + (loginNids ? ` · 원시 NIDS ${loginNids.x ?? 0}/${loginNids.n}` : '')
                 : s.followup;
               return (
                 <tr key={s.key}>
@@ -252,7 +267,7 @@ export function ReportPdf({
           관제 탐지 및 상관분석을 수행했습니다. 현재 측정 기준 탐지는
           {' '}
           <b>{currentAll ? `${currentAll.x}/${currentAll.n}` : NO_RECORD}</b>
-          이며, 발견된 탐지 공백과 오탐 항목은 개선·재검증 이력으로 관리합니다.
+          이며, 현재 탐지 공백과 정상 트래픽 오탐 여부는 최신 실측값으로 재검증해 관리합니다.
         </p>
       </section>
 

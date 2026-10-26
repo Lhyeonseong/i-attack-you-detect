@@ -1,12 +1,12 @@
 /* Q2 공격 결과 */
 [data-testid="screen-attacks"] {
-  gap: 23px;
+  gap: 24px;
 
   .eyebrow { color: var(--accent); font-size: 11px; font-weight: 650; }
   .heading h1 { font-size: 24px; font-weight: 600; line-height: 36px; margin: 8px 0; }
   .heading p { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0; }
   .note { color: var(--muted); background: var(--accentbg); border-left: 2px solid var(--accent); font-size: 11px; line-height: 1.6; padding: 12px 14px; border-radius: 0 6px 6px 0; }
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 24px; min-width: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 22px; min-width: 0; }
   .frow { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
   .frow label { color: var(--text); font-size: 11px; font-weight: 700; margin-right: 5px; }
   .inp, .selc { min-height: 36px; padding: 8px 11px; border: 1px solid var(--border); border-radius: 7px; background: var(--alt); color: var(--text); font: inherit; font-size: 12px; box-sizing: border-box; }
@@ -24,7 +24,7 @@
   .tab { font: inherit; font-size: 16px; font-weight: 600; padding: 13px 20px; min-height: 48px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); cursor: pointer; border-radius: 8px 8px 0 0; }
   .tab[aria-selected="true"] { color: var(--accent); background: var(--panel); border-bottom-color: var(--accent); }
   .cards2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
-  .cc { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; font-size: 12px; }
+  .cc { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; font-size: 12px; }
   .cc b { font-size: 13px; }
   .cc p { color: var(--muted); margin: 8px 0; }
   .link { color: var(--accent); font-weight: 700; font-size: 11px; white-space: nowrap; }
@@ -48,7 +48,7 @@
   .ev { position: absolute; top: 6px; height: 18px; width: 18px; margin-left: -9px; border-radius: 5px; }
   .phv { border: 1px dashed #ffffff66; border-radius: 5px; padding: 0 5px; color: #ffffff99; }
   .topo { display: grid; grid-template-columns: 1fr 60px 1.2fr 60px 1fr; align-items: center; gap: 0; margin-top: 8px; }
-  .node { border: 1px solid var(--border); border-radius: 12px; padding: 16px; background: var(--alt); font-size: 12px; color: var(--muted); }
+  .node { border: 1px solid var(--border); border-radius: 14px; padding: 16px; background: var(--alt); font-size: 12px; color: var(--muted); }
   .node b { display: block; color: var(--text); font-size: 13px; margin-bottom: 6px; }
   .arr { height: 2px; background: var(--border); position: relative; }
   .arr::after { content: ""; position: absolute; right: -1px; top: -4px; border-left: 8px solid #ffffff4d; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }

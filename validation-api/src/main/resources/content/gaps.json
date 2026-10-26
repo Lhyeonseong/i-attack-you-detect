@@ -1,6 +1,54 @@
 [
-  { "id": "Gap #7", "title": "SQL 인젝션 미탐 · Gap #7", "detail": "따옴표만 있는 주입 요청을 룰 100210이 놓침", "control": "앱 로그", "found_run": "S4-STACK-6-BASELINE", "found_note": "놓침 20 / 20", "fix": "룰 100211 추가", "fix_note": "4668e71", "reval_run": "S5-SQLI-AFTER", "reval_note": "놓침 0 / 20", "status": "해결" },
-  { "id": "Gap #7n", "title": "SQL 인젝션 미탐 · Gap #7", "detail": "네트워크 룰 1000013이 %27만 검색", "control": "네트워크", "found_run": "S4-STACK-6-BASELINE", "found_note": "0 / 20", "fix": "—", "fix_note": "", "reval_run": "S5-SQLI-AFTER", "reval_note": "0 / 20", "status": "잔존" },
-  { "id": "Gap-login", "title": "정상 로그인 오탐", "detail": "룰 1000031 · 1000032를 HTTP 401 실패 응답 기반으로 보완했으며 일부 정상 오타는 잔존 오탐으로 측정", "control": "네트워크", "found_run": "S4-5 login", "found_note": "76 / 300", "fix": "HTTP 401 실패 응답 기반 탐지로 보완", "fix_note": "", "reval_run": "—", "reval_note": "", "status": "개선 예정" },
-  { "id": "Gap-ssrf-ctrl", "title": "대조 요청 성공 오판", "detail": "SSRF 대조(example.com)를 공격 성공으로 판단", "control": "측정 도구", "found_run": "S5-SQLI-AFTER", "found_note": "", "fix": "—", "fix_note": "", "reval_run": "—", "reval_note": "", "status": "발견" }
+  {
+    "id": "Gap #7",
+    "title": "SQL 인젝션 미탐 · Gap #7",
+    "detail": "따옴표만 있는 주입 요청을 룰 100210이 놓침",
+    "control": "앱 로그",
+    "found_run": "S4-STACK-6-BASELINE",
+    "found_note": "놓침 20 / 20",
+    "fix": "룰 100211 추가",
+    "fix_note": "4668e71",
+    "reval_run": "S5-SQLI-AFTER",
+    "reval_note": "놓침 0 / 20",
+    "status": "해결"
+  },
+  {
+    "id": "Gap #7n",
+    "title": "SQL 인젝션 미탐 · Gap #7",
+    "detail": "초기 측정에서 네트워크 SQL 인젝션 탐지 공백을 확인했습니다.",
+    "control": "네트워크",
+    "found_run": "S4-STACK-6-BASELINE",
+    "found_note": "0 / 20",
+    "fix": "—",
+    "fix_note": "",
+    "reval_run": "S5-SQLI-AFTER",
+    "reval_note": "0 / 20",
+    "status": "발견"
+  },
+  {
+    "id": "Gap-login",
+    "title": "정상 로그인 오탐",
+    "detail": "초기 정상 로그인 측정에서 네트워크 경보가 정상 요청과 겹치는 문제를 확인했습니다.",
+    "control": "네트워크",
+    "found_run": "S4-5 login",
+    "found_note": "76 / 300",
+    "fix": "HTTP 401 실패 응답 기반 탐지로 보완",
+    "fix_note": "",
+    "reval_run": "—",
+    "reval_note": "",
+    "status": "발견"
+  },
+  {
+    "id": "Gap-ssrf-ctrl",
+    "title": "대조 요청 성공 오판",
+    "detail": "초기 측정에서 SSRF 대조 요청의 성공 판정 오류를 확인했습니다.",
+    "control": "측정 도구",
+    "found_run": "S5-SQLI-AFTER",
+    "found_note": "초기 측정에서 판정 오류 확인",
+    "fix": "—",
+    "fix_note": "",
+    "reval_run": "—",
+    "reval_note": "",
+    "status": "발견"
+  }
 ]
